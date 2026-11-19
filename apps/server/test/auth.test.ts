@@ -18,6 +18,14 @@ describe('Google claim checks (LLD §15.1)', () => {
     expect(checkGoogleClaims({ ...ok, hd: 'other.ac.in' }, ['cnlu.ac.in'])).toMatchObject({ reason: 'hd_mismatch' });
     expect(checkGoogleClaims({ email_verified: true }, ['cnlu.ac.in'])).toMatchObject({ reason: 'missing_claims' });
   });
+  it('skips only the hd check when told to (development), never the domain or verification checks', () => {
+    const gmail = { email: 'tester@gmail.com', email_verified: true, sub: '9' };
+    expect(checkGoogleClaims(gmail, ['gmail.com'], { requireHd: false })).toMatchObject({ ok: true, email: 'tester@gmail.com' });
+    expect(checkGoogleClaims(gmail, ['gmail.com'])).toMatchObject({ reason: 'hd_mismatch' });
+    expect(checkGoogleClaims(gmail, ['cnlu.ac.in'], { requireHd: false })).toMatchObject({ reason: 'domain_not_allowed' });
+    expect(checkGoogleClaims({ ...gmail, email_verified: false }, ['gmail.com'], { requireHd: false })).toMatchObject({ reason: 'email_unverified' });
+  });
+
   it('checks the dev-login domain the same way', () => {
     expect(domainAllowed('a@cnlu.ac.in', ['cnlu.ac.in'])).toBe(true);
     expect(domainAllowed('a@gmail.com', ['cnlu.ac.in'])).toBe(false);

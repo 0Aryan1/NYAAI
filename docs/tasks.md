@@ -17,7 +17,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 ## Day 1: Schema + RLS, sign-in, ingestion 1–3, statute splitter
 - [x] `0001_init.sql`: all 41 tables, enums, indexes, RLS policies, `global_college()`, `auth_find_user()` (+ `auth_accept_invite()`), dev seed
 - [x] Tenant middleware (`req.db`, SET LOCAL per transaction) + RLS tests (9: pooled connection, A vs B, worker, editor, library, role/budget guards)
-- [x] Sign-in: dev stub login working; Google OIDC code path written and claim checks tested (switched off until the client exists); session JWT, CSRF, rate limits
+- [x] Sign-in: dev stub login + **Google sign-in verified live** with a test client (Gmail, `GOOGLE_SKIP_HD_CHECK` in development); session JWT, CSRF, rate limits. CNLU's own Workspace client still needed for the pilot
 - [x] Ingestion stages 1–4: fetch, extract (PDF/HTML/text), clean, split; `ingest` queue + worker + `pnpm ingest:source` CLI
 - [x] Statute splitter with tests (ICA ss. 25, 32, 56; Art. 19; provisos, explanations, footnotes, orphan check)
 - [x] Web: login (dev accounts), setup wizard (consent + 5 steps; 3 are placeholders), app shell, Home with empty chips and gated Prepare

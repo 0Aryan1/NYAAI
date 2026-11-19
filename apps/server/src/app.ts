@@ -72,7 +72,7 @@ export function createApp({ config, logger, pool, redis, queues }: AppDeps) {
           config.GOOGLE_CLIENT_ID,
           config.GOOGLE_CLIENT_SECRET,
           `${config.WEB_ORIGIN}/api/v1/auth/google/callback`,
-          config.ALLOWED_EMAIL_DOMAINS[0],
+          config.GOOGLE_SKIP_HD_CHECK ? undefined : config.ALLOWED_EMAIL_DOMAINS[0],
           config.SESSION_SECRET,
         )
       : null;

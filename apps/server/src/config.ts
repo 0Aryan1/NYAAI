@@ -45,6 +45,8 @@ const Schema = z
     GOOGLE_CLIENT_SECRET: optional,
     ALLOWED_EMAIL_DOMAINS: csv,
     DEV_LOGIN: bool,
+    /** Development only: accept Google accounts without a Workspace `hd` claim (e.g. Gmail) for local testing. */
+    GOOGLE_SKIP_HD_CHECK: bool,
 
     SESSION_SECRET: z.string().min(32, 'must be at least 32 characters'),
     CSRF_SECRET: z.string().min(32, 'must be at least 32 characters'),
@@ -74,6 +76,9 @@ const Schema = z
   .superRefine((env, ctx) => {
     if (env.DEV_LOGIN && env.NODE_ENV !== 'development') {
       ctx.addIssue({ code: 'custom', path: ['DEV_LOGIN'], message: 'is allowed only when NODE_ENV=development' });
+    }
+    if (env.GOOGLE_SKIP_HD_CHECK && env.NODE_ENV !== 'development') {
+      ctx.addIssue({ code: 'custom', path: ['GOOGLE_SKIP_HD_CHECK'], message: 'is allowed only when NODE_ENV=development' });
     }
     if (env.NODE_ENV === 'production') {
       for (const key of PROVIDER_KEYS) {

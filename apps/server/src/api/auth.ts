@@ -94,7 +94,7 @@ export function authRouter({ config, pool, redis, google }: AuthRouterDeps) {
       req.log?.warn({ err }, 'google sign-in failed');
       return fail('google_failed');
     }
-    const check = checkGoogleClaims(claims, config.ALLOWED_EMAIL_DOMAINS);
+    const check = checkGoogleClaims(claims, config.ALLOWED_EMAIL_DOMAINS, { requireHd: !config.GOOGLE_SKIP_HD_CHECK });
     if (!check.ok) return fail(check.reason);
     const result = await findOrAcceptUser(pool, check.email, check.name, check.sub);
     if (!result.ok) return fail(result.reason);

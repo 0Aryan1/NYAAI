@@ -24,10 +24,11 @@ Append the newest entries at the top of each section. Never put secrets here.
 | Anthropic API | ✅ available; paste into `.env` as `ANTHROPIC_API_KEY` (still blank) |
 | Voyage AI | ✅ available; paste as `VOYAGE_API_KEY` (still blank) |
 | Indian Kanoon API | ✅ available; paste as `INDIAN_KANOON_TOKEN` (still blank) |
-| Google OAuth client | ❌ not yet; dev stub login (`DEV_LOGIN=true`, development only) |
+| Google OAuth client | ✅ test client (Aryan's Google Cloud project "NYAAI", External, Testing mode, redirect `http://localhost:5173/api/v1/auth/google/callback`); live sign-in verified 2026-11-20. The pilot still needs CNLU's own client (Internal, cnlu.ac.in). |
 | Perplexity, Cohere, Langfuse, Sentry | not needed for week 1 |
 
 ## Mocks and stand-ins currently in place
+- Google sign-in works locally with a Gmail test account (`aryanagrawal0102@gmail.com`, invited as admin) because `GOOGLE_SKIP_HD_CHECK=true` (development only). Remove it, and set `ALLOWED_EMAIL_DOMAINS=cnlu.ac.in`, once CNLU's Workspace client exists.
 - Sign-in: dev stub login (`POST /auth/dev-login`, only when `DEV_LOGIN=true` and `NODE_ENV=development`). Seeded accounts: `teacher.a@`, `teacher.b@`, `admin@`, `editor@cnlu.ac.in` (`pnpm db:seed`). Google code is in place and returns 503 until `GOOGLE_CLIENT_ID`/`SECRET` are set.
 - Setup steps Old slides, Template and Courses are placeholders with "Skip for now" (Day 4).
 - Home's Prepare button shows a "being switched on" note; building starts Day 3.
@@ -38,6 +39,7 @@ Append the newest entries at the top of each section. Never put secrets here.
   - SeaweedFS S3 on **19000** (stands in for R2/S3)
 
 ## Build decisions (with reasons)
+- **2026-11-20, `GOOGLE_SKIP_HD_CHECK` (development only).** The app accepts only Google Workspace accounts (`hd` claim = the email's domain, LLD §15.1). appnox.ai mail is on Hostinger and Gmail has no `hd`, so no local test account could pass. The switch skips only the `hd` check (and the `hd` hint to Google); verified email, allowed domain and invitation still apply. Config refuses it outside `NODE_ENV=development`; tests cover both.
 - **2026-11-20, India Code moved to https://indiacode.gov.in** (the old indiacode.nic.in only redirects, which is why fetches timed out). The new site is DSpace 7 with a public REST API:
   - Search: `/server/api/discover/search/objects?query=dc.identifier.collection:ACT AND dc.date.act_year:1872 AND dc.identifier.state_name:CENTRAL&dsoType=ITEM`. Central Acts have `state_name = CENTRAL`; each section is also its own item, so filter on the ACT collection.
   - Files: `/server/api/core/items/<uuid>?embed=bundles/bitstreams`; the English PDF is the `a<year>-<no>.pdf` bitstream in the ORIGINAL bundle (`H…pdf` is Hindi), downloaded from `…/bitstreams/<uuid>/content`.

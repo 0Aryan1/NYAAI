@@ -39,6 +39,8 @@ describe('config', () => {
   it('allows DEV_LOGIN only in development', () => {
     expect(parseConfig({ ...base, DEV_LOGIN: 'true' }).DEV_LOGIN).toBe(true);
     expect(() => parseConfig({ ...base, NODE_ENV: 'production', DEV_LOGIN: 'true' })).toThrow(/DEV_LOGIN/);
+    expect(() => parseConfig({ ...base, NODE_ENV: 'production', GOOGLE_SKIP_HD_CHECK: 'true' })).toThrow(/GOOGLE_SKIP_HD_CHECK/);
+    expect(parseConfig({ ...base, GOOGLE_SKIP_HD_CHECK: 'true' }).GOOGLE_SKIP_HD_CHECK).toBe(true);
   });
 
   it('requires provider keys and Google sign-in in production', () => {
