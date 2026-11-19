@@ -13,7 +13,7 @@ const ONE_DOOR = {
 };
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/.turbo/**', '**/coverage/**', 'infra/**'] },
+  { ignores: ['**/node_modules/**', '**/dist/**', '**/.turbo/**', '**/coverage/**', 'infra/**', 'packages/db/src/schema/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

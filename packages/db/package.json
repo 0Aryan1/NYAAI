@@ -3,8 +3,23 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc -p .", "test": "vitest run --passWithNoTests", "migrate": "tsx scripts/migrate.ts" },
-  "dependencies": { "pg": "^8.23.1", "drizzle-orm": "^0.45.4" },
-  "devDependencies": { "@types/pg": "^8.23.1", "drizzle-kit": "^0.31.11", "tsx": "^4.23.15" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run --passWithNoTests",
+    "migrate": "tsx scripts/migrate.ts",
+    "seed": "tsx scripts/seed.ts",
+    "schema:pull": "drizzle-kit pull && tsx scripts/fix-schema.ts"
+  },
+  "dependencies": {
+    "pg": "^8.23.1",
+    "drizzle-orm": "^0.45.4"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15"
+  }
 }

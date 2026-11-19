@@ -1,9 +1,12 @@
 import { Queue, Worker } from 'bullmq';
+import { createPool } from '@nyaai/db';
 import { loadConfig, missingProviderKeys } from './config.ts';
 import { createLogger } from './logger.ts';
 import { createRedis } from './redis.ts';
-import { TIMEZONE } from './jobs/queues.ts';
+import { TIMEZONE, ingestBackoff } from './jobs/queues.ts';
 import { opsProcessor } from './jobs/ops.ts';
+import { ingestProcessor } from './jobs/ingest.ts';
+import { createStorage } from './services/storage/index.ts';
 
 const config = { ...loadConfig(), APP_ROLE: 'worker' as const };
 const logger = createLogger(config);
@@ -11,12 +14,33 @@ const connection = createRedis(config.REDIS_URL);
 
 const missing = missingProviderKeys(config);
 if (missing.length) logger.warn({ missing }, 'provider keys not set; jobs that need them will fail until added to .env');
+if (!config.DATABASE_URL_LIBRARY) {
+  logger.fatal('DATABASE_URL_LIBRARY is required by the worker (shared library ingestion).');
+  process.exit(1);
+}
+
+const library = createPool(config.DATABASE_URL_LIBRARY, 4);
+const storage = createStorage({
+  endpoint: config.S3_ENDPOINT,
+  region: config.S3_REGION,
+  bucket: config.S3_BUCKET,
+  accessKeyId: config.S3_ACCESS_KEY_ID,
+  secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+});
 
 const opsQueue = new Queue('ops', { connection });
-const opsWorker = new Worker('ops', opsProcessor(logger), { connection: createRedis(config.REDIS_URL), concurrency: 1 });
-
-opsWorker.on('completed', (job) => logger.info({ job: job.name, id: job.id }, 'job completed'));
-opsWorker.on('failed', (job, err) => logger.error({ job: job?.name, id: job?.id, err }, 'job failed'));
+const workers = [
+  new Worker('ops', opsProcessor(logger), { connection: createRedis(config.REDIS_URL), concurrency: 1 }),
+  new Worker('ingest', ingestProcessor({ library, storage, publisher: connection, logger }), {
+    connection: createRedis(config.REDIS_URL),
+    concurrency: 4,
+    settings: { backoffStrategy: (attemptsMade: number) => ingestBackoff(attemptsMade) },
+  }),
+];
+for (const w of workers) {
+  w.on('completed', (job) => logger.info({ job: job.name, id: job.id }, 'job completed'));
+  w.on('failed', (job, err) => logger.error({ job: job?.name, id: job?.id, attempt: job?.attemptsMade, err }, 'job failed'));
+}
 
 // Scheduler (HLD §3): repeatable jobs live in the worker. Nightly checks (02:00 IST) arrive in week 2.
 await opsQueue.upsertJobScheduler('ops.usage_rollup', { pattern: '0 * * * *', tz: TIMEZONE }, { name: 'ops.usage_rollup' });
@@ -26,9 +50,9 @@ logger.info('worker started; ops.ping queued');
 
 async function shutdown(signal: string) {
   logger.info({ signal }, 'shutting down');
-  await opsWorker.close();
+  await Promise.allSettled(workers.map((w) => w.close()));
   await opsQueue.close();
-  await connection.quit();
+  await Promise.allSettled([library.end(), connection.quit()]);
   process.exit(0);
 }
 process.once('SIGINT', () => void shutdown('SIGINT'));

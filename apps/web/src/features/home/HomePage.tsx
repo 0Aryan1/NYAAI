@@ -1,72 +1,120 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/shared/api/client';
-import { ThemeSwitch } from './ThemeSwitch';
+import { LENGTH_CHOICES, LEVEL_CHOICES, STYLE_CHOICES } from '@nyaai/shared';
+import { api, queryKeys } from '@/shared/api/client';
+import { Button } from '@/shared/ui/button';
+import { ChipGroup } from '@/shared/ui/chip-group';
 
-function StatusDot({ ok }: { ok: boolean | undefined }) {
-  const label = ok === undefined ? 'Checking' : ok ? 'Working' : 'Not reachable';
-  return (
-    <span className="inline-flex items-center gap-2 text-sm">
-      <span aria-hidden className={`size-2 rounded-full ${ok === undefined ? 'bg-border' : ok ? 'bg-success' : 'bg-danger'}`} />
-      {label}
-    </span>
-  );
-}
+export const ONE_OFF = 'one_off';
 
-/** Day 0 placeholder for Home: shows the system is wired end to end and the token palette in both themes. */
+/**
+ * Home (LLD §12.3, HOME-1 to HOME-6). Topic box on top; four chip rows that start empty and are never
+ * remembered between visits (HOME-4, HOME-5); Prepare stays disabled until all four and a topic are chosen,
+ * and says what is missing (HOME-6). Suggestions, hints and the build itself arrive on Days 2–3.
+ */
 export function HomePage() {
-  const health = useQuery({ queryKey: ['health'], queryFn: api.health, refetchInterval: 10_000 });
-  const h = health.data;
+  const home = useQuery({ queryKey: queryKeys.home, queryFn: api.home });
+  const [topic, setTopic] = useState('');
+  const [course, setCourse] = useState<string | null>(null);
+  const [length, setLength] = useState<string | null>(null);
+  const [level, setLevel] = useState<string | null>(null);
+  const [style, setStyle] = useState<string | null>(null);
+  const [mustInclude, setMustInclude] = useState('');
+  const [special, setSpecial] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const courseOptions = [
+    ...(home.data?.courses ?? []).map((c) => ({
+      value: c.id,
+      label: c.name,
+      hint: c.nextUnit ? `next: L${String(c.nextUnit.position).padStart(2, '0')} ${c.nextUnit.title}` : undefined,
+    })),
+    { value: ONE_OFF, label: 'No course, one-off' },
+  ];
+
+  const missing = [
+    topic.trim().length < 3 && 'a topic',
+    !course && 'a course (or one-off)',
+    !length && 'a class length',
+    !level && 'a level',
+    !style && 'a style',
+  ].filter((m): m is string => Boolean(m));
+  const ready = missing.length === 0;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <header className="mb-8 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold leading-tight">NYAAI</h1>
-          <p className="text-sm text-muted">Source-checked law lectures in your own style</p>
+    <div className="mx-auto max-w-3xl">
+      <h1 className="mb-6 text-2xl font-semibold">Prepare a lecture</h1>
+
+      <div className="mb-8">
+        <label htmlFor="topic" className="mb-2 block text-sm font-medium">
+          What do you want to teach?
+        </label>
+        <input
+          id="topic"
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          maxLength={200}
+          placeholder="A topic, a section, a case or a question, e.g. frustration of contract, s. 56"
+          className="h-12 w-full rounded-control border border-border bg-surface px-4 text-base placeholder:text-muted focus:border-accent"
+        />
+      </div>
+
+      <div className="space-y-6">
+        <ChipGroup label="Course" options={courseOptions} value={course} onChange={setCourse} />
+        <ChipGroup
+          label="Class length"
+          options={LENGTH_CHOICES.map((m) => ({ value: String(m), label: `${m} min` }))}
+          value={length}
+          onChange={setLength}
+        />
+        <ChipGroup label="Level" options={LEVEL_CHOICES} value={level} onChange={setLevel} />
+        <ChipGroup label="Style" options={STYLE_CHOICES} value={style} onChange={setStyle} />
+      </div>
+
+      <details className="mt-8 rounded-card border border-border bg-surface p-4">
+        <summary className="cursor-pointer text-sm font-medium">Add your own example or a special request (optional)</summary>
+        <div className="mt-4 space-y-4">
+          <div>
+            <label htmlFor="must" className="mb-1 block text-sm">Must include</label>
+            <textarea
+              id="must"
+              value={mustInclude}
+              onChange={(e) => setMustInclude(e.target.value)}
+              maxLength={1000}
+              rows={2}
+              placeholder="An example of yours the lecture must use"
+              className="w-full rounded-control border border-border bg-bg px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="special" className="mb-1 block text-sm">Anything special?</label>
+            <input
+              id="special"
+              value={special}
+              onChange={(e) => setSpecial(e.target.value)}
+              maxLength={500}
+              placeholder="e.g. more case stories this time"
+              className="h-10 w-full rounded-control border border-border bg-bg px-3 text-sm"
+            />
+          </div>
         </div>
-        <ThemeSwitch />
-      </header>
+      </details>
 
-      <section aria-labelledby="sys" className="mb-6 rounded-card border border-border bg-surface p-5">
-        <h2 id="sys" className="mb-3 text-base font-semibold">System</h2>
-        <dl className="grid grid-cols-[8rem_1fr] gap-y-2 text-sm" aria-live="polite">
-          <dt className="text-muted">Server</dt>
-          <dd><StatusDot ok={health.isError ? false : h ? true : undefined} /></dd>
-          <dt className="text-muted">Database</dt>
-          <dd><StatusDot ok={health.isError ? false : h ? h.db === 'ok' : undefined} /></dd>
-          <dt className="text-muted">Job queue</dt>
-          <dd><StatusDot ok={health.isError ? false : h ? h.redis === 'ok' : undefined} /></dd>
-          <dt className="text-muted">Search index</dt>
-          <dd className="text-sm">{h?.pgvector ? `pgvector ${h.pgvector}` : '—'}</dd>
-        </dl>
-      </section>
-
-      <section aria-labelledby="marks" className="rounded-card border border-border bg-surface p-5">
-        <h2 id="marks" className="mb-3 text-base font-semibold">How statements are marked</h2>
-        <ul className="space-y-3 text-sm">
-          <li className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-border px-2 py-0.5 text-xs">S2 · s. 56 ICA</span>
-            Supported by that source
-          </li>
-          <li>
-            <span className="underline decoration-flag-yellow-underline decoration-2 underline-offset-4">
-              The agreement becomes void when performance becomes impossible.
-            </span>{' '}
-            <span className="rounded-full bg-flag-yellow-bg px-2 py-0.5 text-xs text-flag-yellow">Please verify</span>
-          </li>
-          <li className="flex flex-wrap items-center gap-2">
-            <span className="font-serif italic">Satyabrata Ghose v. Mugneeram Bangur</span>
-            <span className="rounded-full bg-flag-grey-bg px-2 py-0.5 text-xs text-flag-grey">Status not verified</span>
-          </li>
-          <li>
-            <span className="rounded-card bg-flag-coverage-bg px-2 py-1 text-xs text-flag-coverage">Missing: exception to s. 56</span>
-          </li>
-          <li>
-            <span className="rounded-full bg-example-bg px-2 py-0.5 text-xs text-example">Your example</span>{' '}
-            A wedding hall booking cancelled in lockdown
-          </li>
-        </ul>
-      </section>
-    </main>
+      <div className="mt-8 flex flex-wrap items-center gap-4">
+        <Button
+          variant="primary"
+          size="lg"
+          disabled={!ready}
+          aria-describedby="prepare-hint"
+          title={ready ? undefined : `Still needed: ${missing.join(', ')}`}
+          onClick={() => setNotice('Building lectures is being switched on in the next update.')}
+        >
+          Prepare
+        </Button>
+        <p id="prepare-hint" className="text-sm text-muted" aria-live="polite">
+          {ready ? (notice ?? 'Ready when you are.') : `Still needed: ${missing.join(', ')}.`}
+        </p>
+      </div>
+    </div>
   );
 }

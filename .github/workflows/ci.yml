@@ -12,6 +12,28 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_ci
+          POSTGRES_DB: nyaai
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nyaai"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://nyaai_app:nyaai_app_dev@localhost:5432/nyaai
+      DATABASE_URL_WORKER: postgres://nyaai_worker:nyaai_worker_dev@localhost:5432/nyaai
+      DATABASE_URL_LIBRARY: postgres://nyaai_library:nyaai_library_dev@localhost:5432/nyaai
+      DATABASE_URL_MIGRATE: postgres://nyaai_owner:nyaai_owner_dev@localhost:5432/nyaai
+      REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -22,4 +44,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      # Same roles and extensions as local (infra/postgres/init), then the real migrations.
+      - run: PGPASSWORD=postgres_ci psql -h localhost -U postgres -d nyaai -v ON_ERROR_STOP=1 -f infra/postgres/init/00-roles.sql
+      - run: pnpm db:migrate
       - run: pnpm test

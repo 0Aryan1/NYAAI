@@ -15,12 +15,16 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Verified: install, lint, typecheck, test, compose healthy, `pnpm dev` health OK
 
 ## Day 1: Schema + RLS, sign-in, ingestion 1–3, statute splitter
-- [ ] `0001_init.sql`: all 41 tables, enums, indexes, RLS policies, `global_college()`, `auth_find_user()`
-- [ ] Tenant middleware (SET LOCAL per transaction) + RLS tests (pooled connection, A vs B)
-- [ ] Sign-in: Google OIDC (when the client exists) + dev stub login; session JWT, CSRF
-- [ ] Ingestion stages: fetch, extract, clean; statute splitter with tests (ICA ss. 25, 32, 56; Art. 19)
-- [ ] Web: login, setup wizard shell, Home layout with chips
-- [ ] Done when: a loaded Act appears as section chunks; RLS tests green
+- [x] `0001_init.sql`: all 41 tables, enums, indexes, RLS policies, `global_college()`, `auth_find_user()` (+ `auth_accept_invite()`), dev seed
+- [x] Tenant middleware (`req.db`, SET LOCAL per transaction) + RLS tests (9: pooled connection, A vs B, worker, editor, library, role/budget guards)
+- [x] Sign-in: dev stub login working; Google OIDC code path written and claim checks tested (switched off until the client exists); session JWT, CSRF, rate limits
+- [x] Ingestion stages 1–4: fetch, extract (PDF/HTML/text), clean, split; `ingest` queue + worker + `pnpm ingest:source` CLI
+- [x] Statute splitter with tests (ICA ss. 25, 32, 56; Art. 19; provisos, explanations, footnotes, orphan check)
+- [x] Web: login (dev accounts), setup wizard (consent + 5 steps; 3 are placeholders), app shell, Home with empty chips and gated Prepare
+- [x] Done when: a loaded Act appears as section chunks: **official ICA PDF from indiacode.gov.in → 268 units (ss. 1–266 + 19A, 178A; 76 repealed), chapters and pages right**
+- [x] RLS tests green (also in CI with Postgres + Redis service containers)
+- [x] Statute fixtures checked word for word against the official ICA text (ss. 25, 32, 56 now identical)
+- [x] Current Constitution loaded (Legislative Department, as on 10 Sep 2026): 503 Articles + 48 clause-level children, Parts and Chapters labelled; Art. 18–20 fixtures checked word for word
 
 ## Day 2: Judgments, metadata, embeddings, search
 - [ ] Judgment splitter, opinion boundaries, paragraph roles (rules first, then Haiku)

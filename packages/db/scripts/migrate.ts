@@ -28,6 +28,8 @@ await client.connect();
 try {
   await client.query(`create table if not exists schema_migrations (
     name text primary key, checksum text not null, applied_at timestamptz not null default now())`);
+  // Default privileges would hand this table to the runtime roles; it is migration-only.
+  await client.query('revoke all on schema_migrations from nyaai_app, nyaai_worker, nyaai_library');
   const applied = new Map(
     (await client.query<{ name: string; checksum: string }>('select name, checksum from schema_migrations')).rows.map(
       (r) => [r.name, r.checksum],

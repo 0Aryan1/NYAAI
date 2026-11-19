@@ -1,2 +1,3 @@
 pnpm-lock.yaml
 docs/specs/
+packages/db/src/schema

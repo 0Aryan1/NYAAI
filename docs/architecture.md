@@ -7,7 +7,7 @@ Full detail: [HLD §2–9](specs/HLD.md), [LLD §2–8, §15, §17](specs/LLD.md
 Browser (React SPA) ──HTTPS/SSE──▶ API (Express 5) ──enqueue──▶ Redis (BullMQ) ──▶ Worker (same image)
                                      │                                               │
                                      └──────────── PostgreSQL + pgvector ◀───────────┘   (source of truth)
-                                                   Object storage (MinIO/R2/S3)
+                                                   Object storage (SeaweedFS locally / R2 / S3)
 Outside services are called only by the worker: Claude (Sonnet/Haiku), Voyage (embeddings + rerank),
 Indian Kanoon, Perplexity (week 2), official law sites.
 ```

@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.21.0",
-  "engines": { "node": ">=22.12" },
+  "engines": {
+    "node": ">=22.12"
+  },
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
@@ -13,7 +15,10 @@
     "format": "prettier --write .",
     "db:up": "docker compose -f infra/docker-compose.yml up -d --wait",
     "db:down": "docker compose -f infra/docker-compose.yml down",
-    "db:migrate": "pnpm --filter @nyaai/db migrate"
+    "db:migrate": "pnpm --filter @nyaai/db migrate",
+    "db:seed": "pnpm --filter @nyaai/db seed",
+    "db:reset": "docker compose -f infra/docker-compose.yml down -v && pnpm db:up && pnpm db:migrate && pnpm db:seed",
+    "ingest:source": "pnpm --filter @nyaai/server ingest:source"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

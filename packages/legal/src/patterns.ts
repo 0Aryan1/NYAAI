@@ -1,19 +1,26 @@
 /**
- * Statute and Constitution line markers (LLD §6.3). The full splitter lands on Day 1; these patterns are
- * its contract. Dashes: hyphen, en dash, em dash.
+ * Statute and Constitution line markers (LLD §6.3), used by the splitter in statute.ts.
+ * Lines are tested after footnote markers ("1[", "4[(2)") are stripped from their start.
+ * Dashes: hyphen, en dash, em dash.
  */
-const DASH = '[.\\u2014\\u2013-]';
 
 export const STATUTE_PATTERNS = {
-  chapter: /^CHAPTER\s+[IVXLC]+\b/,
-  section: new RegExp(`^\\s*(\\d+[A-Z]{0,2})\\.\\s+(.{3,200}?)${DASH}{1,2}`),
-  subSection: /^\s*\((\d+[A-Z]?)\)\s/,
+  /** CHAPTER IV, or PART III / PART IVA in the Constitution: context header only. */
+  chapter: /^\s*(CHAPTER|PART)\s+([IVXLC]+[A-Z]?|\d+)\b\.?\s*(.*)$/,
+  /**
+   * "56. Agreement to do impossible act.—An agreement ..." The title ends at a full stop followed by a
+   * dash, or at an em/en dash, so hyphenated words ("co-operative") and abbreviations ("etc.") stay in it.
+   */
+  section: /^\s*(\d+[A-Z]{0,3})\.\s*([^\d\s].{1,300}?)\s*(?:\.\s*[—–-]+|[—–]+)\s*(.*)$/,
+  subSection: /^\s*\((\d+[A-Z]?)\)\s*/,
   clause: /^\s*\(([a-z]{1,3}|[ivx]{1,5})\)\s/,
-  proviso: /^\s*Provided\s+(further\s+)?that\b/,
-  explanation: new RegExp(`^\\s*Explanation(\\s+\\d+|\\s+[IVX]+)?\\.?\\s*[\\u2014\\u2013-]`),
+  proviso: /^\s*Provided\s+(further\s+)?(also\s+)?that\b/,
+  explanation: /^\s*Explanation(\s+\d+|\s+[IVX]+)?\.?\s*[—–-]/,
   illustration: /^\s*Illustrations?\b/,
-  exception: /^\s*Exception(\s+\d+|\s+[IVX]+)?\.?/,
-  amendment: /^\s*\d+\.\s*(Subs\.|Ins\.|Omitted)\s+by\b/,
+  exception: /^\s*Exception(\s+\d+|\s+[IVX]+)?\.?(\s*[—–-]|\s*$)/,
+  /** Amendment footnote: "1. Subs. by Act 4 of 1938, s. 2 ...", "3. Sub-clause (f) omitted by s. 2, ibid." */
+  amendment:
+    /^\s*(\d{1,3})\.\s+(?=.*\b(?:Subs\.|Ins\.|Rep\.|(?:Omitted|omitted|repealed|Added|added|inserted|substituted|Renumbered|renumbered)\b))(.*)$/,
 } as const;
 
 export type StatuteMarker = keyof typeof STATUTE_PATTERNS;
