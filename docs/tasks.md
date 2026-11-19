@@ -1,0 +1,69 @@
+# Tasks
+
+Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works on MVP hosting. Build order follows [LLD §16.4](specs/LLD.md) and [HLD §14](specs/HLD.md). Tick items here as they are done.
+
+## Day 0: Monorepo, CI, Docker, config, tokens (done when `pnpm dev` runs web + API + worker)
+- [x] Docs: specs saved, working docs, CLAUDE.md, memory
+- [x] git init, pnpm via corepack, workspace, turbo, tsconfig base, eslint (one-door rule), prettier
+- [x] `.env.example` (LLD §15.4) + `.gitignore`
+- [x] `infra/docker-compose.yml`: pgvector pg17 + DB roles, redis, SeaweedFS S3 + bucket
+- [x] `packages/shared` (ApiError), `packages/db` (drizzle config, `0000_extensions.sql`), `packages/ui` (tokens, fonts)
+- [x] `packages/prompts`, `packages/legal`, `packages/checker-rules` shells with tests; `eval/` README
+- [x] `apps/server`: config schema, API (`/api/v1/health`), worker (`ops.ping`), Dockerfile
+- [x] `apps/web`: Vite + React 19 + Tailwind v4 + router + Query, token-themed placeholder pages
+- [x] CI workflow (lint, typecheck, test)
+- [x] Verified: install, lint, typecheck, test, compose healthy, `pnpm dev` health OK
+
+## Day 1: Schema + RLS, sign-in, ingestion 1–3, statute splitter
+- [ ] `0001_init.sql`: all 41 tables, enums, indexes, RLS policies, `global_college()`, `auth_find_user()`
+- [ ] Tenant middleware (SET LOCAL per transaction) + RLS tests (pooled connection, A vs B)
+- [ ] Sign-in: Google OIDC (when the client exists) + dev stub login; session JWT, CSRF
+- [ ] Ingestion stages: fetch, extract, clean; statute splitter with tests (ICA ss. 25, 32, 56; Art. 19)
+- [ ] Web: login, setup wizard shell, Home layout with chips
+- [ ] Done when: a loaded Act appears as section chunks; RLS tests green
+
+## Day 2: Judgments, metadata, embeddings, search
+- [ ] Judgment splitter, opinion boundaries, paragraph roles (rules first, then Haiku)
+- [ ] Metadata extraction + validation; Voyage embeddings
+- [ ] Search service: filters, vector + FTS, RRF, rerank, parent expansion, outcomes
+- [ ] Web: topic box suggestions, ambiguity dialog, Build screen over SSE
+- [ ] Done when: retrieval hit@8 on the first 15 gold questions
+
+## Day 3: Planner, writer, checks, coverage
+- [ ] LLM gateway (tiers, structured output, caching, cost logging, budget)
+- [ ] planner.lecture, writer.part, writer.repair, checker.support, checker.second
+- [ ] checker-rules C1–C8, C9/C10 orchestration, decision table, coverage
+- [ ] Web: Studio layout, ClaimLine, Source drawer, flag popover
+- [ ] Done when: one full lecture builds with flags and coverage
+
+## Day 4: PPT, edits, course series
+- [ ] PPT builder (pptx-automizer + pptxgenjs fallback), flags in notes, remove-unverified
+- [ ] Edit checks (C1–C8 inline; C9/C10 background); course memory, recap and bridge
+- [ ] Web: autosave and versions, Download dialog, course plan
+- [ ] Done when: J1 end to end; .pptx output tests green
+
+## Day 5: Explore, quick Research, reports queue
+- [ ] Explore (library only), quick Research, wrong-fact reports, library editor queue
+- [ ] Done when: full gold + red-team + planted sets pass
+
+## Day 6: Privacy, deletion, deploy
+- [ ] Delete and export my data; consent screen; axe fixes; empty, error and slow states; landing page
+- [ ] Done when: E2E J1 and J3 green; pilot live
+
+## Day 7: With teachers
+- [ ] Teachers repeat the end-to-end video on their own topics
+
+## Weeks 2–4 (Should items, HLD §14.1)
+AWS Mumbai move · teaching coach · merge/split units · web search + What's new · nightly checks (F5) · add one-off to course (F9) · case-status suggestion job · second-check measurement · checker false-flag tuning · reading list · topic brief and tutorial problems · thorough Research · Word/PDF export · Langfuse · contract tests · k6 · ZAP · metrics dashboard.
+
+## Launch checklist (BRD §12)
+See [BRD §12](specs/BRD.md). Copy items here as they become actionable.
+
+## Open questions (BRD §11, HLD §14.4)
+- [ ] Pilot teachers and courses (about 2 courses, 8 topics)
+- [ ] CNLU data-residency exception: who signs, and when
+- [ ] Indian Kanoon storage terms (decides `KANOON_CACHE_DAYS`)
+- [ ] Named law experts (library editor, criminal-law reviewer, gold-set authors, weekly checker)
+- [ ] Google OAuth client for the CNLU domain
+- [ ] 3 ready CNLU slide templates
+- [ ] Production domain

@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "nyaai-dev",
+      "credentials": [{ "accessKey": "nyaai", "secretKey": "nyaai-s3-dev" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

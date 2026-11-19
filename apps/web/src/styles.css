@@ -1,0 +1,47 @@
+@import 'tailwindcss';
+@import '@nyaai/ui/fonts.css';
+@import '@nyaai/ui/tokens.css';
+
+/* Map NYAAI tokens (LLD §13.1) into Tailwind utilities: bg-surface, text-muted, border-border, ... */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-flag-yellow: var(--flag-yellow);
+  --color-flag-yellow-bg: var(--flag-yellow-bg);
+  --color-flag-yellow-underline: var(--flag-yellow-underline);
+  --color-flag-grey: var(--flag-grey);
+  --color-flag-grey-bg: var(--flag-grey-bg);
+  --color-flag-coverage: var(--flag-coverage);
+  --color-flag-coverage-bg: var(--flag-coverage-bg);
+  --color-example: var(--example);
+  --color-example-bg: var(--example-bg);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-ui);
+  --font-serif: var(--font-legal);
+  --radius-control: var(--radius-control);
+  --radius-card: var(--radius-card);
+  --shadow-popover: var(--shadow-popover);
+  --shadow-dialog: var(--shadow-dialog);
+  --ease-calm: var(--ease);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

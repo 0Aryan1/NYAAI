@@ -1,0 +1,80 @@
+/* NYAAI design tokens (LLD §13.1). Light is default; dark follows the OS unless data-theme forces one. */
+:root {
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --text: #1e2430;
+  --text-muted: #5b6475;
+  --border: #e3e5ea;
+  --accent: #2e3a8c;
+  --accent-contrast: #ffffff;
+  --flag-yellow: #b45309;
+  --flag-yellow-bg: #fef3c7;
+  --flag-yellow-underline: #f59e0b;
+  --flag-grey: #475569;
+  --flag-grey-bg: #eef1f5;
+  --flag-coverage: #1e4e6e;
+  --flag-coverage-bg: #e6f0f7;
+  --example: #5b21b6;
+  --example-bg: #f1ebfe;
+  --success: #15803d;
+  --danger: #b91c1c;
+
+  --font-ui: 'Inter Variable', 'Noto Sans Devanagari', system-ui, sans-serif;
+  --font-legal: 'Source Serif 4 Variable', 'Noto Sans Devanagari', Georgia, serif;
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --shadow-popover: 0 4px 16px rgb(17 19 24 / 0.12);
+  --shadow-dialog: 0 16px 48px rgb(17 19 24 / 0.2);
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #111318;
+    --surface: #1a1d24;
+    --text: #e8eaf0;
+    --text-muted: #a3aaba;
+    --border: #2c313c;
+    --accent: #8c98f2;
+    --accent-contrast: #111318;
+    --flag-yellow: #fbbf24;
+    --flag-yellow-bg: #3a2a0a;
+    --flag-yellow-underline: #fbbf24;
+    --flag-grey: #cbd5e1;
+    --flag-grey-bg: #262b35;
+    --flag-coverage: #9fcbea;
+    --flag-coverage-bg: #13283a;
+    --example: #c4b5fd;
+    --example-bg: #2a2140;
+    --success: #4ade80;
+    --danger: #f87171;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #111318;
+  --surface: #1a1d24;
+  --text: #e8eaf0;
+  --text-muted: #a3aaba;
+  --border: #2c313c;
+  --accent: #8c98f2;
+  --accent-contrast: #111318;
+  --flag-yellow: #fbbf24;
+  --flag-yellow-bg: #3a2a0a;
+  --flag-yellow-underline: #fbbf24;
+  --flag-grey: #cbd5e1;
+  --flag-grey-bg: #262b35;
+  --flag-coverage: #9fcbea;
+  --flag-coverage-bg: #13283a;
+  --example: #c4b5fd;
+  --example-bg: #2a2140;
+  --success: #4ade80;
+  --danger: #f87171;
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

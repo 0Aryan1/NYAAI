@@ -1,0 +1,5 @@
+/* Self-hosted fonts (LLD §13.2); @fontsource ships font-display: swap. */
+@import '@fontsource-variable/inter/index.css';
+@import '@fontsource-variable/source-serif-4/index.css';
+@import '@fontsource/noto-sans-devanagari/400.css';
+@import '@fontsource/noto-sans-devanagari/600.css';
