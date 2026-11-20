@@ -22,8 +22,13 @@ const PRICES: Record<string, { in: number; out: number }> = {
   'claude-sonnet-5-5': { in: 2, out: 10 },
   'claude-opus-5-5': { in: 4, out: 20 },
 };
-/** Blocks shorter than this are sent without a cache breakpoint (a write that can't be read is wasted money). */
-const MIN_CACHE_CHARS = 16_000;
+/**
+ * Prefixes shorter than this are sent without a cache breakpoint. Sonnet 5.5 and Haiku 5.5 cache prefixes of 512
+ * tokens or more; ~2,400 characters keeps a margin, so a marker is never a write that cannot be read.
+ */
+const MIN_CACHE_CHARS = 2_400;
+/** At most 4 breakpoints per request; the gateway uses up to 3 (after the system block and after each context block). */
+const MAX_BREAKPOINTS = 3;
 const HEAVY_RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000, 60_000];
 
 export class GatewayError extends Error {
@@ -91,24 +96,39 @@ export function createGateway(cfg: GatewayConfig): Gateway {
       let schemaFailures = 0;
       let heavyOutages = 0;
 
-      const system: Anthropic.TextBlockParam[] = [
-        { type: 'text', text: req.prompt.system, ...(req.prompt.system.length >= MIN_CACHE_CHARS ? { cache_control: { type: 'ephemeral' as const, ttl: '1h' as const } } : {}) },
-      ];
+      // Cache breakpoints (LLD §17.1): the cache is a prefix match, so a marker after a block caches everything up to
+      // it. Mark the end of the context (the part shared by the writer, the repair and the second check) and, before
+      // it, the system + teacher prefix (shared by every part of a build) — each only when the prefix up to it is
+      // long enough to be cached at all. 5-minute entries: a build's calls start seconds apart.
+      const blocks = [req.prompt.system, ...(req.context ?? [])];
+      let prefix = 0;
+      const marked = new Set<number>();
+      blocks.forEach((b, i) => {
+        prefix += b.length;
+        if (prefix >= MIN_CACHE_CHARS && i > 0) marked.add(i);
+      });
+      // Keep the last markers (the longest prefixes are the most valuable), within the limit.
+      const keep = new Set([...marked].slice(-MAX_BREAKPOINTS));
+      const cc = (i: number) => (keep.has(i) ? { cache_control: { type: 'ephemeral' as const } } : {});
+      const system: Anthropic.TextBlockParam[] = [{ type: 'text', text: req.prompt.system }];
       const content: Anthropic.TextBlockParam[] = [
-        ...(req.context ?? []).map((text) => ({ type: 'text' as const, text, ...(text.length >= MIN_CACHE_CHARS ? { cache_control: { type: 'ephemeral' as const } } : {}) })),
+        ...(req.context ?? []).map((text, j) => ({ type: 'text' as const, text, ...cc(j + 1) })),
         { type: 'text', text: req.task },
       ];
 
+      // The JSON schema goes to the API; the reply is validated here, not inside the SDK, so a reply that breaks a
+      // rule (a line too long) is logged and paid for once and then retried as a schema failure, never a crash.
+      const { schema: jsonSchema } = zodOutputFormat(req.schema);
       for (;;) {
         const model = modelFor(tier);
         let response;
         try {
-          response = await client.messages.parse({
+          response = await client.messages.create({
             model,
             max_tokens: req.prompt.maxOutputTokens + 2_000, // room for adaptive thinking on top of the answer cap
             system,
             messages: [{ role: 'user', content }],
-            output_config: { format: zodOutputFormat(req.schema), effort: req.prompt.effort },
+            output_config: { format: { type: 'json_schema', schema: jsonSchema }, effort: req.prompt.effort },
           });
         } catch (err) {
           if (isOutage(err) || err instanceof Anthropic.RateLimitError) {
@@ -142,7 +162,15 @@ export function createGateway(cfg: GatewayConfig): Gateway {
         });
 
         if (response.stop_reason === 'refusal') throw new GatewayError(`${model} declined the request`, 'refusal');
-        const parsed = response.stop_reason === 'max_tokens' ? null : response.parsed_output;
+        let parsed: unknown = null;
+        if (response.stop_reason !== 'max_tokens') {
+          const text = response.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            parsed = null;
+          }
+        }
         const valid = parsed == null ? null : req.schema.safeParse(parsed);
         if (valid?.success) return { data: valid.data, model, tier, escalated };
 

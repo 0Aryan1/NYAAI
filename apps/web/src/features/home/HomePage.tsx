@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LENGTH_CHOICES, LEVEL_CHOICES, ResolveChoice, STYLE_CHOICES } from '@nyaai/shared';
+import { LENGTH_CHOICES, LEVEL_CHOICES, ResolveChoice, STYLE_CHOICES, type PrepareLecture } from '@nyaai/shared';
+import { useNavigate } from 'react-router';
 import { z } from 'zod';
 import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
@@ -13,9 +14,10 @@ export const ONE_OFF = 'one_off';
 /**
  * Home (LLD §12.3, HOME-1 to HOME-6). Topic box on top; four chip rows that start empty and are never
  * remembered between visits (HOME-4, HOME-5); Prepare stays disabled until all four and a topic are chosen,
- * and says what is missing (HOME-6). Suggestions, hints and the build itself arrive on Days 2–3.
+ * and says what is missing (HOME-6). Prepare queues the build and opens the Build screen.
  */
 export function HomePage() {
+  const navigate = useNavigate();
   const home = useQuery({ queryKey: queryKeys.home, queryFn: api.home });
   const [topic, setTopic] = useState('');
   const [course, setCourse] = useState<string | null>(null);
@@ -30,13 +32,24 @@ export function HomePage() {
   const [busy, setBusy] = useState(false);
 
   async function prepare(choice?: ResolveChoice) {
+    if (!course || !length || !level || !style) return;
     setBusy(true);
     setNotice(null);
     try {
-      const r = await api.resolveTopic(topic.trim(), choice?.conceptId);
+      const picked = choice ?? concept;
+      const r = await api.prepare({
+        topic: topic.trim(),
+        course: course === ONE_OFF ? { kind: 'one_off' } : { kind: 'course', courseId: course, unitId: home.data?.courses.find((c) => c.id === course)?.nextUnit?.id },
+        lengthMin: Number(length) as PrepareLecture['lengthMin'],
+        level: level as PrepareLecture['level'],
+        styleKey: style as PrepareLecture['styleKey'],
+        mustInclude: mustInclude.trim() ? { text: mustInclude.trim() } : undefined,
+        anythingSpecial: special.trim() || undefined,
+        filters: { jurisdiction: 'IN', comparative: false },
+        ambiguityChoice: picked?.conceptId,
+      });
       if (choice) setConcept(choice);
-      // The lecture build itself arrives with the next update (Day 3); the topic is resolved and kept.
-      setNotice(`Ready to build${r.conceptId || choice ? ` (${(choice ?? concept)?.name ?? 'topic found in the library'})` : ''}. Building lectures is being switched on in the next update.`);
+      void navigate(`/build/${r.lectureId}`);
     } catch (err) {
       const parsed = err instanceof ApiRequestError && err.body?.error.code === 'TOPIC_AMBIGUOUS' ? z.array(ResolveChoice).safeParse(err.body.error.details?.choices) : null;
       if (parsed?.success) setChoices(parsed.data);

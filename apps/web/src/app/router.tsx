@@ -21,15 +21,18 @@ async function loadMe() {
   }
 }
 
-async function signedInLoader() {
+async function signedInLoader({ request }: { request: Request }) {
   const me = await loadMe();
-  if (!me.setupDone) throw redirect(stepPath(me.setupStep));
+  // Setup (style, template, courses) is for teachers. Library editors and admins go straight in; an editor lands on
+  // her queue rather than the Prepare screen.
+  if (me.user.role === 'teacher' && !me.setupDone) throw redirect(stepPath(me.setupStep));
+  if (me.user.role === 'library_editor' && new URL(request.url).pathname === '/') throw redirect('/library');
   return null;
 }
 
 async function setupLoader({ params }: { params: { step?: string } }) {
   const me = await loadMe();
-  if (me.setupDone) throw redirect('/');
+  if (me.setupDone || me.user.role !== 'teacher') throw redirect('/');
   const requested = SETUP_STEPS.indexOf(params.step as SetupStepName) + 1;
   // She may revisit earlier steps but not jump past where she is.
   if (requested < 1 || requested > me.setupStep) throw redirect(stepPath(me.setupStep));
@@ -58,6 +61,9 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: 'build/:lectureId', element: <BuildPage /> },
+      // The Studio is the heaviest screen: its own chunk, loaded on demand (LLD §11.1).
+      { path: 'library', lazy: async () => ({ Component: (await import('@/features/library/LibraryReviewPage')).LibraryReviewPage }) },
+      { path: 'lectures/:id', lazy: async () => ({ Component: (await import('@/features/studio/StudioPage')).StudioPage }) },
     ],
   },
   { path: '*', element: <RouteError notFound /> },

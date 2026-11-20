@@ -89,6 +89,12 @@ function partyWord(party: string): string | null {
   return party.toLowerCase().match(/[a-z]{3,}/g)?.find((w) => !PARTY_NOISE.has(w)) ?? null;
 }
 
+/** The distinctive word of each party of "X v. Y" (null for a generic party such as "State of U.P."). */
+export function casePartyWords(caseName: string): (string | null)[] {
+  const parties = caseName.split(/\s+(?:v\.?|vs\.?|versus)\s+/i);
+  return parties.length === 2 ? parties.map(partyWord) : [];
+}
+
 /**
  * A search hit is the named case only if a distinctive word of each party is in its title. A party made only of
  * generic words ("State of U.P.", "Union of India") is skipped, but at least one party must match.

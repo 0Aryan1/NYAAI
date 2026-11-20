@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { colleges, inviteAllowlist, users, consents, templates, courses, courseUnits, lectures, lectureInputs, slides, slideVersions, citations, coverageItems, researchRuns, researchQuestions, evidenceItems, sources, chunks, legalConcepts, conceptLinks, caseTreatments, teacherProfiles, libraryGaps, lawMappings, lawMappingItems, libraryGapAskers } from "./schema";
+import { colleges, inviteAllowlist, users, consents, templates, courses, courseUnits, lectures, lectureInputs, slides, slideVersions, researchRuns, researchQuestions, evidenceItems, sources, legalConcepts, conceptLinks, coverageItems, citations, chunks, caseTreatments, teacherProfiles, libraryGaps, lawMappings, lawMappingItems, libraryGapAskers } from "./schema";
 
 export const inviteAllowlistRelations = relations(inviteAllowlist, ({one}) => ({
 	college: one(colleges, {
@@ -23,8 +23,8 @@ export const usersRelations = relations(users, ({one, many}) => ({
 	consents: many(consents),
 	templates: many(templates),
 	courses: many(courses),
-	lectures: many(lectures),
 	sources: many(sources),
+	lectures: many(lectures),
 	college: one(colleges, {
 		fields: [users.collegeId],
 		references: [colleges.id]
@@ -66,7 +66,16 @@ export const courseUnitsRelations = relations(courseUnits, ({one, many}) => ({
 	lectures: many(lectures),
 }));
 
+export const lectureInputsRelations = relations(lectureInputs, ({one}) => ({
+	lecture: one(lectures, {
+		fields: [lectureInputs.lectureId],
+		references: [lectures.id]
+	}),
+}));
+
 export const lecturesRelations = relations(lectures, ({one, many}) => ({
+	lectureInputs: many(lectureInputs),
+	slides: many(slides),
 	user: one(users, {
 		fields: [lectures.ownerId],
 		references: [users.id]
@@ -79,17 +88,8 @@ export const lecturesRelations = relations(lectures, ({one, many}) => ({
 		fields: [lectures.unitId],
 		references: [courseUnits.id]
 	}),
-	lectureInputs: many(lectureInputs),
-	slides: many(slides),
-	citations: many(citations),
 	coverageItems: many(coverageItems),
-}));
-
-export const lectureInputsRelations = relations(lectureInputs, ({one}) => ({
-	lecture: one(lectures, {
-		fields: [lectureInputs.lectureId],
-		references: [lectures.id]
-	}),
+	citations: many(citations),
 }));
 
 export const slidesRelations = relations(slides, ({one, many}) => ({
@@ -104,25 +104,6 @@ export const slideVersionsRelations = relations(slideVersions, ({one}) => ({
 	slide: one(slides, {
 		fields: [slideVersions.slideId],
 		references: [slides.id]
-	}),
-}));
-
-export const citationsRelations = relations(citations, ({one, many}) => ({
-	lecture: one(lectures, {
-		fields: [citations.lectureId],
-		references: [lectures.id]
-	}),
-	coverageItems: many(coverageItems),
-}));
-
-export const coverageItemsRelations = relations(coverageItems, ({one}) => ({
-	lecture: one(lectures, {
-		fields: [coverageItems.lectureId],
-		references: [lectures.id]
-	}),
-	citation: one(citations, {
-		fields: [coverageItems.coveredBy],
-		references: [citations.id]
 	}),
 }));
 
@@ -155,28 +136,13 @@ export const sourcesRelations = relations(sources, ({one, many}) => ({
 		fields: [sources.ownerId],
 		references: [users.id]
 	}),
-	chunks: many(chunks),
 	conceptLinks: many(conceptLinks),
+	chunks: many(chunks),
 	caseTreatments_citedSourceId: many(caseTreatments, {
 		relationName: "caseTreatments_citedSourceId_sources_id"
 	}),
 	caseTreatments_citingSourceId: many(caseTreatments, {
 		relationName: "caseTreatments_citingSourceId_sources_id"
-	}),
-}));
-
-export const chunksRelations = relations(chunks, ({one, many}) => ({
-	source: one(sources, {
-		fields: [chunks.sourceId],
-		references: [sources.id]
-	}),
-	chunk: one(chunks, {
-		fields: [chunks.parentId],
-		references: [chunks.id],
-		relationName: "chunks_parentId_chunks_id"
-	}),
-	chunks: many(chunks, {
-		relationName: "chunks_parentId_chunks_id"
 	}),
 }));
 
@@ -200,6 +166,40 @@ export const conceptLinksRelations = relations(conceptLinks, ({one}) => ({
 	source: one(sources, {
 		fields: [conceptLinks.sourceId],
 		references: [sources.id]
+	}),
+}));
+
+export const coverageItemsRelations = relations(coverageItems, ({one}) => ({
+	lecture: one(lectures, {
+		fields: [coverageItems.lectureId],
+		references: [lectures.id]
+	}),
+	citation: one(citations, {
+		fields: [coverageItems.coveredBy],
+		references: [citations.id]
+	}),
+}));
+
+export const citationsRelations = relations(citations, ({one, many}) => ({
+	coverageItems: many(coverageItems),
+	lecture: one(lectures, {
+		fields: [citations.lectureId],
+		references: [lectures.id]
+	}),
+}));
+
+export const chunksRelations = relations(chunks, ({one, many}) => ({
+	source: one(sources, {
+		fields: [chunks.sourceId],
+		references: [sources.id]
+	}),
+	chunk: one(chunks, {
+		fields: [chunks.parentId],
+		references: [chunks.id],
+		relationName: "chunks_parentId_chunks_id"
+	}),
+	chunks: many(chunks, {
+		relationName: "chunks_parentId_chunks_id"
 	}),
 }));
 

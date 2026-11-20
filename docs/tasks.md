@@ -50,11 +50,18 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Day 6: "delete my data" — askers cascade; decide whether her gap questions are deleted or kept unattributed
 
 ## Day 3: Planner, writer, checks, coverage
-- [ ] LLM gateway (tiers, structured output, caching, cost logging, budget)
-- [ ] planner.lecture, writer.part, writer.repair, checker.support, checker.second
-- [ ] checker-rules C1–C8, C9/C10 orchestration, decision table, coverage
-- [ ] Web: Studio layout, ClaimLine, Source drawer, flag popover
-- [ ] Done when: one full lecture builds with flags and coverage
+- [x] LLM gateway: tiers, structured output, cost logging (Day 2); budget gate in Prepare and the build; per-lecture cost tagging
+- [x] planner.lecture, writer.part, writer.repair, checker.support, checker.second (`packages/prompts`)
+- [x] checker-rules C1–C8, risk, decision table, coverage matching (20 tests incl. planted errors); C9/C10 orchestration; must-cover list in `packages/legal`
+- [x] `0005_build.sql`; build job (plan → parts in parallel → checks → one repair → save → coverage), resumable; Prepare, lecture, slides, source, coverage, leave-out, retry endpoints
+- [x] Web: Prepare → Build (outline, retry, auto-open) → Studio (outline, slide canvas, ClaimLine, flag popover, Source drawer with highlighted words, coverage panel, N/[ ] keys)
+- [x] Integration test with a fake Claude: every planted error caught, repaired or flagged; resume; RLS
+- [ ] Prompt caching: the gateway caches blocks ≥ 16K chars only; check cache reads on repair and C10 once real lectures run (target ≥ 60%)
+- [x] Done when: one full lecture builds with flags and coverage — **"Frustration of contract" (50 min): 7 parts, 35 slides, 46 yellow, 35 grey, coverage 50%, US$1.05** (2026-11-21, resumed after the credit top-up)
+- [x] Cost and false-flag fixes: shared writer/repair cache prefix, 512-token breakpoints, 6 sources per part, `looksLegal` narrowed, `checker.support` v2, writer v2 (lecture-style slides)
+- [x] Studio slide view (footnotes, layouts, "Show checks"); library editor review screen `/library` + migration 0006 (pulled forward from Day 5)
+- [ ] Bring a lecture to ≤ 5 yellow and ≤ US$0.59 — measure on the second real build; most remaining yellow needs the expert's "Labels checked"
+- [ ] Syllabus: create a course from the CNLU semester 1 syllabus (COURSE-2) and load its sources (DATA-1, DATA-3)
 
 ## Day 4: PPT, edits, course series
 - [ ] PPT builder (pptx-automizer + pptxgenjs fallback), flags in notes, remove-unverified

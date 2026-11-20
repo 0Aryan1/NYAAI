@@ -4,12 +4,13 @@
  */
 import express from 'express';
 import type { Redis } from 'ioredis';
-import { LibrarySearchRequest, ResolveRequest, ResolveResponse, SuggestResponse, type ResolveChoice, type Suggestion } from '@nyaai/shared';
+import { LibrarySearchRequest, ResolveRequest, ResolveResponse, SuggestResponse, type Suggestion } from '@nyaai/shared';
 import { AppError } from '../errors.ts';
 import { requireRole } from '../middleware/auth.ts';
 import { channelFor, eventsSince } from '../services/events.ts';
 import type { Gateway } from '../services/llm-gateway/index.ts';
 import { search } from '../services/search/index.ts';
+import { resolveConcept } from '../services/topics.ts';
 import { usageSink, type UsageSink } from '../services/usage.ts';
 import type { Voyage } from '../services/voyage/index.ts';
 
@@ -74,26 +75,8 @@ export function searchRouter(deps: SearchApiDeps) {
 
   r.post('/topics/resolve', async (req, res) => {
     const { topic, choice } = ResolveRequest.parse(req.body);
-    const matches = await req.db!(async (c) =>
-      (
-        await c.query<{ id: string; name: string; subject: string }>(
-          `select id, name, subject from legal_concepts
-            where lower(name) = lower($1) or exists (select 1 from unnest(aliases) a where lower(a) = lower($1))
-               or name % $1 or exists (select 1 from unnest(aliases) a where a % $1 and similarity(a, $1) >= 0.6)`,
-          [topic],
-        )
-      ).rows,
-    );
-    if (choice) {
-      if (!matches.some((m) => m.id === choice)) throw new AppError('VALIDATION_FAILED', 'That choice does not match this topic.');
-      return void res.json(ResolveResponse.parse({ conceptId: choice }));
-    }
-    const subjects = new Set(matches.map((m) => m.subject));
-    if (subjects.size > 1) {
-      const choices: ResolveChoice[] = matches.map((m) => ({ conceptId: m.id, name: m.name, subject: m.subject }));
-      throw new AppError('TOPIC_AMBIGUOUS', 'This topic could mean more than one thing. Which one do you mean?', { choices });
-    }
-    res.json(ResolveResponse.parse({ conceptId: matches[0]?.id ?? null }));
+    const conceptId = await req.db!((c) => resolveConcept(c, topic, choice));
+    res.json(ResolveResponse.parse({ conceptId }));
   });
 
   r.get('/events/stream', async (req, res) => {

@@ -7,6 +7,15 @@ import {
   Me,
   ResolveResponse,
   SuggestResponse,
+  CitationSource,
+  CoverageResponse,
+  LectureSummary,
+  PrepareResponse,
+  StudioSlides,
+  ReviewJudgment,
+  ReviewJudgmentList,
+  type ParaRole,
+  type PrepareLecture,
   type ProfileRequest,
   type StyleRequest,
 } from '@nyaai/shared';
@@ -73,6 +82,20 @@ export const api = {
   suggest: (q: string) => call('GET', `/suggest?q=${encodeURIComponent(q)}`, { parse: (v) => SuggestResponse.parse(v) }),
   /** 409 TOPIC_AMBIGUOUS carries `details.choices`; the caller shows the one-tap dialog. */
   resolveTopic: (topic: string, choice?: string) => call('POST', '/topics/resolve', { body: { topic, choice }, parse: (v) => ResolveResponse.parse(v) }),
+  /** 202 { lectureId, jobId }; 409 TOPIC_AMBIGUOUS carries the choices; 422 BUDGET_EXHAUSTED. */
+  prepare: (body: PrepareLecture) => call('POST', '/lectures', { body, parse: (v) => PrepareResponse.parse(v) }),
+  retryBuild: (id: string) => call('POST', `/lectures/${id}/retry`, { parse: (v) => PrepareResponse.parse(v) }),
+  lecture: (id: string) => call('GET', `/lectures/${id}`, { parse: (v) => LectureSummary.parse(v) }),
+  slides: (id: string) => call('GET', `/lectures/${id}/slides`, { parse: (v) => StudioSlides.parse(v) }),
+  citationSource: (id: string) => call('GET', `/citations/${id}/source`, { parse: (v) => CitationSource.parse(v) }),
+  coverage: (id: string) => call('GET', `/lectures/${id}/coverage`, { parse: (v) => CoverageResponse.parse(v) }),
+  leaveOut: (itemId: string) => call<void>('POST', `/coverage/${itemId}/leave-out`),
+  // Library editor review (role E)
+  reviewJudgments: () => call('GET', '/library/judgments', { parse: (v) => ReviewJudgmentList.parse(v) }),
+  reviewJudgment: (id: string) => call('GET', `/library/judgments/${id}`, { parse: (v) => ReviewJudgment.parse(v) }),
+  setParagraphRole: (chunkId: string, role: ParaRole) => call<void>('PATCH', `/library/paragraphs/${chunkId}`, { body: { role } }),
+  rolesChecked: (id: string) => call<void>('POST', `/library/judgments/${id}/roles-checked`),
+  approveJudgment: (id: string) => call<void>('POST', `/library/judgments/${id}/approve`),
 };
 
 export const queryKeys = {
@@ -81,4 +104,10 @@ export const queryKeys = {
   consent: ['consent'] as const,
   authOptions: ['auth-options'] as const,
   suggest: (q: string) => ['suggest', q] as const,
+  lecture: (id: string) => ['lecture', id] as const,
+  slides: (id: string) => ['lecture', id, 'slides'] as const,
+  coverage: (id: string) => ['lecture', id, 'coverage'] as const,
+  citationSource: (id: string) => ['citation', id, 'source'] as const,
+  reviewJudgments: ['review', 'judgments'] as const,
+  reviewJudgment: (id: string) => ['review', 'judgment', id] as const,
 };

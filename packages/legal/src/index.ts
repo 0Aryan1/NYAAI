@@ -6,3 +6,4 @@ export * from './kanoon.ts';
 export * from './courts.ts';
 export * from './query.ts';
 export * from './gaps.ts';
+export * from './coverage.ts';

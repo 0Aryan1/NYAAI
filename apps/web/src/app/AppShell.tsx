@@ -24,7 +24,7 @@ const NAV: NavItem[] = [
   { to: '/explore', label: 'Explore', icon: Compass, ready: false },
   { to: '/research', label: 'Research', icon: Search, ready: false },
   { to: '/style', label: 'My Style', icon: Palette, ready: false },
-  { to: '/library', label: 'Library', icon: Library, ready: false, roles: ['library_editor'] },
+  { to: '/library', label: 'Library', icon: Library, ready: true, roles: ['library_editor'] },
   { to: '/admin', label: 'Admin', icon: Shield, ready: false, roles: ['admin'] },
 ];
 

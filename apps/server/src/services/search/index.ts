@@ -320,6 +320,137 @@ async function expand(db: pg.PoolClient, ranked: { row: Row; score: number | nul
   return out;
 }
 
+/* ------------------------------------------------------------------------------------------------------------
+ * Reads the build and the Studio need. Chunks are read only here (one door, rules §3), always under the caller's
+ * tenant transaction, so row-level security still decides what is visible.
+ * ---------------------------------------------------------------------------------------------------------- */
+
+export interface Piece {
+  chunkId: string;
+  sourceId: string;
+  text: string;
+  paraNo: string | null;
+  opinion: string | null;
+  paraRole: string | null;
+  kind: string;
+}
+
+/** The paragraphs or statute chunks a retrieved source carries, in order, for the checks (C2 location, C7 role). */
+export async function loadPieces(db: pg.PoolClient, chunkIds: string[]): Promise<Piece[]> {
+  if (!chunkIds.length) return [];
+  const r = await db.query<{ id: string; source_id: string; text: string; para_no: string | null; opinion: string | null; para_role: string | null; kind: string }>(
+    'select id, source_id, text, para_no, opinion, para_role, kind from chunks where id = any($1) order by source_id, seq',
+    [chunkIds],
+  );
+  return r.rows.map((x) => ({ chunkId: x.id, sourceId: x.source_id, text: x.text, paraNo: x.para_no, opinion: x.opinion, paraRole: x.para_role, kind: x.kind }));
+}
+
+export interface SourceDetail {
+  id: string;
+  type: string;
+  title: string;
+  url: string | null;
+  holdingNote: string | null;
+  rolesSampled: boolean;
+  status: string;
+}
+
+export async function sourceDetails(db: pg.PoolClient, sourceIds: string[]): Promise<Map<string, SourceDetail>> {
+  if (!sourceIds.length) return new Map();
+  const r = await db.query<{ id: string; type: string; title: string; url: string | null; holding_note: string | null; roles_sampled: boolean; status: string }>(
+    'select id, type, title, url, holding_note, roles_sampled, status from sources where id = any($1)',
+    [sourceIds],
+  );
+  return new Map(r.rows.map((x) => [x.id, { id: x.id, type: x.type, title: x.title, url: x.url, holdingNote: x.holding_note, rolesSampled: x.roles_sampled, status: x.status }]));
+}
+
+export interface StatuteUnit {
+  chunkId: string;
+  sourceId: string;
+  sourceType: 'act' | 'constitution';
+  actName: string;
+  number: string;
+  header: string;
+  text: string;
+}
+
+/** The whole section or Article (top-level chunk) each cited statute chunk belongs to, for the must-cover list. */
+export async function statuteUnits(db: pg.PoolClient, chunkIds: string[]): Promise<StatuteUnit[]> {
+  if (!chunkIds.length) return [];
+  const r = await db.query<{ id: string; source_id: string; source_type: 'act' | 'constitution'; act_name: string | null; section: string | null; article: string | null; header: string | null; text: string }>(
+    `select distinct p.id, p.source_id, p.source_type, p.act_name, p.section, p.article, p.header, p.text
+       from chunks c join chunks p on p.id = coalesce(c.parent_id, c.id)
+      where c.id = any($1) and c.source_type in ('act', 'constitution')`,
+    [chunkIds],
+  );
+  return r.rows
+    .filter((x) => x.section ?? x.article)
+    .map((x) => ({ chunkId: x.id, sourceId: x.source_id, sourceType: x.source_type, actName: x.act_name ?? '', number: (x.section ?? x.article)!, header: x.header ?? '', text: x.text }));
+}
+
+/** A concept's key sections (their headers) and leading cases (titles), as hints for the planner. */
+export async function conceptHints(db: pg.PoolClient, conceptId: string): Promise<{ name: string; sections: string[]; cases: string[] } | null> {
+  const r = await db.query<{ name: string; sections: string[] | null; cases: string[] | null }>(
+    `select lc.name,
+            array_agg(distinct coalesce(ch.header, s.title)) filter (where cl.kind = 'key_section') as sections,
+            array_agg(distinct s.title) filter (where cl.kind = 'leading_case') as cases
+       from legal_concepts lc left join concept_links cl on cl.concept_id = lc.id
+       left join sources s on s.id = cl.source_id left join chunks ch on ch.id = cl.chunk_id
+      where lc.id = $1 group by lc.name`,
+    [conceptId],
+  );
+  const row = r.rows[0];
+  return row ? { name: row.name, sections: row.sections ?? [], cases: row.cases ?? [] } : null;
+}
+
+/** One chunk's words and header for the Source drawer; null when it has expired or is not visible. */
+export async function chunkForDrawer(db: pg.PoolClient, chunkId: string): Promise<{ header: string | null; text: string; parentText: string | null } | null> {
+  const r = await db.query<{ header: string | null; text: string; parent_text: string | null }>(
+    'select c.header, c.text, p.text as parent_text from chunks c left join chunks p on p.id = c.parent_id where c.id = $1',
+    [chunkId],
+  );
+  const row = r.rows[0];
+  return row ? { header: row.header, text: row.text, parentText: row.parent_text } : null;
+}
+
+/* ------------------------------------------------------------------------------------------------------------
+ * Library editor review (HLD 5.2 b, f): paragraphs of a judgment with their labels; label corrections; approval.
+ * Runs as the editor (nyaai_app); migration 0006 lets her change only para_role, opinion and status on shared rows.
+ * ---------------------------------------------------------------------------------------------------------- */
+
+export interface ReviewParagraph {
+  chunkId: string;
+  seq: number;
+  paraNo: string | null;
+  kind: string;
+  opinion: string | null;
+  judge: string | null;
+  role: string | null;
+  text: string;
+}
+
+export async function judgmentParagraphs(db: pg.PoolClient, sourceId: string): Promise<ReviewParagraph[]> {
+  const r = await db.query<{ id: string; seq: number; para_no: string | null; kind: string; opinion: string | null; judge: string | null; para_role: string | null; text: string }>(
+    "select id, seq, para_no, kind, opinion, judge, para_role, text from chunks where source_id = $1 and source_type = 'judgment' order by seq",
+    [sourceId],
+  );
+  return r.rows.map((x) => ({ chunkId: x.id, seq: x.seq, paraNo: x.para_no, kind: x.kind, opinion: x.opinion, judge: x.judge, role: x.para_role, text: x.text }));
+}
+
+/** The editor's correction of one paragraph's role (and opinion, when the split was wrong). */
+export async function setParagraphLabel(db: pg.PoolClient, chunkId: string, label: { role: string; opinion?: string }): Promise<boolean> {
+  const r = await db.query(
+    "update chunks set para_role = $2::para_role, opinion = coalesce($3::opinion_type, opinion) where id = $1 and source_type = 'judgment' and kind <> 'headnote'",
+    [chunkId, label.role, label.opinion ?? null],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
+/** Approving a live lookup: the source and its chunks go from provisional to live (rows needing review stay). */
+export async function approveSourceChunks(db: pg.PoolClient, sourceId: string): Promise<void> {
+  await db.query("update chunks set status = 'live' where source_id = $1 and status = 'provisional'", [sourceId]);
+}
+
 /** Children of one statute section, and paragraphs within one window, collapse into one source. */
 function groupKey(r: Row): string {
   if (r.parent_id) return `parent:${r.parent_id}`;

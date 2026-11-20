@@ -211,6 +211,9 @@ importers:
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
+      '@nyaai/checker-rules':
+        specifier: workspace:*
+        version: link:../../packages/checker-rules
       '@nyaai/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -360,7 +363,11 @@ importers:
 
   eval: {}
 
-  packages/checker-rules: {}
+  packages/checker-rules:
+    dependencies:
+      '@nyaai/legal':
+        specifier: workspace:*
+        version: link:../legal
 
   packages/db:
     dependencies:

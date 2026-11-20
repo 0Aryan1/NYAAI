@@ -5,3 +5,4 @@ export * from './setup.ts';
 export * from './home.ts';
 export * from './library.ts';
 export * from './search.ts';
+export * from './lecture.ts';

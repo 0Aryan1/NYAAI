@@ -20,6 +20,22 @@ export interface IngestJobData {
   requestedBy?: string;
 }
 
+/** build.lecture: ids only; the teacher's identity is set with SET LOCAL from these (LLD §5.1). */
+export interface BuildJobData {
+  lectureId: string;
+  ownerId: string;
+  collegeId: string;
+}
+
+/** LLD §5: 2 retries; a retry resumes after the plan and finished parts. 8 minutes per lecture. */
+export const BUILD_JOB_OPTIONS: JobsOptions = {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 20_000 },
+  removeOnComplete: 500,
+  removeOnFail: 500,
+};
+export const BUILD_TIMEOUT_MS = 8 * 60 * 1000;
+
 /** LLD §5: 3 retries with backoff 30 s → 2 min → 8 min; 10-minute timeout is enforced in the processor. */
 export const INGEST_BACKOFF_MS = [30_000, 120_000, 480_000] as const;
 export const INGEST_JOB_OPTIONS: JobsOptions = {

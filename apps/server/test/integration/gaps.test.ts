@@ -76,7 +76,7 @@ describe.skipIf(!up)('library gaps and trusted-source lookup (integration)', () 
   const tag = college.slice(0, 8);
   const w = uniq();
   // A made-up Act unique to this run, so the test never depends on what the real library holds.
-  const actName = `Meadow ${w[0]!.toUpperCase()}${w.slice(1)} Act`;
+  const actName = `Harbour ${w[0]!.toUpperCase()}${w.slice(1)} Act`;
   const tid = 900_000_000 + Math.floor(Math.random() * 90_000_000);
   const kanoonUrl = `https://indiankanoon.org/doc/${tid}/`;
   const as = (userId: string, role: 'teacher' | 'library_editor' = 'teacher') => ({ userId, collegeId: college, role });
@@ -96,18 +96,18 @@ describe.skipIf(!up)('library gaps and trusted-source lookup (integration)', () 
   const fakeKanoon: Kanoon = {
     search: async (q) => {
       kanoonQueries.push(q);
-      return q.includes(w) ? [{ tid, title: `Zebra Herd vs Meadow Board ${w} on 1 January, 1999`, publishdate: '1999-01-01', docsource: 'Supreme Court of India' }] : [];
+      return q.includes(w) ? [{ tid, title: `Pelican Herd vs Harbour Board ${w} on 1 January, 1999`, publishdate: '1999-01-01', docsource: 'Supreme Court of India' }] : [];
     },
     doc: async (id) => ({
       tid: id,
-      title: `Zebra Herd vs Meadow Board ${w} on 1 January, 1999`,
+      title: `Pelican Herd vs Harbour Board ${w} on 1 January, 1999`,
       docsource: 'Supreme Court of India',
       doc: [
-        `<h2 class="doc_title">Zebra Herd vs Meadow Board ${w} on 1 January, 1999</h2>`,
-        `<p>1. The appellant keeps a zebra herd ${w} beside the meadow.</p>`,
-        `<p>2. The Board fenced the meadow and the zebra herd ${w} could not graze.</p>`,
-        `<p>3. Counsel argued that the fence kept the zebra herd ${w} from the meadow unlawfully.</p>`,
-        `<p>4. We hold that a zebra herd ${w} may graze in a fenced meadow.</p>`,
+        `<h2 class="doc_title">Pelican Herd vs Harbour Board ${w} on 1 January, 1999</h2>`,
+        `<p>1. The appellant keeps a pelican herd ${w} beside the harbour.</p>`,
+        `<p>2. The Board fenced the harbour and the pelican herd ${w} could not nest.</p>`,
+        `<p>3. Counsel argued that the fence kept the pelican herd ${w} from the harbour unlawfully.</p>`,
+        `<p>4. We hold that a pelican herd ${w} may nest in a fenced harbour.</p>`,
         '<p>5. The appeal is allowed. No costs.</p>',
       ].join('\n'),
     }),
@@ -209,7 +209,7 @@ describe.skipIf(!up)('library gaps and trusted-source lookup (integration)', () 
     const tenant = <T,>(fn: (c: pg.PoolClient) => Promise<T>) => withTenant(app, as(t1), fn);
     const r = await searchWithLookup(
       tenant,
-      { query: `zebra herd ${w} graze fenced meadow`, purpose: 'explore', noExpand: true },
+      { query: `pelican herd ${w} nest fenced harbour`, purpose: 'explore', noExpand: true },
       { voyage: fakeVoyage, gateway: null, usage: noUsage, minScore: 0.5 },
       createGapLookup(deps),
     );
@@ -217,14 +217,14 @@ describe.skipIf(!up)('library gaps and trusted-source lookup (integration)', () 
     expect(r.gap?.recheck).toBe('ok');
     expect(r.outcome).toBe('ok');
     expect(r.sources.every((s) => s.provisional)).toBe(true);
-    expect(r.sources.some((s) => s.text.includes('We hold that a zebra herd'))).toBe(true);
+    expect(r.sources.some((s) => s.text.includes('We hold that a pelican herd'))).toBe(true);
     const g = (await owner.query('select state, kind, loaded_source_ids from library_gaps where id = $1', [r.gap!.id])).rows[0];
     expect(g.state).toBe('answered');
     expect(g.kind).toBe('topic');
     const src = (await owner.query('select status, origin from sources where url = $1', [kanoonUrl])).rows[0];
     expect(src).toEqual({ status: 'provisional', origin: 'indian_kanoon' });
     // The query that left the system is the teacher's own words.
-    expect(kanoonQueries.at(-1)).toBe(`zebra herd ${w} graze fenced meadow`);
+    expect(kanoonQueries.at(-1)).toBe(`pelican herd ${w} nest fenced harbour`);
   });
 
   it('lets the editor list, re-run and close gaps over HTTP; teachers get 403', async () => {

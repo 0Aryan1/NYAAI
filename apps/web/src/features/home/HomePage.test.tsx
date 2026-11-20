@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { queryKeys } from '@/shared/api/client';
+import { MemoryRouter } from 'react-router';
 import { HomePage } from './HomePage';
 
 function renderHome() {
@@ -10,9 +11,11 @@ function renderHome() {
     courses: [{ id: '00000000-0000-4000-8000-0000000000c1', name: 'Law of Contract II', nextUnit: { id: '00000000-0000-4000-8000-0000000000u1', position: 9, title: 'Frustration' } }],
   });
   return render(
-    <QueryClientProvider client={client}>
-      <HomePage />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <HomePage />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 

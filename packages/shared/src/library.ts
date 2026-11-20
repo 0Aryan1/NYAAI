@@ -79,3 +79,49 @@ export const GapLookupResponse = z.object({ jobId: z.string() });
 /** Progress stages shown on an upload or library chip (LLD §4.4 ingest.progress). */
 export const IngestStage = z.enum(['queued', 'reading', 'cleaning', 'indexing', 'live', 'needs_review', 'failed']);
 export type IngestStage = z.infer<typeof IngestStage>;
+
+/* Library editor review of judgments (HLD 5.2 b, f). */
+export const ParaRole = z.enum(['facts', 'arguments', 'lower_court_summary', 'discussion', 'holding', 'unknown']);
+export type ParaRole = z.infer<typeof ParaRole>;
+
+/** GET /library/judgments */
+export const ReviewJudgmentList = z.object({
+  judgments: z.array(
+    z.object({
+      id: z.uuid(),
+      title: z.string(),
+      court: z.string().nullable(),
+      decidedOn: z.string().nullable(),
+      status: z.enum(['processing', 'provisional', 'live', 'needs_review', 'retired']),
+      rolesChecked: z.boolean(),
+      paragraphs: z.number().int(),
+    }),
+  ),
+});
+export type ReviewJudgmentList = z.infer<typeof ReviewJudgmentList>;
+
+/** GET /library/judgments/:id */
+export const ReviewJudgment = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  court: z.string().nullable(),
+  decidedOn: z.string().nullable(),
+  url: z.string().nullable(),
+  status: z.enum(['processing', 'provisional', 'live', 'needs_review', 'retired']),
+  rolesChecked: z.boolean(),
+  paragraphs: z.array(
+    z.object({
+      chunkId: z.uuid(),
+      paraNo: z.string().nullable(),
+      kind: z.string(),
+      opinion: z.string().nullable(),
+      judge: z.string().nullable(),
+      role: z.string().nullable(),
+      text: z.string(),
+    }),
+  ),
+});
+export type ReviewJudgment = z.infer<typeof ReviewJudgment>;
+
+/** PATCH /library/paragraphs/:chunkId */
+export const SetParagraphLabel = z.object({ role: ParaRole, opinion: z.enum(['majority', 'concurring', 'dissent', 'separate_no_majority', 'unknown']).optional() });
