@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LENGTH_CHOICES, LEVEL_CHOICES, STYLE_CHOICES } from '@nyaai/shared';
-import { api, queryKeys } from '@/shared/api/client';
+import { LENGTH_CHOICES, LEVEL_CHOICES, ResolveChoice, STYLE_CHOICES } from '@nyaai/shared';
+import { z } from 'zod';
+import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { ChipGroup } from '@/shared/ui/chip-group';
+import { AmbiguityDialog } from './AmbiguityDialog';
+import { TopicBox } from './TopicBox';
 
 export const ONE_OFF = 'one_off';
 
@@ -22,6 +25,26 @@ export function HomePage() {
   const [mustInclude, setMustInclude] = useState('');
   const [special, setSpecial] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+  const [choices, setChoices] = useState<ResolveChoice[] | null>(null);
+  const [concept, setConcept] = useState<ResolveChoice | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function prepare(choice?: ResolveChoice) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const r = await api.resolveTopic(topic.trim(), choice?.conceptId);
+      if (choice) setConcept(choice);
+      // The lecture build itself arrives with the next update (Day 3); the topic is resolved and kept.
+      setNotice(`Ready to build${r.conceptId || choice ? ` (${(choice ?? concept)?.name ?? 'topic found in the library'})` : ''}. Building lectures is being switched on in the next update.`);
+    } catch (err) {
+      const parsed = err instanceof ApiRequestError && err.body?.error.code === 'TOPIC_AMBIGUOUS' ? z.array(ResolveChoice).safeParse(err.body.error.details?.choices) : null;
+      if (parsed?.success) setChoices(parsed.data);
+      else setNotice(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const courseOptions = [
     ...(home.data?.courses ?? []).map((c) => ({
@@ -46,17 +69,7 @@ export function HomePage() {
       <h1 className="mb-6 text-2xl font-semibold">Prepare a lecture</h1>
 
       <div className="mb-8">
-        <label htmlFor="topic" className="mb-2 block text-sm font-medium">
-          What do you want to teach?
-        </label>
-        <input
-          id="topic"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          maxLength={200}
-          placeholder="A topic, a section, a case or a question, e.g. frustration of contract, s. 56"
-          className="h-12 w-full rounded-control border border-border bg-surface px-4 text-base placeholder:text-muted focus:border-accent"
-        />
+        <TopicBox value={topic} onChange={(v) => { setTopic(v); setConcept(null); }} />
       </div>
 
       <div className="space-y-6">
@@ -104,10 +117,10 @@ export function HomePage() {
         <Button
           variant="primary"
           size="lg"
-          disabled={!ready}
+          disabled={!ready || busy}
           aria-describedby="prepare-hint"
           title={ready ? undefined : `Still needed: ${missing.join(', ')}`}
-          onClick={() => setNotice('Building lectures is being switched on in the next update.')}
+          onClick={() => void prepare()}
         >
           Prepare
         </Button>
@@ -115,6 +128,17 @@ export function HomePage() {
           {ready ? (notice ?? 'Ready when you are.') : `Still needed: ${missing.join(', ')}.`}
         </p>
       </div>
+      {choices && (
+        <AmbiguityDialog
+          topic={topic.trim()}
+          choices={choices}
+          onCancel={() => setChoices(null)}
+          onChoose={(c) => {
+            setChoices(null);
+            void prepare(c);
+          }}
+        />
+      )}
     </div>
   );
 }

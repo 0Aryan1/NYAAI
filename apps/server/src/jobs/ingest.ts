@@ -3,7 +3,14 @@ import type pg from 'pg';
 import type { Redis } from 'ioredis';
 import type { Logger } from '../logger.ts';
 import type { Storage } from '../services/storage/index.ts';
-import { ingestSource, type IngestResult } from '../services/ingest/source.ts';
+import type { Voyage } from '../services/voyage/index.ts';
+import type { Gateway } from '../services/llm-gateway/index.ts';
+import type { Kanoon } from '../services/kanoon/index.ts';
+import type { UsageSink } from '../services/usage.ts';
+import { publishEvent } from '../services/events.ts';
+import { ingestSource } from '../services/ingest/source.ts';
+import { finishSource } from '../services/ingest/finish.ts';
+import { ingestKanoonJudgment } from '../services/ingest/kanoon.ts';
 import { INGEST_TIMEOUT_MS, type IngestJobData } from './queues.ts';
 
 export interface IngestProcessorDeps {
@@ -11,13 +18,20 @@ export interface IngestProcessorDeps {
   storage: Storage;
   publisher: Redis;
   logger: Logger;
+  voyage: Voyage;
+  gateway: Gateway | null;
+  kanoon: Kanoon | null;
+  usage: UsageSink;
+  embedModel: string;
+  cacheDays: number;
 }
 
-/** The `ingest` queue processor: logs to jobs_log, publishes ingest.progress, enforces the 10-minute limit. */
-export function ingestProcessor({ library, storage, publisher, logger }: IngestProcessorDeps) {
-  return async (job: Job<IngestJobData, IngestResult>) => {
-    if (job.name !== 'ingest.source') throw new Error(`unknown ingest job ${job.name}`);
-    const { sourceId, requestedBy } = job.data;
+/** The `ingest` queue: stages 1–7, logged to jobs_log, progress as ingest.progress events, 10-minute limit. */
+export function ingestProcessor(deps: IngestProcessorDeps) {
+  const { library, logger } = deps;
+  return async (job: Job<IngestJobData>) => {
+    if (job.name !== 'ingest.source' && job.name !== 'ingest.kanoon') throw new Error(`unknown ingest job ${job.name}`);
+    const { sourceId, tid, requestedBy } = job.data;
     const logId = (
       await library.query<{ id: string }>(
         `insert into jobs_log (owner_id, queue, job_id, kind, state, attempts, started_at)
@@ -25,28 +39,36 @@ export function ingestProcessor({ library, storage, publisher, logger }: IngestP
         [requestedBy ?? null, String(job.id), job.name, job.attemptsMade + 1],
       )
     ).rows[0]!.id;
+    const progress = async (stage: string) => {
+      if (requestedBy) await publishEvent(deps.publisher, requestedBy, { type: 'ingest.progress', sourceId, stage });
+    };
+    const finishDeps = { library, voyage: deps.voyage, gateway: deps.gateway, usage: deps.usage, embedModel: deps.embedModel, progress };
 
-    const publish = async (stage: string) => {
-      if (requestedBy) await publisher.publish(`events:${requestedBy}`, JSON.stringify({ type: 'ingest.progress', sourceId, stage }));
+    const work = async () => {
+      if (job.name === 'ingest.kanoon') {
+        if (!deps.kanoon || !tid) throw new Error('Indian Kanoon is not configured, or the job has no document id');
+        return ingestKanoonJudgment(tid, { ...finishDeps, kanoon: deps.kanoon, storage: deps.storage, cacheDays: deps.cacheDays });
+      }
+      if (!sourceId) throw new Error('ingest.source needs a source id');
+      const split = await ingestSource(sourceId, { library, storage: deps.storage, progress });
+      if (split.kind === 'duplicate') return split;
+      return { ...split, ...(await finishSource(sourceId, finishDeps)) };
     };
 
     let timer: NodeJS.Timeout | undefined;
     try {
       const result = await Promise.race([
-        ingestSource(sourceId, { library, storage, progress: publish }),
+        work(),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new Error('ingestion took longer than 10 minutes')), INGEST_TIMEOUT_MS);
         }),
       ]);
       await library.query("update jobs_log set state = 'completed', finished_at = now() where id = $1", [logId]);
-      logger.info({ job: job.name, sourceId, result }, 'source ingested');
+      logger.info({ job: job.name, sourceId, tid, result }, 'ingestion finished');
       return result;
     } catch (err) {
-      await library.query("update jobs_log set state = 'failed', error_code = $2, finished_at = now() where id = $1", [
-        logId,
-        (err as Error).name,
-      ]);
-      await publish('failed');
+      await library.query("update jobs_log set state = 'failed', error_code = $2, finished_at = now() where id = $1", [logId, (err as Error).name]);
+      await progress('failed');
       throw err;
     } finally {
       clearTimeout(timer);

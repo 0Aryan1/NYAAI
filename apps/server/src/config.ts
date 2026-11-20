@@ -59,6 +59,8 @@ const Schema = z
     VOYAGE_EMBED_MODEL: z.string().default('voyage-law-2'),
     VOYAGE_RERANK_MODEL: z.string().default('rerank-2.5'),
     RERANK_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
+    /** Largest Voyage embedding request in tokens; set ~8000 while the account is on reduced (no-card) limits. */
+    VOYAGE_MAX_BATCH_TOKENS: z.coerce.number().int().positive().default(60_000),
     COHERE_API_KEY: optional,
     INDIAN_KANOON_TOKEN: optional,
     KANOON_CACHE_DAYS: z.coerce.number().int().positive().default(30),

@@ -6,9 +6,10 @@ export type QueueName = (typeof QUEUES)[number];
 
 export const TIMEZONE = 'Asia/Kolkata';
 
-/** ingest.source: one shared-library source to fetch, extract, clean and split. */
+/** ingest.source: one shared-library source (by id); ingest.kanoon: one Indian Kanoon judgment (by tid). */
 export interface IngestJobData {
-  sourceId: string;
+  sourceId?: string;
+  tid?: number;
   /** Who asked (for progress events); an id, never content. */
   requestedBy?: string;
 }

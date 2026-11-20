@@ -6,7 +6,8 @@ import { createRedis } from './redis.ts';
 import { TIMEZONE, ingestBackoff } from './jobs/queues.ts';
 import { opsProcessor } from './jobs/ops.ts';
 import { ingestProcessor } from './jobs/ingest.ts';
-import { createStorage } from './services/storage/index.ts';
+import { gatewayFrom, kanoonFrom, storageFrom, voyageFrom } from './services/factory.ts';
+import { usageSink } from './services/usage.ts';
 
 const config = { ...loadConfig(), APP_ROLE: 'worker' as const };
 const logger = createLogger(config);
@@ -20,22 +21,36 @@ if (!config.DATABASE_URL_LIBRARY) {
 }
 
 const library = createPool(config.DATABASE_URL_LIBRARY, 4);
-const storage = createStorage({
-  endpoint: config.S3_ENDPOINT,
-  region: config.S3_REGION,
-  bucket: config.S3_BUCKET,
-  accessKeyId: config.S3_ACCESS_KEY_ID,
-  secretAccessKey: config.S3_SECRET_ACCESS_KEY,
-});
+const storage = storageFrom(config);
+const libraryUsage = usageSink(library, { collegeId: 'global', ownerId: null });
+if (!config.VOYAGE_API_KEY) {
+  logger.fatal('VOYAGE_API_KEY is required by the worker (search indexing).');
+  process.exit(1);
+}
 
 const opsQueue = new Queue('ops', { connection });
 const workers = [
   new Worker('ops', opsProcessor(logger), { connection: createRedis(config.REDIS_URL), concurrency: 1 }),
-  new Worker('ingest', ingestProcessor({ library, storage, publisher: connection, logger }), {
+  new Worker(
+    'ingest',
+    ingestProcessor({
+      library,
+      storage,
+      publisher: connection,
+      logger,
+      voyage: voyageFrom(config, libraryUsage),
+      gateway: gatewayFrom(config),
+      kanoon: config.INDIAN_KANOON_TOKEN ? kanoonFrom(config, libraryUsage) : null,
+      usage: libraryUsage,
+      embedModel: config.VOYAGE_EMBED_MODEL,
+      cacheDays: config.KANOON_CACHE_DAYS,
+    }),
+    {
     connection: createRedis(config.REDIS_URL),
     concurrency: 4,
     settings: { backoffStrategy: (attemptsMade: number) => ingestBackoff(attemptsMade) },
-  }),
+    },
+  ),
 ];
 for (const w of workers) {
   w.on('completed', (job) => logger.info({ job: job.name, id: job.id }, 'job completed'));

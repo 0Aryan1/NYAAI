@@ -129,13 +129,21 @@ describe.skipIf(!dbReady)('row-level security', () => {
     expect(del.rowCount).toBe(0);
   });
 
-  it('the library editor sees the review queue but not lectures', async () => {
-    const [queue, lectures] = await withTenant(app, as(E, X, 'library_editor'), async (c) => [
-      (await c.query('select count(*)::int n from review_queue')).rows[0].n,
+  it('the library editor sees her college’s and the shared library’s review items, but not lectures', async () => {
+    const [own, other, lectures] = await withTenant(app, as(E, X, 'library_editor'), async (c) => [
+      (await c.query('select count(*)::int n from review_queue where college_id = $1', [X])).rows[0].n,
+      (await c.query('select count(*)::int n from review_queue where college_id <> $1 and college_id <> global_college()', [X])).rows[0].n,
       (await c.query('select count(*)::int n from lectures')).rows[0].n,
     ]);
-    expect(queue).toBe(1);
+    expect(own).toBe(1);
+    expect(other).toBe(0); // never another college's queue
     expect(lectures).toBe(0);
+    await owner.query("insert into review_queue (college_id, kind, ref_id) values (global_college(), 'provisional_source', $1)", [srcShared]);
+    const shared = await withTenant(app, as(E, X, 'library_editor'), async (c) =>
+      (await c.query('select count(*)::int n from review_queue where ref_id = $1', [srcShared])).rows[0].n,
+    );
+    expect(shared).toBe(1);
+    await owner.query('delete from review_queue where ref_id = $1', [srcShared]);
     const teacherQueue = await withTenant(app, as(A, X), async (c) => (await c.query('select count(*)::int n from review_queue')).rows[0].n);
     expect(teacherQueue).toBe(0);
   });

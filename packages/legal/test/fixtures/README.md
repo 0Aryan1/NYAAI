@@ -11,3 +11,10 @@ Real statute text used by the splitter tests (LLD §16.1: ICA ss. 25, 32, 56 and
 
 Indian Kanoon is not used for statute text: its Contract Act copy has OCR errors and no s. 6, and its Article 19 page
 mixes editorial comment into the Article.
+
+## Judgments (`judgments/`)
+
+The court's text only (paragraph blocks, page markers, metadata) as produced by `kanoonToJudgment` from Indian Kanoon
+documents fetched 2026-11-20; Kanoon's markup is not stored. Satyabrata Ghose v. Mugneeram Bangur (1953, tid 1214064),
+Kharak Singh v. State of U.P. (1962, tid 619152, majority + dissent), Energy Watchdog v. CERC (2017, tid 29719380, court
+numbering). Replace with official Supreme Court copies when they can be fetched.

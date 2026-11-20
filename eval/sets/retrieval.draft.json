@@ -1,0 +1,26 @@
+{
+  "set": "retrieval",
+  "status": "draft — needs expert sign-off",
+  "note": "Written by the build team on 2026-11-20 for the Day 2 gate (topic: frustration of contract, ICA s. 56). Every expected passage is an exact sentence from the official Contract Act or from the judgment text; a law expert must review the questions and expected passages before this becomes part of the gold set.",
+  "items": [
+    { "id": "r-01", "question": "When does a contract to do an act become void because the act becomes impossible after the contract is made?", "expect": [{ "act": "Indian Contract Act", "section": "56" }] },
+    { "id": "r-02", "question": "Is an agreement to do an act that is impossible in itself valid?", "expect": [{ "act": "Indian Contract Act", "section": "56" }] },
+    { "id": "r-03", "question": "Must a promisor who knew the promised act was impossible compensate the promisee for the loss?", "expect": [{ "act": "Indian Contract Act", "section": "56" }] },
+    { "id": "r-04", "question": "What happens to a contract contingent on an uncertain future event when that event becomes impossible?", "expect": [{ "act": "Indian Contract Act", "section": "32" }] },
+    { "id": "r-05", "question": "What must a person do who received an advantage under an agreement that is later discovered to be void?", "expect": [{ "act": "Indian Contract Act", "section": "65" }] },
+    { "id": "r-06", "question": "Does the word impossible in section 56 mean only physical or literal impossibility?", "expect": [{ "case": "Satyabrata Ghose", "contains": "has not been used here in the sense of physical or literal impossibility" }] },
+    { "id": "r-07", "question": "Is the doctrine of frustration part of section 56 of the Indian Contract Act?", "expect": [{ "case": "Satyabrata Ghose", "contains": "We hold, therefore, that the doctrine of frustration is really an aspect" }] },
+    { "id": "r-08", "question": "Does section 56 leave frustration to be decided according to the intention of the parties?", "expect": [{ "case": "Satyabrata Ghose", "contains": "lays down a rule of positive law and does not leave the matter to be determined according to the intention of the parties" }] },
+    { "id": "r-09", "question": "Was the agreement to sell land in Satyabrata Ghose frustrated by the requisition of the land?", "expect": [{ "case": "Satyabrata Ghose", "contains": "the contract has not been frustrated at all" }] },
+    { "id": "r-10", "question": "Is a contract discharged because its performance has become more onerous due to an unforeseen turn of events?", "expect": [{ "case": "Alopi Parshad", "contains": "performance of the contract may become onerous. That is the law both in India and in England" }] },
+    { "id": "r-11", "question": "Does a wholly abnormal rise in prices by itself affect the bargain the parties have made?", "expect": [{ "case": "Alopi Parshad", "contains": "a wholly abnormal rise or fall in prices, a sudden depreciation of currency" }] },
+    { "id": "r-12", "question": "Was the buyer's obligation to obtain an import licence absolute in the Naihati Jute Mills case?", "expect": [{ "case": "Naihati Jute Mills", "contains": "the stipulation as to obtaining the import licence was absolute" }] },
+    { "id": "r-13", "question": "When a force majeure event happens outside the terms of the contract, is frustration governed by section 32 or section 56?", "expect": [{ "case": "Energy Watchdog", "contains": "If, however, frustration is to take place de hors the contract, it will be governed by Section 56" }] },
+    { "id": "r-14", "question": "Does an unexpected rise in the price of coal excuse a power generator from performing its contract?", "expect": [{ "case": "Energy Watchdog", "contains": "an unexpected rise in the price of coal will not absolve the generating companies from performing their part of the contract" }] },
+    { "id": "r-15", "question": "Does a mere rise in price that makes a contract more expensive to perform amount to frustration?", "expect": [{ "case": "Energy Watchdog", "contains": "a mere rise in price rendering the contract more expensive to perform does not constitute frustration" }] }
+  ],
+  "redteam": [
+    { "id": "rt-01", "question": "What did the Supreme Court hold in Sharma v. Union of India (2031) about frustration of leases?", "check": "no_source_titled", "value": "Sharma v. Union of India" },
+    { "id": "rt-02", "question": "What were the rules for transfer of ownership of goods sold under the Indian Contract Act?", "check": "no_repealed_text" }
+  ]
+}

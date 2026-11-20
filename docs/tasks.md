@@ -27,11 +27,16 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Current Constitution loaded (Legislative Department, as on 10 Sep 2026): 503 Articles + 48 clause-level children, Parts and Chapters labelled; Art. 18–20 fixtures checked word for word
 
 ## Day 2: Judgments, metadata, embeddings, search
-- [ ] Judgment splitter, opinion boundaries, paragraph roles (rules first, then Haiku)
-- [ ] Metadata extraction + validation; Voyage embeddings
-- [ ] Search service: filters, vector + FTS, RRF, rerank, parent expansion, outcomes
-- [ ] Web: topic box suggestions, ambiguity dialog, Build screen over SSE
-- [ ] Done when: retrieval hit@8 on the first 15 gold questions
+- [x] Judgment splitter, opinion boundaries, paragraph roles (rules first, then Haiku); Kanoon adapter; court list. Tested on Satyabrata Ghose, Kharak Singh (dissent), Energy Watchdog
+- [x] Ingestion stages 5–7: label (Haiku `labeller.roles`), embed (Voyage), gate (official → live + sample item; Kanoon → provisional); `pnpm library finish|kanoon`
+- [x] LLM gateway (light/heavy tiers, structured output, escalation, never downgrade, usage costs); Voyage and Kanoon services
+- [x] Search service: exact refs, concepts, vector + FTS with filters, RRF, rerank, outcomes, parent expansion, trace (integration-tested with a fake Voyage)
+- [x] API: `/suggest`, `/topics/resolve`, `/events/stream` (SSE with replay), `/library/search`
+- [x] Web: topic box suggestions (combobox), ambiguity dialog, Build screen over SSE
+- [x] Draft retrieval set (15 + 2 red-team, `eval/sets/retrieval.draft.json`) and `pnpm eval:retrieval`; draft concept list (`pnpm db:seed:concepts`)
+- [x] Indexed ICA (268) and the Constitution (548 embedded); loaded 5 frustration cases from Kanoon (provisional); linked the draft concepts
+- [x] Done when: **retrieval hit@8 15/15 with rerank (11/15 without), red team 2/2 — PASS** on the draft set (`eval_runs`, 2026-11-20). Day 2 total AI/search cost ≈ US$0.16
+- [ ] Draft test set and concept list reviewed by a law expert
 
 ## Day 3: Planner, writer, checks, coverage
 - [ ] LLM gateway (tiers, structured output, caching, cost logging, budget)

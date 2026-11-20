@@ -4,3 +4,4 @@ export * from './auth.ts';
 export * from './setup.ts';
 export * from './home.ts';
 export * from './library.ts';
+export * from './search.ts';

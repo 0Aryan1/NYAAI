@@ -3,6 +3,7 @@
 Append the newest entries at the top of each section. Never put secrets here.
 
 ## Status
+- **2026-11-20, Day 2 done.** Library: official ICA (268) and Constitution (551 chunks) live and indexed; 5 frustration cases from Kanoon (provisional). Retrieval test on the draft set: hit@8 15/15 with rerank, 11/15 without; red team 2/2. 138 tests green. Day 2 cost ≈ US$0.16 (Voyage 0.077, Kanoon 0.06, Haiku 0.02). Next: Day 3 (planner, writer, checks, coverage).
 - **2026-11-20, Day 1 done.**
   - Official Indian Contract Act loaded from India Code: 268 units (ss. 1–266 + 19A, 178A; 76 repealed).
   - Schema (41 tables) with RLS forced on every table; 9 RLS tests green.
@@ -39,6 +40,19 @@ Append the newest entries at the top of each section. Never put secrets here.
   - SeaweedFS S3 on **19000** (stands in for R2/S3)
 
 ## Build decisions (with reasons)
+- **2026-11-20, paragraphs broken across report pages are rejoined.** Kanoon gives old SCR judgments as one block per printed chunk, so a paragraph crossing a page arrives in two pieces (Satyabrata Ghose para "…in its practical and not literal sense. It must be borne in mind…"). A block that starts in lower case, or follows one that didn't end a sentence, joins the paragraph before it. This was the only miss in the first retrieval run (14/15 → 15/15).
+- **2026-11-20, reporter headnotes often rank first** for questions their summary repeats (r-08). That is allowed for retrieval, but a headnote can never support a "held" claim (C7, Day 3), so the writer must cite the court's paragraph that the window also carries.
+- **2026-11-20, Voyage account needs a payment method.** Without one Voyage allows 3 requests and 10K tokens per minute: indexing would take ~45 min and every rerank (~25K tokens) would fail. Free tokens still apply after adding a card. The client now waits 21 s on a 429 and `VOYAGE_MAX_BATCH_TOKENS` (default 60K) can be lowered.
+- **2026-11-20, judgments come from Indian Kanoon for now** (decision for Day 2), stored `provisional` with `expires_at = fetch + KANOON_CACHE_DAYS`; the raw Kanoon JSON is kept in storage under the same expiry. Kanoon's own `data-structure` paragraph labels are machine guesses and are ignored. Repo fixtures hold only the court's text (`kanoonToJudgment` output), not Kanoon markup.
+- **2026-11-20, judgment splitter rules learned from real judgments:**
+  - Caption, appearances and the "judgment of … was delivered by …" sentence are dropped; that sentence also names the majority (Kharak Singh: 4 of 6 → majority; Subba Rao J → dissent).
+  - Opinion starts: judge signature alone on a line ("R.F. NARIMAN, J."), inline after the delivered-by sentence (also with "--"), or an opener ("We have had the advantage…"). Signature lines and dates at the end are dropped.
+  - Quoted blocks join the paragraph before them; with court numbering, any block that doesn't carry the next number (quoted extracts with their own "1.2") belongs to the current paragraph.
+  - Roles: a court conclusion ("we hold", "we are of the view", "in our opinion", "the appeal is allowed") decides "holding" even when counsel is mentioned; "accordingly" alone is not a holding (Energy Watchdog para 22 describes a statute). "Facts" only before the paragraph that states the issue.
+  - Kanoon truncates long titles ("Energy Watchdog vs Central Electricity Regulatory ..."); Haiku `extract.metadata` proposes the full name and code keeps it only if it extends the known prefix and appears in the text.
+- **2026-11-20, schema changes:** `0002` lets the library role and the API write `usage`, the library role create/read GLOBAL review items, and editors of any college see GLOBAL items. `0003` lets a concept have several key sections in one Act (LLD keyed concept_links on concept+source+kind).
+- **2026-11-20, search details:** statute parents with children are not embedded (search runs on children, the writer gets the parent); judgment windows are ±2 paragraphs of the same opinion; the rerank instruction is prefixed to the query; suggestions are not yet cached in Redis (fast enough on the pilot library; add the 6 h cache when the library grows).
+- **2026-11-20, prompts carry no temperature**: current Haiku/Sonnet reject non-default sampling. Labelling runs at effort `low`.
 - **2026-11-20, `GOOGLE_SKIP_HD_CHECK` (development only).** The app accepts only Google Workspace accounts (`hd` claim = the email's domain, LLD §15.1). appnox.ai mail is on Hostinger and Gmail has no `hd`, so no local test account could pass. The switch skips only the `hd` check (and the `hd` hint to Google); verified email, allowed domain and invitation still apply. Config refuses it outside `NODE_ENV=development`; tests cover both.
 - **2026-11-20, India Code moved to https://indiacode.gov.in** (the old indiacode.nic.in only redirects, which is why fetches timed out). The new site is DSpace 7 with a public REST API:
   - Search: `/server/api/discover/search/objects?query=dc.identifier.collection:ACT AND dc.date.act_year:1872 AND dc.identifier.state_name:CENTRAL&dsoType=ITEM`. Central Acts have `state_name = CENTRAL`; each section is also its own item, so filter on the ACT collection.

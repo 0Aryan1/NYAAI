@@ -37,8 +37,8 @@ export const colleges = pgTable("colleges", {
 }, (table) => [
 	uniqueIndex("colleges_one_global").using("btree", table.isGlobal.asc().nullsLast().op("bool_ops")).where(sql`is_global`),
 	unique("colleges_slug_key").on(table.slug),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("colleges_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_library", "nyaai_worker"] }),
+	pgPolicy("colleges_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_library", "nyaai_worker"], using: sql`((id = app_college()) OR is_global)` }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const inviteAllowlist = pgTable("invite_allowlist", {
@@ -61,8 +61,8 @@ export const inviteAllowlist = pgTable("invite_allowlist", {
 			name: "invite_allowlist_invited_by_fkey"
 		}),
 	unique("invite_allowlist_college_id_email_key").on(table.collegeId, table.email),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("invites_admin", { as: "permissive", for: "all", to: ["nyaai_app"] }),
+	pgPolicy("invites_admin", { as: "permissive", for: "all", to: ["nyaai_app"], using: sql`((college_id = app_college()) AND (app_role() = 'admin'::text))`, withCheck: sql`((college_id = app_college()) AND (app_role() = 'admin'::text))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const consents = pgTable("consents", {
@@ -79,8 +79,8 @@ export const consents = pgTable("consents", {
 			foreignColumns: [users.id],
 			name: "consents_owner_id_fkey"
 		}),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const templates = pgTable("templates", {
@@ -98,10 +98,10 @@ export const templates = pgTable("templates", {
 			foreignColumns: [users.id],
 			name: "templates_owner_id_fkey"
 		}),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("templates_own", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("templates_ready_admin", { as: "permissive", for: "all", to: ["nyaai_app"], using: sql`((owner_id IS NULL) AND (college_id = app_college()) AND (app_role() = 'admin'::text))`, withCheck: sql`((owner_id IS NULL) AND (college_id = app_college()) AND (app_role() = 'admin'::text))`  }),
 	pgPolicy("templates_ready_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
-	pgPolicy("templates_ready_admin", { as: "permissive", for: "all", to: ["nyaai_app"] }),
+	pgPolicy("templates_own", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("templates_kind_check", sql`kind = ANY (ARRAY['own'::text, 'derived'::text, 'ready'::text])`),
 ]);
 
@@ -122,8 +122,8 @@ export const courses = pgTable("courses", {
 			foreignColumns: [users.id],
 			name: "courses_owner_id_fkey"
 		}),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const courseUnits = pgTable("course_units", {
@@ -147,8 +147,8 @@ export const courseUnits = pgTable("course_units", {
 			name: "course_units_course_id_fkey"
 		}).onDelete("cascade"),
 	unique("course_units_course_id_position_key").on(table.courseId, table.position),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("course_units_status_check", sql`status = ANY (ARRAY['planned'::text, 'taught'::text, 'skipped'::text])`),
 ]);
 
@@ -192,8 +192,8 @@ export const lectures = pgTable("lectures", {
 			foreignColumns: [courseUnits.id],
 			name: "lectures_unit_id_fkey"
 		}),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const lectureInputs = pgTable("lecture_inputs", {
@@ -211,8 +211,8 @@ export const lectureInputs = pgTable("lecture_inputs", {
 			foreignColumns: [lectures.id],
 			name: "lecture_inputs_lecture_id_fkey"
 		}).onDelete("cascade"),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("lecture_inputs_anything_special_check", sql`char_length(anything_special) <= 500`),
 ]);
 
@@ -235,8 +235,8 @@ export const slides = pgTable("slides", {
 			foreignColumns: [lectures.id],
 			name: "slides_lecture_id_fkey"
 		}).onDelete("cascade"),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const slideVersions = pgTable("slide_versions", {
@@ -258,8 +258,8 @@ export const slideVersions = pgTable("slide_versions", {
 			name: "slide_versions_slide_id_fkey"
 		}).onDelete("cascade"),
 	unique("slide_versions_slide_id_version_key").on(table.slideId, table.version),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("slide_versions_reason_check", sql`reason = ANY (ARRAY['build'::text, 'edit'::text, 'rewrite'::text, 'add_example'::text, 'coach'::text, 'restore'::text, 'remove_unverified'::text])`),
 ]);
 
@@ -294,8 +294,8 @@ export const citations = pgTable("citations", {
 			foreignColumns: [lectures.id],
 			name: "citations_lecture_id_fkey"
 		}).onDelete("cascade"),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("citations_claim_type_check", sql`claim_type = ANY (ARRAY['rule'::text, 'holding'::text, 'date'::text, 'punishment'::text, 'time_limit'::text, 'mapping'::text, 'quote'::text, 'fact'::text, 'example'::text, 'news_report'::text])`),
 ]);
 
@@ -322,8 +322,8 @@ export const coverageItems = pgTable("coverage_items", {
 			foreignColumns: [citations.id],
 			name: "coverage_items_covered_by_fkey"
 		}),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("coverage_items_item_kind_check", sql`item_kind = ANY (ARRAY['proviso'::text, 'exception'::text, 'explanation'::text, 'illustration'::text, 'clause'::text, 'leading_case'::text])`),
 	check("coverage_items_state_check", sql`state = ANY (ARRAY['covered'::text, 'missing'::text, 'left_out_by_teacher'::text])`),
 ]);
@@ -344,8 +344,8 @@ export const researchRuns = pgTable("research_runs", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	finishedAt: timestamp("finished_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("research_runs_mode_check", sql`mode = ANY (ARRAY['quick'::text, 'thorough'::text])`),
 	check("research_runs_status_check", sql`status = ANY (ARRAY['planning'::text, 'awaiting_edit'::text, 'gathering'::text, 'writing'::text, 'checking'::text, 'ready'::text, 'failed'::text])`),
 ]);
@@ -364,8 +364,8 @@ export const researchQuestions = pgTable("research_questions", {
 			foreignColumns: [researchRuns.id],
 			name: "research_questions_run_id_fkey"
 		}).onDelete("cascade"),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const evidenceItems = pgTable("evidence_items", {
@@ -393,8 +393,8 @@ export const evidenceItems = pgTable("evidence_items", {
 			foreignColumns: [researchQuestions.id],
 			name: "evidence_items_question_id_fkey"
 		}).onDelete("cascade"),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("evidence_items_relation_check", sql`relation = ANY (ARRAY['supports'::text, 'limits'::text, 'conflicts'::text])`),
 ]);
 
@@ -408,8 +408,8 @@ export const readingListItems = pgTable("reading_list_items", {
 	note: text(),
 	position: integer().notNull(),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const sources = pgTable("sources", {
@@ -447,11 +447,11 @@ export const sources = pgTable("sources", {
 			name: "sources_owner_id_fkey"
 		}),
 	unique("sources_origin_content_hash_key").on(table.origin, table.contentHash),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("sources_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
-	pgPolicy("sources_own_write", { as: "permissive", for: "all", to: ["nyaai_worker"] }),
+	pgPolicy("sources_editor_write", { as: "permissive", for: "all", to: ["nyaai_app"], using: sql`((visibility = 'shared'::visibility) AND (app_role() = ANY (ARRAY['admin'::text, 'library_editor'::text])) AND ((college_id = app_college()) OR (college_id = global_college())))`, withCheck: sql`((visibility = 'shared'::visibility) AND (app_role() = ANY (ARRAY['admin'::text, 'library_editor'::text])) AND ((college_id = app_college()) OR (college_id = global_college())))`  }),
 	pgPolicy("sources_shared_write", { as: "permissive", for: "all", to: ["nyaai_library"] }),
-	pgPolicy("sources_editor_write", { as: "permissive", for: "all", to: ["nyaai_app"] }),
+	pgPolicy("sources_own_write", { as: "permissive", for: "all", to: ["nyaai_worker"] }),
+	pgPolicy("sources_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("sources_court_level_check", sql`court_level = ANY (ARRAY['supreme_court'::text, 'high_court'::text, 'tribunal'::text, 'district'::text, 'foreign'::text])`),
 ]);
 
@@ -513,10 +513,10 @@ export const chunks = pgTable("chunks", {
 			name: "chunks_parent_id_fkey"
 		}),
 	unique("chunks_source_id_content_hash_key").on(table.sourceId, table.contentHash),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("chunks_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("chunks_shared_write", { as: "permissive", for: "all", to: ["nyaai_library"], using: sql`(visibility = 'shared'::visibility)`, withCheck: sql`(visibility = 'shared'::visibility)`  }),
 	pgPolicy("chunks_own_write", { as: "permissive", for: "all", to: ["nyaai_worker"] }),
-	pgPolicy("chunks_shared_write", { as: "permissive", for: "all", to: ["nyaai_library"] }),
+	pgPolicy("chunks_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("chunks_kind_check", sql`kind = ANY (ARRAY['section'::text, 'subsection'::text, 'article'::text, 'clause'::text, 'paragraph'::text, 'paragraph_block'::text, 'heading_block'::text, 'slide'::text, 'headnote'::text])`),
 	check("chunks_para_no_source_check", sql`para_no_source = ANY (ARRAY['court'::text, 'nyaai'::text])`),
 ]);
@@ -538,10 +538,36 @@ export const legalConcepts = pgTable("legal_concepts", {
 			foreignColumns: [table.id],
 			name: "legal_concepts_parent_id_fkey"
 		}),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("concepts_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("concepts_library", { as: "permissive", for: "all", to: ["nyaai_library"], using: sql`true`, withCheck: sql`true`  }),
 	pgPolicy("concepts_editor", { as: "permissive", for: "all", to: ["nyaai_app"] }),
-	pgPolicy("concepts_library", { as: "permissive", for: "all", to: ["nyaai_library"] }),
+	pgPolicy("concepts_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
+]);
+
+export const conceptLinks = pgTable("concept_links", {
+	conceptId: uuid("concept_id").notNull(),
+	sourceId: uuid("source_id").notNull(),
+	chunkId: uuid("chunk_id"),
+	kind: text().notNull(),
+	confirmedBy: uuid("confirmed_by"),
+	confirmedAt: timestamp("confirmed_at", { withTimezone: true, mode: 'string' }),
+}, (table) => [
+	uniqueIndex("concept_links_unique").using("btree", sql`concept_id`, sql`source_id`, sql`kind`, sql`COALESCE(chunk_id, '00000000-0000-0000-0000-000000000000'::uuid`),
+	foreignKey({
+			columns: [table.conceptId],
+			foreignColumns: [legalConcepts.id],
+			name: "concept_links_concept_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.sourceId],
+			foreignColumns: [sources.id],
+			name: "concept_links_source_id_fkey"
+		}),
+	pgPolicy("lib_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"], using: sql`(app_user() IS NOT NULL)` }),
+	pgPolicy("lib_library", { as: "permissive", for: "all", to: ["nyaai_library"] }),
+	pgPolicy("lib_editor", { as: "permissive", for: "all", to: ["nyaai_app"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
+	check("concept_links_kind_check", sql`kind = ANY (ARRAY['key_section'::text, 'leading_case'::text, 'related'::text])`),
 ]);
 
 export const lawMappings = pgTable("law_mappings", {
@@ -555,10 +581,10 @@ export const lawMappings = pgTable("law_mappings", {
 	reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: 'string' }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("lib_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("lib_library", { as: "permissive", for: "all", to: ["nyaai_library"], using: sql`true`, withCheck: sql`true`  }),
 	pgPolicy("lib_editor", { as: "permissive", for: "all", to: ["nyaai_app"] }),
-	pgPolicy("lib_library", { as: "permissive", for: "all", to: ["nyaai_library"] }),
+	pgPolicy("lib_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const caseTreatments = pgTable("case_treatments", {
@@ -584,11 +610,11 @@ export const caseTreatments = pgTable("case_treatments", {
 			foreignColumns: [sources.id],
 			name: "case_treatments_citing_source_id_fkey"
 		}),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("lib_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
-	pgPolicy("lib_editor", { as: "permissive", for: "all", to: ["nyaai_app"] }),
+	pgPolicy("treatments_worker_suggest", { as: "permissive", for: "insert", to: ["nyaai_worker"], withCheck: sql`((suggested_by = 'ai'::text) AND (confirmed_by IS NULL) AND (confirmed_at IS NULL))`  }),
 	pgPolicy("lib_library", { as: "permissive", for: "all", to: ["nyaai_library"] }),
-	pgPolicy("treatments_worker_suggest", { as: "permissive", for: "insert", to: ["nyaai_worker"] }),
+	pgPolicy("lib_editor", { as: "permissive", for: "all", to: ["nyaai_app"] }),
+	pgPolicy("lib_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("case_treatments_suggested_by_check", sql`suggested_by = ANY (ARRAY['ai'::text, 'editor'::text])`),
 ]);
 
@@ -605,8 +631,8 @@ export const uploads = pgTable("uploads", {
 	status: text().default('queued').notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const examples = pgTable("examples", {
@@ -618,8 +644,8 @@ export const examples = pgTable("examples", {
 	usedCount: integer("used_count").default(0).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const shareRequests = pgTable("share_requests", {
@@ -634,8 +660,8 @@ export const shareRequests = pgTable("share_requests", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	decidedAt: timestamp("decided_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const editEvents = pgTable("edit_events", {
@@ -650,8 +676,8 @@ export const editEvents = pgTable("edit_events", {
 	tryout: boolean().default(false).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const styleChanges = pgTable("style_changes", {
@@ -665,8 +691,8 @@ export const styleChanges = pgTable("style_changes", {
 	undoneAt: timestamp("undone_at", { withTimezone: true, mode: 'string' }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const coachSuggestions = pgTable("coach_suggestions", {
@@ -681,8 +707,8 @@ export const coachSuggestions = pgTable("coach_suggestions", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	decidedAt: timestamp("decided_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("coach_suggestions_status_check", sql`status = ANY (ARRAY['shown'::text, 'accepted'::text, 'rejected'::text])`),
 ]);
 
@@ -695,8 +721,8 @@ export const feedback = pgTable("feedback", {
 	comment: text(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("feedback_sounds_like_me_check", sql`(sounds_like_me >= 1) AND (sounds_like_me <= 5)`),
 ]);
 
@@ -717,11 +743,11 @@ export const reports = pgTable("reports", {
 	evalItemId: uuid("eval_item_id"),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("reports_own_insert", { as: "permissive", for: "insert", to: ["nyaai_app"] }),
-	pgPolicy("reports_own_read", { as: "permissive", for: "select", to: ["nyaai_app"] }),
+	pgPolicy("reports_worker", { as: "permissive", for: "all", to: ["nyaai_worker"], using: sql`(college_id = app_college())`, withCheck: sql`(college_id = app_college())`  }),
 	pgPolicy("reports_editor", { as: "permissive", for: "all", to: ["nyaai_app"] }),
-	pgPolicy("reports_worker", { as: "permissive", for: "all", to: ["nyaai_worker"] }),
+	pgPolicy("reports_own_read", { as: "permissive", for: "select", to: ["nyaai_app"] }),
+	pgPolicy("reports_own_insert", { as: "permissive", for: "insert", to: ["nyaai_app"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("reports_outcome_check", sql`outcome = ANY (ARRAY['fixed_chunk'::text, 'fixed_label'::text, 'fixed_mapping'::text, 'was_correct'::text])`),
 ]);
 
@@ -739,9 +765,11 @@ export const reviewQueue = pgTable("review_queue", {
 	resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
 	index("review_open").using("btree", table.collegeId.asc().nullsLast().op("int2_ops"), table.state.asc().nullsLast().op("enum_ops"), table.kind.asc().nullsLast().op("uuid_ops"), table.priority.asc().nullsLast().op("enum_ops")),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("editor_queue", { as: "permissive", for: "all", to: ["nyaai_app"] }),
+	pgPolicy("editor_queue", { as: "permissive", for: "all", to: ["nyaai_app"], using: sql`(((college_id = app_college()) OR (college_id = global_college())) AND (app_role() = 'library_editor'::text))`, withCheck: sql`(((college_id = app_college()) OR (college_id = global_college())) AND (app_role() = 'library_editor'::text))`  }),
+	pgPolicy("queue_library_read", { as: "permissive", for: "select", to: ["nyaai_library"] }),
+	pgPolicy("queue_library_insert", { as: "permissive", for: "insert", to: ["nyaai_library"] }),
 	pgPolicy("queue_worker", { as: "permissive", for: "all", to: ["nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const evalItems = pgTable("eval_items", {
@@ -753,8 +781,8 @@ export const evalItems = pgTable("eval_items", {
 	fromReport: uuid("from_report"),
 	active: boolean().default(true).notNull(),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("eval_items_library", { as: "permissive", for: "all", to: ["nyaai_library"] }),
+	pgPolicy("eval_items_library", { as: "permissive", for: "all", to: ["nyaai_library"], using: sql`true`, withCheck: sql`true`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("eval_items_set_name_check", sql`set_name = ANY (ARRAY['gold'::text, 'redteam'::text, 'planted'::text, 'research'::text, 'retrieval'::text])`),
 ]);
 
@@ -768,8 +796,8 @@ export const evalRuns = pgTable("eval_runs", {
 	passed: boolean().notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("eval_runs_library", { as: "permissive", for: "all", to: ["nyaai_library"] }),
+	pgPolicy("eval_runs_library", { as: "permissive", for: "all", to: ["nyaai_library"], using: sql`true`, withCheck: sql`true`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const jobsLog = pgTable("jobs_log", {
@@ -786,9 +814,9 @@ export const jobsLog = pgTable("jobs_log", {
 	startedAt: timestamp("started_at", { withTimezone: true, mode: 'string' }),
 	finishedAt: timestamp("finished_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
+	pgPolicy("jobs_write", { as: "permissive", for: "all", to: ["nyaai_library", "nyaai_worker"], using: sql`true`, withCheck: sql`true`  }),
 	pgPolicy("jobs_read", { as: "permissive", for: "select", to: ["nyaai_app"] }),
-	pgPolicy("jobs_write", { as: "permissive", for: "all", to: ["nyaai_library", "nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const usage = pgTable("usage", {
@@ -815,9 +843,11 @@ export const usage = pgTable("usage", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("usage_owner_month").using("btree", table.ownerId.asc().nullsLast().op("timestamptz_ops"), table.createdAt.asc().nullsLast().op("timestamptz_ops")),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("usage_worker", { as: "permissive", for: "all", to: ["nyaai_worker"] }),
+	pgPolicy("usage_app_insert", { as: "permissive", for: "insert", to: ["nyaai_app"], withCheck: sql`((college_id = app_college()) AND ((owner_id IS NULL) OR (owner_id = app_user())))`  }),
+	pgPolicy("usage_library_insert", { as: "permissive", for: "insert", to: ["nyaai_library"] }),
 	pgPolicy("usage_read", { as: "permissive", for: "select", to: ["nyaai_app"] }),
+	pgPolicy("usage_worker", { as: "permissive", for: "all", to: ["nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const notifications = pgTable("notifications", {
@@ -829,8 +859,8 @@ export const notifications = pgTable("notifications", {
 	readAt: timestamp("read_at", { withTimezone: true, mode: 'string' }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const productEvents = pgTable("product_events", {
@@ -843,9 +873,9 @@ export const productEvents = pgTable("product_events", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("events_name_time").using("btree", table.name.asc().nullsLast().op("text_ops"), table.createdAt.asc().nullsLast().op("text_ops")),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
+	pgPolicy("events_admin", { as: "permissive", for: "select", to: ["nyaai_app"], using: sql`((college_id = app_college()) AND (app_role() = 'admin'::text))` }),
 	pgPolicy("events_insert", { as: "permissive", for: "insert", to: ["nyaai_app", "nyaai_worker"] }),
-	pgPolicy("events_admin", { as: "permissive", for: "select", to: ["nyaai_app"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const deletionLog = pgTable("deletion_log", {
@@ -858,9 +888,9 @@ export const deletionLog = pgTable("deletion_log", {
 	startedAt: timestamp("started_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	finishedAt: timestamp("finished_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
+	pgPolicy("deletion_worker", { as: "permissive", for: "all", to: ["nyaai_worker"], using: sql`(college_id = app_college())`, withCheck: sql`(college_id = app_college())`  }),
 	pgPolicy("deletion_read", { as: "permissive", for: "select", to: ["nyaai_app"] }),
-	pgPolicy("deletion_worker", { as: "permissive", for: "all", to: ["nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const users = pgTable("users", {
@@ -881,10 +911,10 @@ export const users = pgTable("users", {
 		}),
 	unique("users_email_key").on(table.email),
 	unique("users_google_sub_key").on(table.googleSub),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("admin_users", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("users_admin_update", { as: "permissive", for: "update", to: ["nyaai_app"], using: sql`((college_id = app_college()) AND (app_role() = 'admin'::text))`, withCheck: sql`((college_id = app_college()) AND (app_role() = 'admin'::text))`  }),
 	pgPolicy("users_self_update", { as: "permissive", for: "update", to: ["nyaai_app"] }),
-	pgPolicy("users_admin_update", { as: "permissive", for: "update", to: ["nyaai_app"] }),
+	pgPolicy("admin_users", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("users_status_check", sql`status = ANY (ARRAY['active'::text, 'removed'::text])`),
 ]);
 
@@ -915,8 +945,8 @@ export const teacherProfiles = pgTable("teacher_profiles", {
 			foreignColumns: [templates.id],
 			name: "teacher_profiles_template_id_fkey"
 		}),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("own_rows", { as: "permissive", for: "all", to: ["nyaai_app", "nyaai_worker"], using: sql`((college_id = app_college()) AND (owner_id = app_user()))`, withCheck: sql`((college_id = app_college()) AND (owner_id = app_user()))`  }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 ]);
 
 export const lawMappingItems = pgTable("law_mapping_items", {
@@ -930,37 +960,11 @@ export const lawMappingItems = pgTable("law_mapping_items", {
 			name: "law_mapping_items_mapping_id_fkey"
 		}).onDelete("cascade"),
 	primaryKey({ columns: [table.mappingId, table.side, table.section], name: "law_mapping_items_pkey"}),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("lib_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("lib_library", { as: "permissive", for: "all", to: ["nyaai_library"], using: sql`true`, withCheck: sql`true`  }),
 	pgPolicy("lib_editor", { as: "permissive", for: "all", to: ["nyaai_app"] }),
-	pgPolicy("lib_library", { as: "permissive", for: "all", to: ["nyaai_library"] }),
+	pgPolicy("lib_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
+	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"] }),
 	check("law_mapping_items_side_check", sql`side = ANY (ARRAY['old'::text, 'new'::text])`),
-]);
-
-export const conceptLinks = pgTable("concept_links", {
-	conceptId: uuid("concept_id").notNull(),
-	sourceId: uuid("source_id").notNull(),
-	chunkId: uuid("chunk_id"),
-	kind: text().notNull(),
-	confirmedBy: uuid("confirmed_by"),
-	confirmedAt: timestamp("confirmed_at", { withTimezone: true, mode: 'string' }),
-}, (table) => [
-	foreignKey({
-			columns: [table.conceptId],
-			foreignColumns: [legalConcepts.id],
-			name: "concept_links_concept_id_fkey"
-		}).onDelete("cascade"),
-	foreignKey({
-			columns: [table.sourceId],
-			foreignColumns: [sources.id],
-			name: "concept_links_source_id_fkey"
-		}),
-	primaryKey({ columns: [table.conceptId, table.sourceId, table.kind], name: "concept_links_pkey"}),
-	pgPolicy("owner_all", { as: "permissive", for: "all", to: ["nyaai_owner"], using: sql`true`, withCheck: sql`true`  }),
-	pgPolicy("lib_editor", { as: "permissive", for: "all", to: ["nyaai_app"] }),
-	pgPolicy("lib_library", { as: "permissive", for: "all", to: ["nyaai_library"] }),
-	pgPolicy("lib_read", { as: "permissive", for: "select", to: ["nyaai_app", "nyaai_worker"] }),
-	check("concept_links_kind_check", sql`kind = ANY (ARRAY['key_section'::text, 'leading_case'::text, 'related'::text])`),
 ]);
 export const caseStatusV = pgView("case_status_v", {	sourceId: uuid("source_id"),
 	status: text(),

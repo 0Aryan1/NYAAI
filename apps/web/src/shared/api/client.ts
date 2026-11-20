@@ -5,6 +5,8 @@ import {
   HealthResponse,
   HomeResponse,
   Me,
+  ResolveResponse,
+  SuggestResponse,
   type ProfileRequest,
   type StyleRequest,
 } from '@nyaai/shared';
@@ -68,6 +70,15 @@ export const api = {
   setupProgress: (step: number) => call<void>('PATCH', '/setup/progress', { body: { step } }),
   finishSetup: () => call<void>('POST', '/setup/finish', { body: {} }),
   home: () => call('GET', '/home', { parse: (v) => HomeResponse.parse(v) }),
+  suggest: (q: string) => call('GET', `/suggest?q=${encodeURIComponent(q)}`, { parse: (v) => SuggestResponse.parse(v) }),
+  /** 409 TOPIC_AMBIGUOUS carries `details.choices`; the caller shows the one-tap dialog. */
+  resolveTopic: (topic: string, choice?: string) => call('POST', '/topics/resolve', { body: { topic, choice }, parse: (v) => ResolveResponse.parse(v) }),
 };
 
-export const queryKeys = { me: ['me'] as const, home: ['home'] as const, consent: ['consent'] as const, authOptions: ['auth-options'] as const };
+export const queryKeys = {
+  me: ['me'] as const,
+  home: ['home'] as const,
+  consent: ['consent'] as const,
+  authOptions: ['auth-options'] as const,
+  suggest: (q: string) => ['suggest', q] as const,
+};

@@ -1,3 +1,7 @@
 export * from './patterns.ts';
 export * from './clean.ts';
 export * from './statute.ts';
+export * from './judgment.ts';
+export * from './kanoon.ts';
+export * from './courts.ts';
+export * from './query.ts';

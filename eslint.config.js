@@ -25,7 +25,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/server/src/services/llm-gateway/**'],
+    files: ['apps/server/src/services/llm-gateway/**', 'apps/server/test/gateway.test.ts'],
     rules: { 'no-restricted-imports': ['error', { patterns: ONE_DOOR.patterns }] },
   },
   {

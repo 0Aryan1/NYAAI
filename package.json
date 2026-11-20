@@ -18,7 +18,10 @@
     "db:migrate": "pnpm --filter @nyaai/db migrate",
     "db:seed": "pnpm --filter @nyaai/db seed",
     "db:reset": "docker compose -f infra/docker-compose.yml down -v && pnpm db:up && pnpm db:migrate && pnpm db:seed",
-    "ingest:source": "pnpm --filter @nyaai/server ingest:source"
+    "ingest:source": "pnpm --filter @nyaai/server ingest:source",
+    "library": "pnpm --filter @nyaai/server library",
+    "db:seed:concepts": "pnpm --filter @nyaai/db seed concepts",
+    "eval:retrieval": "pnpm --filter @nyaai/server eval:retrieval"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

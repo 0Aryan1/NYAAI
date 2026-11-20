@@ -5,6 +5,7 @@ import { createLogger } from './logger.ts';
 import { createRedis } from './redis.ts';
 import { createApp } from './app.ts';
 import type { IngestJobData } from './jobs/queues.ts';
+import { gatewayFrom, voyageFrom } from './services/factory.ts';
 
 const config = { ...loadConfig(), APP_ROLE: 'api' as const };
 const logger = createLogger(config);
@@ -16,7 +17,18 @@ const missing = missingProviderKeys(config);
 if (missing.length) logger.warn({ missing }, 'provider keys not set; AI and lookup features will be unavailable');
 if (config.DEV_LOGIN) logger.warn('DEV_LOGIN is on (development only)');
 
-const server = createApp({ config, logger, pool, redis, queues: { ingest } }).listen(config.API_PORT, () => {
+const server = createApp({
+  config,
+  logger,
+  pool,
+  redis,
+  queues: { ingest },
+  search: {
+    voyage: config.VOYAGE_API_KEY ? (usage) => voyageFrom(config, usage) : null,
+    gateway: gatewayFrom(config),
+    minScore: config.RERANK_MIN_SCORE,
+  },
+}).listen(config.API_PORT, () => {
   logger.info(`API listening on http://localhost:${config.API_PORT}/api/v1`);
 });
 

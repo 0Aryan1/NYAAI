@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { colleges, inviteAllowlist, users, consents, templates, courses, courseUnits, lectures, lectureInputs, slides, slideVersions, citations, coverageItems, researchRuns, researchQuestions, evidenceItems, sources, chunks, legalConcepts, caseTreatments, teacherProfiles, lawMappings, lawMappingItems, conceptLinks } from "./schema";
+import { colleges, inviteAllowlist, users, consents, templates, courses, courseUnits, lectures, lectureInputs, slides, slideVersions, citations, coverageItems, researchRuns, researchQuestions, evidenceItems, sources, chunks, legalConcepts, conceptLinks, caseTreatments, teacherProfiles, lawMappings, lawMappingItems } from "./schema";
 
 export const inviteAllowlistRelations = relations(inviteAllowlist, ({one}) => ({
 	college: one(colleges, {
@@ -153,13 +153,13 @@ export const sourcesRelations = relations(sources, ({one, many}) => ({
 		references: [users.id]
 	}),
 	chunks: many(chunks),
+	conceptLinks: many(conceptLinks),
 	caseTreatments_citedSourceId: many(caseTreatments, {
 		relationName: "caseTreatments_citedSourceId_sources_id"
 	}),
 	caseTreatments_citingSourceId: many(caseTreatments, {
 		relationName: "caseTreatments_citingSourceId_sources_id"
 	}),
-	conceptLinks: many(conceptLinks),
 }));
 
 export const chunksRelations = relations(chunks, ({one, many}) => ({
@@ -187,6 +187,17 @@ export const legalConceptsRelations = relations(legalConcepts, ({one, many}) => 
 		relationName: "legalConcepts_parentId_legalConcepts_id"
 	}),
 	conceptLinks: many(conceptLinks),
+}));
+
+export const conceptLinksRelations = relations(conceptLinks, ({one}) => ({
+	legalConcept: one(legalConcepts, {
+		fields: [conceptLinks.conceptId],
+		references: [legalConcepts.id]
+	}),
+	source: one(sources, {
+		fields: [conceptLinks.sourceId],
+		references: [sources.id]
+	}),
 }));
 
 export const caseTreatmentsRelations = relations(caseTreatments, ({one}) => ({
@@ -222,15 +233,4 @@ export const lawMappingItemsRelations = relations(lawMappingItems, ({one}) => ({
 
 export const lawMappingsRelations = relations(lawMappings, ({many}) => ({
 	lawMappingItems: many(lawMappingItems),
-}));
-
-export const conceptLinksRelations = relations(conceptLinks, ({one}) => ({
-	legalConcept: one(legalConcepts, {
-		fields: [conceptLinks.conceptId],
-		references: [legalConcepts.id]
-	}),
-	source: one(sources, {
-		fields: [conceptLinks.sourceId],
-		references: [sources.id]
-	}),
 }));

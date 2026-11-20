@@ -2,6 +2,7 @@ import { createBrowserRouter, redirect } from 'react-router';
 import { SETUP_STEPS, type SetupStepName } from '@nyaai/shared';
 import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { HomePage } from '@/features/home/HomePage';
+import { BuildPage } from '@/features/build/BuildPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { SetupWizard } from '@/features/setup/SetupWizard';
 import { AppShell } from './AppShell';
@@ -54,7 +55,10 @@ export const router = createBrowserRouter([
     element: <AppShell />,
     loader: signedInLoader,
     errorElement: <RouteError />,
-    children: [{ index: true, element: <HomePage /> }],
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: 'build/:lectureId', element: <BuildPage /> },
+    ],
   },
   { path: '*', element: <RouteError notFound /> },
 ]);
