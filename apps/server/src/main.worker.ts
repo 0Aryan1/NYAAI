@@ -6,7 +6,7 @@ import { createRedis } from './redis.ts';
 import { TIMEZONE, ingestBackoff } from './jobs/queues.ts';
 import { opsProcessor } from './jobs/ops.ts';
 import { ingestProcessor } from './jobs/ingest.ts';
-import { gatewayFrom, kanoonFrom, storageFrom, voyageFrom } from './services/factory.ts';
+import { gatewayFrom, indiaCodeFrom, kanoonFrom, storageFrom, voyageFrom, webSearchFrom } from './services/factory.ts';
 import { usageSink } from './services/usage.ts';
 
 const config = { ...loadConfig(), APP_ROLE: 'worker' as const };
@@ -41,6 +41,8 @@ const workers = [
       voyage: voyageFrom(config, libraryUsage),
       gateway: gatewayFrom(config),
       kanoon: config.INDIAN_KANOON_TOKEN ? kanoonFrom(config, libraryUsage) : null,
+      indiaCode: indiaCodeFrom(),
+      web: webSearchFrom(config, libraryUsage),
       usage: libraryUsage,
       embedModel: config.VOYAGE_EMBED_MODEL,
       cacheDays: config.KANOON_CACHE_DAYS,

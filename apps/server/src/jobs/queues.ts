@@ -6,10 +6,16 @@ export type QueueName = (typeof QUEUES)[number];
 
 export const TIMEZONE = 'Asia/Kolkata';
 
-/** ingest.source: one shared-library source (by id); ingest.kanoon: one Indian Kanoon judgment (by tid). */
+/**
+ * ingest.source: one shared-library source (by id); ingest.kanoon: one Indian Kanoon judgment (by tid);
+ * ingest.lookup: the trusted-source lookup for one library gap (by id; the question stays in Postgres).
+ */
 export interface IngestJobData {
   sourceId?: string;
   tid?: number;
+  gapId?: string;
+  /** ingest.lookup: run even if a lookup ran within the cooldown (the editor asked). */
+  force?: boolean;
   /** Who asked (for progress events); an id, never content. */
   requestedBy?: string;
 }

@@ -5,7 +5,7 @@
 import type pg from 'pg';
 
 export interface UsageRow {
-  provider: 'anthropic' | 'voyage' | 'indian_kanoon';
+  provider: 'anthropic' | 'voyage' | 'indian_kanoon' | 'perplexity';
   model?: string;
   purpose: string;
   promptId?: string;

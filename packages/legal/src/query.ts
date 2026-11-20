@@ -25,7 +25,27 @@ export const ACT_ALIASES: [RegExp, string][] = [
   [/\bSale\s+of\s+Goods\s+Act\b|\bSGA\b/i, 'Sale of Goods Act'],
   [/\bIndian\s+Penal\s+Code\b|\bIPC\b/i, 'Indian Penal Code'],
   [/\bBharatiya\s+Nyaya\s+Sanhita\b|\bBNS\b/i, 'Bharatiya Nyaya Sanhita'],
+  [/\bTransfer\s+of\s+Property\s+Act\b|\bTPA\b/i, 'Transfer of Property Act'],
+  [/\bNegotiable\s+Instruments\s+Act\b|\bNI\s+Act\b/i, 'Negotiable Instruments Act'],
+  [/\b(?:Indian\s+)?Partnership\s+Act\b/i, 'Indian Partnership Act'],
+  [/\bArbitration\s+and\s+Conciliation\s+Act\b/i, 'Arbitration and Conciliation Act'],
+  [/\bConsumer\s+Protection\s+Act\b/i, 'Consumer Protection Act'],
 ];
+
+/** Year of each Act in ACT_ALIASES, so a gap lookup can ask India Code for the right one (null: not a central Act). */
+export const ACT_YEARS: Record<string, number | null> = {
+  'Indian Contract Act': 1872,
+  'Constitution of India': null,
+  'Specific Relief Act': 1963,
+  'Sale of Goods Act': 1930,
+  'Indian Penal Code': 1860,
+  'Bharatiya Nyaya Sanhita': 2023,
+  'Transfer of Property Act': 1882,
+  'Negotiable Instruments Act': 1881,
+  'Indian Partnership Act': 1932,
+  'Arbitration and Conciliation Act': 1996,
+  'Consumer Protection Act': 2019,
+};
 
 const SECTION = /\b(?:s|ss|sec|secs|section|sections)\.?\s*(\d{1,4}[A-Z]{0,3})\b/gi;
 const ARTICLE = /\b(?:art|arts|article|articles)\.?\s*(\d{1,3}[A-Z]{0,3})\b/gi;

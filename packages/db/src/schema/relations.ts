@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { colleges, inviteAllowlist, users, consents, templates, courses, courseUnits, lectures, lectureInputs, slides, slideVersions, citations, coverageItems, researchRuns, researchQuestions, evidenceItems, sources, chunks, legalConcepts, conceptLinks, caseTreatments, teacherProfiles, lawMappings, lawMappingItems } from "./schema";
+import { colleges, inviteAllowlist, users, consents, templates, courses, courseUnits, lectures, lectureInputs, slides, slideVersions, citations, coverageItems, researchRuns, researchQuestions, evidenceItems, sources, chunks, legalConcepts, conceptLinks, caseTreatments, teacherProfiles, libraryGaps, lawMappings, lawMappingItems, libraryGapAskers } from "./schema";
 
 export const inviteAllowlistRelations = relations(inviteAllowlist, ({one}) => ({
 	college: one(colleges, {
@@ -15,6 +15,7 @@ export const inviteAllowlistRelations = relations(inviteAllowlist, ({one}) => ({
 export const collegesRelations = relations(colleges, ({many}) => ({
 	inviteAllowlists: many(inviteAllowlist),
 	users: many(users),
+	libraryGaps: many(libraryGaps),
 }));
 
 export const usersRelations = relations(users, ({one, many}) => ({
@@ -29,6 +30,8 @@ export const usersRelations = relations(users, ({one, many}) => ({
 		references: [colleges.id]
 	}),
 	teacherProfiles: many(teacherProfiles),
+	libraryGaps: many(libraryGaps),
+	libraryGapAskers: many(libraryGapAskers),
 }));
 
 export const consentsRelations = relations(consents, ({one}) => ({
@@ -224,6 +227,18 @@ export const teacherProfilesRelations = relations(teacherProfiles, ({one}) => ({
 	}),
 }));
 
+export const libraryGapsRelations = relations(libraryGaps, ({one, many}) => ({
+	college: one(colleges, {
+		fields: [libraryGaps.collegeId],
+		references: [colleges.id]
+	}),
+	user: one(users, {
+		fields: [libraryGaps.resolvedBy],
+		references: [users.id]
+	}),
+	libraryGapAskers: many(libraryGapAskers),
+}));
+
 export const lawMappingItemsRelations = relations(lawMappingItems, ({one}) => ({
 	lawMapping: one(lawMappings, {
 		fields: [lawMappingItems.mappingId],
@@ -233,4 +248,15 @@ export const lawMappingItemsRelations = relations(lawMappingItems, ({one}) => ({
 
 export const lawMappingsRelations = relations(lawMappings, ({many}) => ({
 	lawMappingItems: many(lawMappingItems),
+}));
+
+export const libraryGapAskersRelations = relations(libraryGapAskers, ({one}) => ({
+	libraryGap: one(libraryGaps, {
+		fields: [libraryGapAskers.gapId],
+		references: [libraryGaps.id]
+	}),
+	user: one(users, {
+		fields: [libraryGapAskers.ownerId],
+		references: [users.id]
+	}),
 }));

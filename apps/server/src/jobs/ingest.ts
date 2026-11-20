@@ -11,6 +11,9 @@ import { publishEvent } from '../services/events.ts';
 import { ingestSource } from '../services/ingest/source.ts';
 import { finishSource } from '../services/ingest/finish.ts';
 import { ingestKanoonJudgment } from '../services/ingest/kanoon.ts';
+import type { IndiaCode } from '../services/india-code/index.ts';
+import type { WebSearch } from '../services/web-search/index.ts';
+import { createGapLookup } from '../services/lookup/index.ts';
 import { INGEST_TIMEOUT_MS, type IngestJobData } from './queues.ts';
 
 export interface IngestProcessorDeps {
@@ -21,17 +24,21 @@ export interface IngestProcessorDeps {
   voyage: Voyage;
   gateway: Gateway | null;
   kanoon: Kanoon | null;
+  indiaCode: IndiaCode | null;
+  web: WebSearch | null;
   usage: UsageSink;
   embedModel: string;
   cacheDays: number;
 }
 
+const JOBS = new Set(['ingest.source', 'ingest.kanoon', 'ingest.lookup']);
+
 /** The `ingest` queue: stages 1–7, logged to jobs_log, progress as ingest.progress events, 10-minute limit. */
 export function ingestProcessor(deps: IngestProcessorDeps) {
   const { library, logger } = deps;
   return async (job: Job<IngestJobData>) => {
-    if (job.name !== 'ingest.source' && job.name !== 'ingest.kanoon') throw new Error(`unknown ingest job ${job.name}`);
-    const { sourceId, tid, requestedBy } = job.data;
+    if (!JOBS.has(job.name)) throw new Error(`unknown ingest job ${job.name}`);
+    const { sourceId, tid, gapId, force, requestedBy } = job.data;
     const logId = (
       await library.query<{ id: string }>(
         `insert into jobs_log (owner_id, queue, job_id, kind, state, attempts, started_at)
@@ -45,6 +52,11 @@ export function ingestProcessor(deps: IngestProcessorDeps) {
     const finishDeps = { library, voyage: deps.voyage, gateway: deps.gateway, usage: deps.usage, embedModel: deps.embedModel, progress };
 
     const work = async () => {
+      if (job.name === 'ingest.lookup') {
+        if (!gapId) throw new Error('ingest.lookup needs a gap id');
+        const lookup = createGapLookup({ ...finishDeps, storage: deps.storage, kanoon: deps.kanoon, indiaCode: deps.indiaCode, web: deps.web, cacheDays: deps.cacheDays, budgetMs: INGEST_TIMEOUT_MS - 60_000 });
+        return lookup.run(gapId, { force });
+      }
       if (job.name === 'ingest.kanoon') {
         if (!deps.kanoon || !tid) throw new Error('Indian Kanoon is not configured, or the job has no document id');
         return ingestKanoonJudgment(tid, { ...finishDeps, kanoon: deps.kanoon, storage: deps.storage, cacheDays: deps.cacheDays });

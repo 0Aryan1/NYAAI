@@ -3,6 +3,7 @@
 Append the newest entries at the top of each section. Never put secrets here.
 
 ## Status
+- **2026-11-20, library gaps and trusted-source lookup added** (between Day 2 and Day 3). A thin or not-found search now records a gap for the library editor and can look up India Code (Acts), Indian Kanoon (judgments) and official-site links (Perplexity). Live: the Sale of Goods Act, 1930 loaded from India Code (67 sections, provisional) and the question was answered; live cost ≈ US$0.03. 40 server tests green.
 - **2026-11-20, Day 2 done.** Library: official ICA (268) and Constitution (551 chunks) live and indexed; 5 frustration cases from Kanoon (provisional). Retrieval test on the draft set: hit@8 15/15 with rerank, 11/15 without; red team 2/2. 138 tests green. Day 2 cost ≈ US$0.16 (Voyage 0.077, Kanoon 0.06, Haiku 0.02). Next: Day 3 (planner, writer, checks, coverage).
 - **2026-11-20, Day 1 done.**
   - Official Indian Contract Act loaded from India Code: 268 units (ss. 1–266 + 19A, 178A; 76 repealed).
@@ -26,7 +27,8 @@ Append the newest entries at the top of each section. Never put secrets here.
 | Voyage AI | ✅ available; paste as `VOYAGE_API_KEY` (still blank) |
 | Indian Kanoon API | ✅ available; paste as `INDIAN_KANOON_TOKEN` (still blank) |
 | Google OAuth client | ✅ test client (Aryan's Google Cloud project "NYAAI", External, Testing mode, redirect `http://localhost:5173/api/v1/auth/google/callback`); live sign-in verified 2026-11-20. The pilot still needs CNLU's own client (Internal, cnlu.ac.in). |
-| Perplexity, Cohere, Langfuse, Sentry | not needed for week 1 |
+| Perplexity | ✅ set; used only for official-site links on library gaps (editor-facing), live-tested 2026-11-20 |
+| Cohere, Langfuse, Sentry | not needed for week 1 |
 
 ## Mocks and stand-ins currently in place
 - Google sign-in works locally with a Gmail test account (`aryanagrawal0102@gmail.com`, invited as admin) because `GOOGLE_SKIP_HD_CHECK=true` (development only). Remove it, and set `ALLOWED_EMAIL_DOMAINS=cnlu.ac.in`, once CNLU's Workspace client exists.
@@ -40,6 +42,16 @@ Append the newest entries at the top of each section. Never put secrets here.
   - SeaweedFS S3 on **19000** (stands in for R2/S3)
 
 ## Build decisions (with reasons)
+- **2026-11-20, library gaps (migration 0004, not in LLD §3).** Before this, a "Not found" was shown to one teacher and forgotten: the editor never learned which Acts or cases teachers needed. Now `searchWithLookup` records every thin/not-found search (`purpose` other than eval/suggest) through `record_library_gap()` (security definer, identity from SET LOCAL): one row per college + normalised question, `asks`, distinct `teachers`, one `library_gap` review item whose priority rises with teachers (1 → 3, 2–4 → 2, 5+ → 1). Privacy: teachers can't read the list; who asked lives in `library_gap_askers` with no policy at all (editor sees counts only) and cascades on user delete. The question text itself stays, unattributed, until Day 6 decides.
+- **2026-11-20, trusted-source lookup (extends F2/DATA-4 beyond Kanoon).** Each source is used only for what it is the right source of:
+  - **India Code → Acts.** Only when the question names an Act the library lacks, and only on an exact name match (year must agree when known), single, not repealed (`pickAct`). Otherwise the candidates go to the editor as links. Auto-loaded Acts stay **provisional** (`finishSource({ provisional: true })`) although official, because which Act and edition was picked hasn't been checked by a person (India Code's Constitution copy was out of date, see below).
+  - **Indian Kanoon → judgments.** Case gaps load a hit only if a distinctive word of each party is in its title (`caseMatches`; generic parties like "Union of India" are skipped). Kanoon does not hold some old Privy Council judgments: "Mohori Bibee v. Dharmodas Ghose" returns only later cases citing it, which are correctly refused. Topic gaps load the top 3. For an Act gap, Kanoon runs only if the Act could not be loaded.
+  - **Web (Perplexity Search API) → links for the editor only.** This moves part of D26/WEB-2 (week 2) earlier, deliberately narrow: domains limited to `WEB_ALLOWLIST` (default gov.in, nic.in) in the request and re-checked in code; each link opened (2xx, still on the allowlist) before it is kept; snippets not stored; never library content, never shown to teachers, never supports a claim.
+  - Queries leaving the system are the teacher's own words, or an Act/case name code took from them (LLD §17.6 rule 2). No AI step in the lookup.
+  - Cost and time limits: a 24-hour cooldown per gap (the editor's re-run ignores it), 15-minute lock against double runs, 3-minute budget inline (10 minutes as a job).
+- **2026-11-20, `searchWithLookup` is the search entry point for builds, Explore and Research.** Each step runs in its own short tenant transaction, so no connection is held while sources load. Search deps are built per transaction, because `usage` rows must be written inside the teacher's own transaction (RLS). Callers with no time (API requests) pass `lookup = null` and queue `ingest.lookup`.
+- **2026-11-20, more Act aliases** (Transfer of Property, Negotiable Instruments, Partnership, Arbitration and Conciliation, Consumer Protection) with years in `ACT_YEARS`. They also narrow the search's Act filter when a question names one of them.
+- **2026-11-20, error code `GAP_CLOSED` (409)** for re-running the lookup on a resolved or won't-fill gap.
 - **2026-11-20, paragraphs broken across report pages are rejoined.** Kanoon gives old SCR judgments as one block per printed chunk, so a paragraph crossing a page arrives in two pieces (Satyabrata Ghose para "…in its practical and not literal sense. It must be borne in mind…"). A block that starts in lower case, or follows one that didn't end a sentence, joins the paragraph before it. This was the only miss in the first retrieval run (14/15 → 15/15).
 - **2026-11-20, reporter headnotes often rank first** for questions their summary repeats (r-08). That is allowed for retrieval, but a headnote can never support a "held" claim (C7, Day 3), so the writer must cite the court's paragraph that the window also carries.
 - **2026-11-20, Voyage account needs a payment method.** Without one Voyage allows 3 requests and 10K tokens per minute: indexing would take ~45 min and every rerank (~25K tokens) would fail. Free tokens still apply after adding a card. The client now waits 21 s on a 429 and `VOYAGE_MAX_BATCH_TOKENS` (default 60K) can be lowered.

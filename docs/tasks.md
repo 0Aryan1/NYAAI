@@ -38,6 +38,17 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Done when: **retrieval hit@8 15/15 with rerank (11/15 without), red team 2/2 — PASS** on the draft set (`eval_runs`, 2026-11-20). Day 2 total AI/search cost ≈ US$0.16
 - [ ] Draft test set and concept list reviewed by a law expert
 
+## Added 2026-11-20: library gaps + trusted-source lookup (not in LLD; see memory.md)
+- [x] `0004_library_gaps.sql`: `library_gaps`, `library_gap_askers` (who asked, hidden), `record_library_gap()`, review kind `library_gap`
+- [x] Gap logic in `packages/legal/src/gaps.ts` (Act/case/topic, exact-match Act pick, case-title check, allowlist); more Act aliases
+- [x] India Code client (`services/india-code`), web-leads client (`services/web-search`, Perplexity, allowlist only), lookup + `searchWithLookup` (`services/lookup`)
+- [x] `ingest.lookup` job; editor API `GET /library/gaps`, `PATCH /library/gaps/:id`, `POST /library/gaps/:id/lookup`; `pnpm library gaps|lookup`
+- [x] Tests: 17 unit (legal), 3 client, 5 integration (counting, RLS, no auto-load on ambiguity, Kanoon load → answered, HTTP)
+- [x] Live: "Sale of Goods Act" question → India Code → 67 sections (provisional) → answered; "Mohori Bibee" → not on Kanoon → 2 official links for the editor
+- [ ] Day 3: the lecture build retrieves with `searchWithLookup` (lookup inline, within the build's time budget)
+- [ ] Day 5: Explore uses `searchWithLookup` with `lookup = null` and queues `ingest.lookup`; editor queue screen shows gaps (attempts, links, close/re-run) and lets the editor confirm auto-loaded India Code Acts
+- [ ] Day 6: "delete my data" — askers cascade; decide whether her gap questions are deleted or kept unattributed
+
 ## Day 3: Planner, writer, checks, coverage
 - [ ] LLM gateway (tiers, structured output, caching, cost logging, budget)
 - [ ] planner.lecture, writer.part, writer.repair, checker.support, checker.second
@@ -49,6 +60,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] PPT builder (pptx-automizer + pptxgenjs fallback), flags in notes, remove-unverified
 - [ ] Edit checks (C1–C8 inline; C9/C10 background); course memory, recap and bridge
 - [ ] Web: autosave and versions, Download dialog, course plan
+- [ ] DATA-3: syllabus upload → for each planned lecture, the same gap check + lookup in the background (`ingest.syllabus`); was missing from the plan
 - [ ] Done when: J1 end to end; .pptx output tests green
 
 ## Day 5: Explore, quick Research, reports queue

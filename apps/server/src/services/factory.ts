@@ -2,6 +2,8 @@
 import type { Config } from '../config.ts';
 import { createGateway, type Gateway } from './llm-gateway/index.ts';
 import { createKanoon, type Kanoon } from './kanoon/index.ts';
+import { createIndiaCode, type IndiaCode } from './india-code/index.ts';
+import { createWebSearch, type WebSearch } from './web-search/index.ts';
 import { createStorage, type Storage } from './storage/index.ts';
 import type { UsageSink } from './usage.ts';
 import { createVoyage, type Voyage } from './voyage/index.ts';
@@ -39,6 +41,20 @@ export function gatewayFrom(config: Config): Gateway | null {
   if (!config.ANTHROPIC_API_KEY) return null;
   return createGateway({ apiKey: config.ANTHROPIC_API_KEY, lightModel: config.MODEL_CHECKER, heavyModel: config.MODEL_WRITER });
 }
+
+/** India Code needs no key; it can be switched off for tests by passing nothing. */
+export function indiaCodeFrom(): IndiaCode {
+  return createIndiaCode();
+}
+
+/** Null without a Perplexity key: gap lookups then skip web links honestly. */
+export function webSearchFrom(config: Config, usage: UsageSink): WebSearch | null {
+  if (!config.PERPLEXITY_API_KEY) return null;
+  return createWebSearch({ apiKey: config.PERPLEXITY_API_KEY, allowlist: config.WEB_ALLOWLIST.length ? config.WEB_ALLOWLIST : DEFAULT_WEB_ALLOWLIST }, usage);
+}
+
+/** Official Indian government and court domains (HLD 5.2: gov.in, nic.in, court websites). */
+export const DEFAULT_WEB_ALLOWLIST = ['gov.in', 'nic.in'];
 
 export function kanoonFrom(config: Config, usage: UsageSink): Kanoon {
   if (!config.INDIAN_KANOON_TOKEN) throw new Error('INDIAN_KANOON_TOKEN is not set; live judgment lookup needs it.');

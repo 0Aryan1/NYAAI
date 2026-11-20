@@ -5,3 +5,4 @@ export * from './judgment.ts';
 export * from './kanoon.ts';
 export * from './courts.ts';
 export * from './query.ts';
+export * from './gaps.ts';

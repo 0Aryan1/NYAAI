@@ -34,6 +34,11 @@ export interface FinishDeps {
   usage: UsageSink;
   embedModel: string;
   progress?: (stage: IngestStage) => Promise<void> | void;
+  /**
+   * Keep an official source provisional ("not yet reviewed") instead of live. Set for sources the gap lookup found
+   * by itself: the text is official, but which Act (and which edition) was picked has not been checked by a person.
+   */
+  provisional?: boolean;
 }
 
 export interface FinishResult {
@@ -124,7 +129,8 @@ export async function finishSource(sourceId: string, deps: FinishDeps): Promise<
   }
 
   // 7. Gate.
-  const goodStatus = OFFICIAL.has(src.origin) ? 'live' : 'provisional';
+  const official = OFFICIAL.has(src.origin) && !deps.provisional;
+  const goodStatus = official ? 'live' : 'provisional';
   let needsReview = 0;
   for (const c of chunks) {
     const missing = missingLabels(c);
@@ -135,7 +141,7 @@ export async function finishSource(sourceId: string, deps: FinishDeps): Promise<
   await library.query('update sources set status = $2 where id = $1', [sourceId, status]);
 
   // Review items for the library editor (one open item per kind per source).
-  const items: { kind: string; priority: number }[] = [{ kind: 'provisional_source', priority: OFFICIAL.has(src.origin) ? 3 : 2 }];
+  const items: { kind: string; priority: number }[] = [{ kind: 'provisional_source', priority: official ? 3 : 2 }];
   if (src.type === 'judgment') items.push({ kind: 'role_sample', priority: 2 });
   for (const it of items) {
     await library.query(
