@@ -6,7 +6,7 @@ import { randomBytes } from 'node:crypto';
 import type pg from 'pg';
 import { REPAIRABLE, looksLegal, type CheckSource, type ClaimInput, type MappingRow } from '@nyaai/checker-rules';
 import { PROMPTS, fence } from '@nyaai/prompts';
-import { WriterReplyRepair, WriterReplyWrite, type LecturePlan, type WrittenLine } from '@nyaai/shared';
+import { UnsourcedVerdicts, WriterReplyRepair, WriterReplyWrite, type LecturePlan, type WrittenLine } from '@nyaai/shared';
 import type { Gateway } from '../llm-gateway/index.ts';
 import { searchWithLookup, type GapLookup, type TenantRunner } from '../lookup/index.ts';
 import { loadPieces, sourceDetails, type RetrievedSource, type SearchDeps } from '../search/index.ts';
@@ -52,6 +52,8 @@ export interface PartContext {
   outline?: string;
   /** Fenced course memory when the lecture is in a course (HLD F8.3). */
   courseMemory?: string | null;
+  /** The Act a bare "s. 20" in a part's questions means (the topic's key sections are in it). */
+  contextAct?: string;
 }
 
 export interface PartDeps {
@@ -89,7 +91,7 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
   // 1. Retrieve (with the gap lookup when the library is thin).
   const found = await searchWithLookup(
     deps.tenant,
-    { query: partQuery(ctx.topic, part), purpose: 'lecture_part', filters: { jurisdiction: ctx.filters.jurisdiction ? [ctx.filters.jurisdiction] : undefined, asOn: ctx.filters.asOn }, maxSources: 6 },
+    { query: partQuery(ctx.topic, part), purpose: 'lecture_part', filters: { jurisdiction: ctx.filters.jurisdiction ? [ctx.filters.jurisdiction] : undefined, asOn: ctx.filters.asOn }, maxSources: 6, contextAct: ctx.contextAct },
     deps.searchDeps,
     deps.lookup,
   );
@@ -169,6 +171,7 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
     lines: s.lines.map((l, li) => toLine(`p${partIndex}-s${si + 1}-l${li + 1}`, l.text, l.kind, l.claims, ctx, part.mustInclude)),
     notes: s.notes.map((n, ni) => toLine(`p${partIndex}-s${si + 1}-n${ni + 1}`, n.text, n.claims.length ? 'claim' : 'teaching', n.claims, ctx, false)),
   }));
+  await flagUnsourcedLaw(slides.flatMap((s) => [...s.lines, ...s.notes]), deps);
   const pending = new Map<string, ClaimInput>();
   const all = slides.flatMap((s) => [...s.lines, ...s.notes]);
   for (const line of all) (line as BuiltLine & { raw?: ClaimInput[] }).raw?.forEach((c, i) => pending.set(`${line.lineKey}#${i}`, c));
@@ -176,13 +179,18 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
   attach(all, checked);
 
   // 5. One repair round for lines whose claims failed C1–C4, C7 or C9.
-  const broken = all.filter((l) => l.claims.some((c) => c.results.some((r) => r.result === 'fail' && REPAIRABLE.has(r.name))));
+  // Also lines that state law with no source at all: give them a source, turn them into a question, or drop them.
+  const UNSOURCED = 'No source for this statement';
+  const broken = all.filter((l) => l.lineFlag === UNSOURCED || l.claims.some((c) => c.results.some((r) => r.result === 'fail' && REPAIRABLE.has(r.name))));
   if (broken.length) {
     const task2 = broken
       .map((l) =>
         [
           `LINE id=${l.lineKey}`,
           `TEXT: ${l.text}`,
+          ...(l.lineFlag === UNSOURCED && !l.claims.length
+            ? ['problem: this line states law but cites no source. Give it claims with exact spans from SOURCES, or rewrite it as a question to the class that states no law, or drop it.']
+            : []),
           ...l.claims.map((c) => `CLAIM [${c.claim.tag}] ${c.claim.text}\n  span: ${c.claim.span}\n  problem: ${c.results.filter((r) => r.result === 'fail').map((r) => r.detail).join('; ') || 'none'}`),
         ].join('\n'),
       )
@@ -190,6 +198,7 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
     const repairs = (await deps.gateway.run({ prompt: PROMPTS['writer.repair'], schema: WriterReplyRepair, context: [ctx.teacherBlock, srcBlock], task: `TASK: REPAIR. Fix or drop each line. Fill "repairs" and set "written" to null.\n\n${task2}`, traceId: deps.traceId }, deps.usage)).data.repairs!;
     const byId = new Map(repairs.map((r) => [r.id, r]));
     const redo: { id: string; claim: ClaimInput }[] = [];
+    const rephrased: BuiltLine[] = [];
     for (const l of broken) {
       const fix = byId.get(l.lineKey);
       if (!fix) continue; // no answer: the line stays flagged
@@ -200,8 +209,11 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
       l.text = fix.lineText;
       l.claims = [];
       fix.claims.forEach((c, i) => redo.push({ id: `${l.lineKey}#r${i}`, claim: c }));
-      if (!fix.claims.length) l.lineFlag = looksLegal(l.text) ? 'No source for this statement' : null;
+      l.lineFlag = fix.claims.length ? null : looksLegal(l.text) ? UNSOURCED : null;
+      if (!fix.claims.length && !l.lineFlag) rephrased.push(l);
     }
+    // A line rewritten without a source is read again by the unsourced-line check.
+    await flagUnsourcedLaw(rephrased, deps);
     if (redo.length) attach(all, await checkClaims(redo, sources, ctx.mappings, { gateway: deps.gateway, usage: deps.usage, traceId: deps.traceId }));
     for (const s of slides) {
       s.lines = s.lines.filter((l) => !(l as BuiltLine & { dropped?: boolean }).dropped);
@@ -243,4 +255,24 @@ function overlaps(line: string, example: string): boolean {
   if (!a.size || !b.size) return false;
   const shared = [...a].filter((w) => b.has(w)).length;
   return shared / Math.min(a.size, b.size) >= 0.4;
+}
+
+/**
+ * Lines with no source that still state law ("So the seat court alone hears challenges", written as a teaching line)
+ * are flagged like any unsourced statement. The word rules (`looksLegal`) catch the obvious ones; one Haiku call per
+ * part reads the rest (rule 1: nothing that states law goes out unchecked). If the call fails the line keeps the
+ * word-rule result and the build goes on: this check only ever adds flags.
+ */
+async function flagUnsourcedLaw(candidates: BuiltLine[], deps: Pick<PartDeps, 'gateway' | 'usage' | 'traceId'>): Promise<void> {
+  const lines = candidates.filter((l) => !l.lineFlag && !l.yourExample && !((l as BuiltLine & { raw?: ClaimInput[] }).raw?.length) && l.text.trim().length > 12);
+  if (!lines.length) return;
+  const boundary = randomBytes(6).toString('hex');
+  const task = lines.map((l) => `ITEM id=${l.lineKey}\n${fence('line', l.text, boundary)}`).join('\n\n');
+  try {
+    const { verdicts } = (await deps.gateway.run({ prompt: PROMPTS['checker.unsourced'], schema: UnsourcedVerdicts, task, traceId: deps.traceId }, deps.usage)).data;
+    const says = new Map(verdicts.map((v) => [v.id, v.statesLaw]));
+    for (const l of lines) if (says.get(l.lineKey)) l.lineFlag = 'No source for this statement';
+  } catch {
+    /* word rules already ran; never block the build on an extra check */
+  }
 }

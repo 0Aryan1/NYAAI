@@ -201,6 +201,8 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
     mappings,
     outline: outlineText(plan.parts),
     courseMemory: memoryBlock,
+    // One Act behind the topic's key sections: a bare "s. 20" in the plan means that Act's s. 20.
+    contextAct: concept?.acts?.length === 1 ? concept.acts[0] : undefined,
   };
   const searchDeps = (c: pg.PoolClient): SearchDeps => {
     const u = usageSink(c, { collegeId: job.collegeId, ownerId: job.ownerId });

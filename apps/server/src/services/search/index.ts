@@ -33,6 +33,11 @@ export interface SearchRequest {
   noRerank?: boolean;
   /** Skip the Haiku rewrite (tests, eval A/B). */
   noExpand?: boolean;
+  /**
+   * The Act a bare "s. 20" means when the question names none (a lecture part: the Act of its topic's key sections).
+   * Without it a bare section number matches that section of every Act.
+   */
+  contextAct?: string;
 }
 
 export interface RetrievedSource {
@@ -144,15 +149,19 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
 
   // 1. Exact references, pinned first: the section or Article itself (its top-level chunk).
   const pinned: string[] = [];
+  /** Pinned chunks whose Act is known: kept whatever the reranker says (a bare "s. 20" of every Act is not). */
+  const named: string[] = [];
   for (const ref of understood.refs) {
+    const act = ref.act ?? (ref.kind === 'section' && !understood.acts.length ? (req.contextAct ?? null) : null);
     const r = await db.query<{ id: string }>(
       `select c.id from chunks c where ${FILTERS}
          and c.parent_id is null and ${ref.kind === 'article' ? 'c.article = $6' : 'c.section = $6'}
          and ($7::text is null or c.act_name = $7)
        order by c.created_at desc limit 3`,
-      [...params, ref.number, ref.act],
+      [...params, ref.number, act],
     );
     pinned.push(...r.rows.map((x) => x.id));
+    if (act || ref.kind === 'article') named.push(...r.rows.map((x) => x.id));
   }
   // Case names: paragraphs of a matching case join the candidate pool (the reranker picks which ones matter).
   const caseCandidates: string[] = [];
@@ -241,7 +250,10 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
     }
   }
 
-  const above = ranked.filter((r) => r.score === null || r.score >= deps.minScore);
+  // A section or Article the question names is always among the sources, first: a part asking what s. 20 says must
+  // see s. 20, however much longer the judgments discussing it are.
+  const pinnedSet = new Set(named);
+  const above = [...ranked.filter((r) => pinnedSet.has(r.row.id)), ...ranked.filter((r) => !pinnedSet.has(r.row.id) && (r.score === null || r.score >= deps.minScore))];
   const outcome: SearchResult['outcome'] = fallback ? (above.length ? 'ok' : 'not_found') : above.length >= 3 ? 'ok' : above.length > 0 ? 'thin' : 'not_found';
 
   // 4. Parent expansion and S-tags.
@@ -394,9 +406,10 @@ export async function statuteUnits(db: pg.PoolClient, chunkIds: string[]): Promi
 }
 
 /** A concept's key sections (their headers) and leading cases (titles), as hints for the planner. */
-export async function conceptHints(db: pg.PoolClient, conceptId: string): Promise<{ name: string; sections: string[]; cases: string[] } | null> {
-  const r = await db.query<{ name: string; sections: string[] | null; cases: string[] | null }>(
+export async function conceptHints(db: pg.PoolClient, conceptId: string): Promise<{ name: string; sections: string[]; cases: string[]; acts: string[] } | null> {
+  const r = await db.query<{ name: string; sections: string[] | null; cases: string[] | null; acts: string[] | null }>(
     `select lc.name,
+            array_agg(distinct ch.act_name) filter (where cl.kind = 'key_section' and ch.act_name is not null) as acts,
             array_agg(distinct coalesce(ch.header, s.title)) filter (where cl.kind = 'key_section') as sections,
             array_agg(distinct s.title) filter (where cl.kind = 'leading_case') as cases
        from legal_concepts lc left join concept_links cl on cl.concept_id = lc.id
@@ -405,7 +418,7 @@ export async function conceptHints(db: pg.PoolClient, conceptId: string): Promis
     [conceptId],
   );
   const row = r.rows[0];
-  return row ? { name: row.name, sections: row.sections ?? [], cases: row.cases ?? [] } : null;
+  return row ? { name: row.name, sections: row.sections ?? [], cases: row.cases ?? [], acts: row.acts ?? [] } : null;
 }
 
 /** One chunk's words and header for the Source drawer; null when it has expired or is not visible. */

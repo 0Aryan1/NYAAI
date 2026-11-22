@@ -137,6 +137,9 @@ describe('lines without claims', () => {
   it('flags a teaching line that states law', () => {
     expect(looksLegal('Section 56 makes such agreements void.')).toBe(true);
     expect(looksLegal('The Supreme Court held that the contract was frustrated.')).toBe(true);
+    expect(looksLegal('It was held that the seat court alone has jurisdiction.')).toBe(true);
+    expect(looksLegal("The clause said arbitration proceedings 'shall be held' at New Delhi/Faridabad. Was that only a venue?")).toBe(false);
+    expect(looksLegal('The hearings were held at London.')).toBe(false);
     expect(looksLegal('Such an agreement is void.')).toBe(true);
     expect(looksLegal('Think about what happens when performance becomes impossible.')).toBe(false);
     expect(looksLegal('Why might the law excuse a promisor?')).toBe(false);

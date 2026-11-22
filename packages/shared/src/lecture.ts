@@ -75,6 +75,10 @@ export const SupportVerdicts = z.object({
 export const SecondVerdicts = z.object({
   verdicts: z.array(z.object({ id: z.string(), reason: z.string().max(400), verdict: SupportVerdict, correctedClaim: z.string().max(400).nullable() })),
 });
+/** checker.unsourced: does a line with no source state law? */
+export const UnsourcedVerdicts = z.object({
+  verdicts: z.array(z.object({ id: z.string(), reason: z.string().max(400), statesLaw: z.boolean() })),
+});
 export const Repairs = z.object({
   repairs: z.array(
     z.object({

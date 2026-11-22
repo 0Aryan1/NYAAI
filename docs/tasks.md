@@ -89,7 +89,10 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Courses API: `GET/POST /courses`, `GET/PATCH/DELETE /courses/:id`, `PATCH /courses/:id/units` (add, rename, delete, reorder, prerequisites, skip), `GET /courses/:id/series-checks` (COURSE-1, -3, -6); Prepare warns on untaught prerequisites (HOME-10)
 - [x] Web: Courses list (new course from a pasted list), course plan (status, taught date, memory, suggestions, reorder, rename, delete, skip, builds-on), Prepare from the plan, "Mark taught" in the Studio
 - [x] Integration test with a fake Claude (6): plan → lecture 1 → taught → memory → lecture 2 with a recap; prerequisite warning; series checks; undo
-- [ ] Measure on two real lectures in a row (ADR or Property Law): recap quality, repeats between parts, cost
+- [x] Measured on two real lectures in a row (ADR: Seat of arbitration → Setting aside): recap and bridge work; fixed topic matching, bare section refs, unsourced legal lines, meeting-sense "held" (see memory.md)
+- [ ] Lecture cost: L01 US$0.67, L02 US$0.87 (8 parts) against the US$0.59 target; writer.part is ~85% of it
+- [ ] Repair sometimes empties a slide (L01 "BGS SGS Soma v. NHPC" slide kept one question): refill or merge thin slides
+- [ ] Before the VC demo: expert confirms case status and "Labels checked" for the demo topics' cases (grey on every case line until then)
 - [ ] Setup step 6 (courses) still a placeholder: point it at the Courses screen
 - [ ] "May need update" badge on later lectures when an earlier one is edited (F8.6), with Studio editing
 

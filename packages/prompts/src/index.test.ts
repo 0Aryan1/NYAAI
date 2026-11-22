@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { PROMPT_IDS, PROMPTS, fence, promptKey } from './index.ts';
 
 describe('prompt registry', () => {
-  it('lists the 15 model prompts from LLD §9 plus the rerank instruction, without duplicates', () => {
-    expect(new Set(PROMPT_IDS).size).toBe(16);
+  it('lists the 15 model prompts from LLD §9, the unsourced-line check and the rerank instruction, without duplicates', () => {
+    expect(new Set(PROMPT_IDS).size).toBe(17);
   });
   it('builds a versioned key', () => {
     expect(promptKey({ id: 'writer.part', version: '1' })).toBe('writer.part@1');

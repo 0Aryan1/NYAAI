@@ -86,7 +86,9 @@ export function riskOf(claim: Pick<ClaimInput, 'text' | 'type'>): 'normal' | 'hi
 
 /* ----------------------------------------------------------------------------------------------- helpers */
 
-const HELD = /\b(?:held|holds|hold that|ruled|rules that|laid down|lays down|the court decided)\b/i;
+// "held" in the meeting sense ("proceedings shall be held at New Delhi", "the hearing was held on 3 May") is not a
+// holding; "it was held that" still is.
+const HELD = /\b(?:(?<!\b(?:shall|will|to|may|must|would|should|can|could)\s+be\s+)held(?!\s+(?:at|on)\b)|holds|hold that|ruled|rules that|laid down|lays down|the court decided)\b/i;
 const CASE_NAME = /\b([A-Z][\w.&'’-]*(?:\s+(?:[A-Z][\w.&'’-]*|of|and|&))*)\s+(?:v\.?|vs\.?|versus)\s+([A-Z][\w.&'’-]*(?:\s+(?:[A-Z][\w.&'’-]*|of|and|&))*)/g;
 const YEAR = /\b(?:1[6-9]|20)\d{2}\b/g;
 const SECTION_REF = /\b(?:s|ss|sec|secs|section|sections)\.?\s*(\d{1,4}[A-Z]{0,3})\b/gi;

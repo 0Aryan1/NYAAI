@@ -143,7 +143,8 @@ describe.skipIf(!up)('search service (integration)', () => {
 
   it('expands a statute child to its whole section, collapsing the two children into one source', async () => {
     const r = await run(`zebra graze grazing rights ${tag}`);
-    const s901 = r.sources.filter((s) => s.header.includes('s. 901'));
+    // This test's own Act only: the build test's made-up Act has an s. 901 too, and the files run side by side.
+    const s901 = r.sources.filter((s) => s.sourceId === sourceAct && s.header.includes('s. 901'));
     expect(s901).toHaveLength(1);
     expect(s901[0]!.text).toContain('Provided that striped animals keep to the path.');
     expect(s901[0]!.coveredChunkIds).toEqual(expect.arrayContaining([ids.parent, ids.child1]));

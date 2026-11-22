@@ -3,7 +3,8 @@
  * bag-of-words fake Voyage. The fake writer plants errors; the test checks each is caught, repaired or flagged:
  *  - words not in the source (C2) → repaired with the right words → supported;
  *  - "held" resting on a statute (C7) → repair gives no answer → yellow;
- *  - a teaching line that states law with no claim → yellow "No source for this statement";
+ *  - a teaching line that states law with no claim → yellow "No source for this statement" (by the word rules, or
+ *    by the unsourced-line check when the words give nothing away);
  *  - a claim the support check calls "partly" (C9) → repair drops the line;
  *  - a time limit (high risk) → second check (C10) runs → supported;
  *  - a part the library cannot answer → "Not found in the library";
@@ -110,6 +111,7 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
                   { lineKey: 'x', text: 'The court held that zebras may graze.', kind: 'claim', claims: [{ text: 'The court held that zebras may graze.', type: 'holding', tag: 'S1', span: S.mayMeadow }] },
                   { lineKey: 'x', text: 'Section 901 makes grazing lawful.', kind: 'teaching', claims: [] },
                   { lineKey: 'x', text: 'Think about why meadows matter.', kind: 'teaching', claims: [] },
+                  { lineKey: 'x', text: 'So only the meadow court hears grazing quarrels.', kind: 'teaching', claims: [] },
                   { lineKey: 'x', text: 'A zebra must always graze.', kind: 'claim', claims: [{ text: 'A zebra must always graze.', type: 'rule', tag: 'S1', span: S.mayMeadow }] },
                 ],
                 notes: [{ text: 'A zebra must leave within 30 days of notice.', claims: [{ text: 'A zebra must leave within 30 days of notice.', type: 'time_limit', tag: 'S1', span: S.leave }] }],
@@ -124,7 +126,7 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
           data = {
             repairs: [
               { id: 'p0-s1-l2', action: 'replace', lineText: 'A zebra may not graze in the orchard.', claims: [{ text: 'A zebra may not graze in the orchard.', type: 'rule', tag: 'S1', span: S.notOrchard }] },
-              { id: 'p0-s1-l6', action: 'drop', lineText: null, claims: [] },
+              { id: 'p0-s1-l7', action: 'drop', lineText: null, claims: [] },
             ],
           };
           break;
@@ -132,6 +134,11 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
         case 'checker.support': {
           const ids = [...req.task.matchAll(/ITEM id=(\S+)\nCLAIM: (.*)/g)].map((m) => ({ id: m[1]!, claim: m[2]! }));
           data = { verdicts: ids.map((x) => ({ id: x.id, verdict: /always/.test(x.claim) ? 'partly' : 'yes', reason: /always/.test(x.claim) ? 'The source says may, not must always.' : 'Supported.' })) };
+          break;
+        }
+        case 'checker.unsourced': {
+          const items = [...req.task.matchAll(/ITEM id=(\S+)\n<<<\w+ line>>>\n(.*)/g)].map((m) => ({ id: m[1]!, text: m[2]! }));
+          data = { verdicts: items.map((x) => ({ id: x.id, reason: 'r', statesLaw: /court hears/.test(x.text) })) };
           break;
         }
         case 'checker.second': {
@@ -216,15 +223,15 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
     expect(calls.filter((c) => c === 'writer.part')).toHaveLength(1); // part 2 had no sources: nothing written
     expect(calls).toContain('writer.repair');
     expect(secondChecked.length).toBeGreaterThan(0);
-    // Yellow: the "held" line, the unsourced teaching line, the unanswerable question. Coverage: the Explanation.
-    expect(counts).toMatchObject({ yellow: 3, grey: 0, coverage: 1 });
+    // Yellow: the "held" line, the two unsourced teaching lines, the unanswerable question. Coverage: the Explanation.
+    expect(counts).toMatchObject({ yellow: 4, grey: 0, coverage: 1 });
     expect(counts.score).toBe(0);
     expect(counts.costMicroUsd).toBeGreaterThan(0);
   });
 
   it('serves the Studio: line status, reasons, source chips and the exact source words', async () => {
     const lec = await agent.get(`/api/v1/lectures/${lectureId}`).expect(200);
-    expect(lec.body).toMatchObject({ status: 'ready', counts: { yellow: 3, grey: 0, coverage: 1 }, partsDone: [0, 1] });
+    expect(lec.body).toMatchObject({ status: 'ready', counts: { yellow: 4, grey: 0, coverage: 1 }, partsDone: [0, 1] });
 
     const { slides } = (await agent.get(`/api/v1/lectures/${lectureId}/slides`).expect(200)).body as { slides: { title: string; lines: { text: string; status: string; flag: string | null; flagReason: string | null; sources: { label: string; citationId: string }[]; risk: string }[]; notes: { status: string; risk: string }[] }[] };
     const lines = slides[0]!.lines;
@@ -234,6 +241,7 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
     expect(by('The court held')).toMatchObject({ status: 'open', flag: 'yellow', flagReason: "Not the court's majority reasoning" });
     expect(by('Section 901 makes')).toMatchObject({ status: 'open', flag: 'yellow', flagReason: 'No source for this statement' });
     expect(by('Think about why')).toMatchObject({ status: 'supported', flag: null, sources: [] });
+    expect(by('So only the meadow court')).toMatchObject({ status: 'open', flag: 'yellow', flagReason: 'No source for this statement' });
     expect(by('A zebra must always')).toBeUndefined(); // dropped by repair
     expect(slides[0]!.notes[0]).toMatchObject({ status: 'supported', risk: 'high' });
     expect(slides[1]!.lines[0]).toMatchObject({ status: 'open', flag: 'yellow', flagReason: 'Not found in the library' });
