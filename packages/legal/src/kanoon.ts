@@ -68,6 +68,21 @@ export function kanoonToJudgment(d: KanoonDoc): JudgmentInput {
   const blocks: JudgmentBlock[] = [];
   let page: number | null = null;
   const body = pre ? html.slice(pre.index + pre[0].length) : html;
+
+  // Some judgments come as one preformatted block holding the whole text (Chloro Controls, 2012: 3,500 lines of
+  // <pre>, then five short <p> notes). Then the paragraphs are the <pre> text's blank-line-separated runs.
+  if (pre && !/HEADNOTE:/.test(pre[1]!)) {
+    const preText = stripTags(pre[1]!).replace(/&amp;/g, '&');
+    const bodyText = stripTags(body);
+    if (preText.length > 3000 && bodyText.replace(/\s+/g, '').length < preText.replace(/\s+/g, '').length * 0.3) {
+      for (const run of preText.split(/\n[ \t]*\n/)) {
+        const text = squash(run.replace(PRINTER_JUNK, ' '));
+        // Page footers and numbers of the typed judgment ("Page 12 of 80", "12").
+        if (!text || /^(?:page\s*)?\d{1,4}(?:\s*of\s*\d{1,4})?$/i.test(text)) continue;
+        blocks.push({ text, page: null, quoted: false });
+      }
+    }
+  }
   for (const m of body.matchAll(/<(p|blockquote)\b[^>]*>(.*?)<\/\1>/gs)) {
     let inner = m[2]!;
     // Page numbers of the printed report: the paragraph starts on the page in force before its first marker.

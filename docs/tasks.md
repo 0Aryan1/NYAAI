@@ -61,7 +61,26 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Cost and false-flag fixes: shared writer/repair cache prefix, 512-token breakpoints, 6 sources per part, `looksLegal` narrowed, `checker.support` v2, writer v2 (lecture-style slides)
 - [x] Studio slide view (footnotes, layouts, "Show checks"); library editor review screen `/library` + migration 0006 (pulled forward from Day 5)
 - [ ] Bring a lecture to ≤ 5 yellow and ≤ US$0.59 — measure on the second real build; most remaining yellow needs the expert's "Labels checked"
-- [ ] Syllabus: create a course from the CNLU semester 1 syllabus (COURSE-2) and load its sources (DATA-1, DATA-3)
+- [ ] Syllabus: create a course from the CNLU semester 1 syllabus (COURSE-2) and load its sources (DATA-1, DATA-3) — pilot courses are now ADR + Property Law; their sources are loaded through course packs (below), the upload screen is still to build
+
+## Added 2026-11-21: pilot library for ADR and Property Law (quality first; see memory.md)
+- [x] Course packs `packages/db/seeds/packs/{adr,property}.json` + `pnpm library pack` (Acts from India Code, cases from Kanoon by party-word title match)
+- [x] 14 Acts loaded and complete (A&C 1996, CPC, Mediation 2023, LSA, Family Courts, Gram Nyayalayas, Commercial Courts, Lokpal, IR Code 2020, TPA, Easements, Trusts, RFCTLARR 2013, Registration): no missing section numbers
+- [x] Splitter fixes found by auditing them (contents, footnotes, wrapped headings, chapters, State amendments, Objects and Reasons, letter-spacing) + 9 new tests; `pnpm library reload` updates in place (ids kept)
+- [x] Draft concept list for both courses (52 concepts, 105 key sections; `pnpm --filter @nyaai/db seed concepts-pilot`); search matches concept aliases inside a question
+- [x] Draft retrieval set `eval/sets/retrieval.adr-property.draft.json` (60 questions + 1 red team)
+- [x] Leading cases loaded: Property 22/25, ADR 31/34 (6 not on Kanoon's API, listed in memory.md for the editor)
+- [x] Judgment splitter fixes (`<pre>` judgments, numbering skips/restarts, quoted provisions, size cap) + `pnpm library resplit`
+- [x] Retrieval on the new set: hit@8 60/60 (55 at rank 1), red team 1/1
+- [x] Official judgments first (BRD DATA-7, HLD D25; 2026-11-22): Supreme Court Reports loader (`services/escr`, e-SCR mirror), PDF judgment reader (`pdfToJudgment`), in-place replacement with ids and labels kept, `source_copies` + `sources.scanned` (migration 0007), `pnpm library official`, packs try the official report first, `resplit` also re-reads stored PDFs
+- [x] Re-loaded the library from the official report: 16 typeset judgments now official and permanent; 39 scanned official copies attached beside the cleaner Kanoon text (with citations and agreement); 4 not in the official report
+- [x] The 6 missing pack cases loaded (TRF, In Re: Interplay, Kinnari Mullick, Shanti Prasad Devi from the official report; Rambaran Prosad and Rajes Kanta Roy found under their official spellings)
+- [x] Editor uploads a judgment PDF (new case or a better copy): `POST /library/uploads/judgment`, `ingest.judgment` job, "Add a judgment" on `/library`; the review screen shows where each text came from and every copy held
+- [ ] Editor: approve the 3 scanned official judgments (TRF, Kinnari Mullick, Shanti Prasad Devi) after checking quotes against the PDF; find clean copies (sci.gov.in) for scanned leading cases worth replacing
+- [ ] Not in the official report mirror: Naihati Jute Mills (1967), M.H. Hoskot (1978), Justiniano Antao (2004), "M.D., Army Welfare Housing" (2003, bad Kanoon title): editor checks or uploads
+- [ ] High Court judgments from official sites (eCourts judgments portal): not built; upload covers them for now
+- [ ] Retrieval items that expect specific judgment paragraphs (needs the expert's choice of passages)
+- [ ] Expert review: pack case lists, concept list, retrieval set; "Labels checked" on the leading cases
 
 ## Day 4: PPT, edits, course series
 - [ ] PPT builder (pptx-automizer + pptxgenjs fallback), flags in notes, remove-unverified

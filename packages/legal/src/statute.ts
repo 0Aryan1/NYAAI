@@ -52,6 +52,8 @@ export interface StatuteOptions {
   actYear?: number;
   kind: 'act' | 'constitution';
   maxTokens?: number;
+  /** The input is a whole Act from its first page, so its first section must be 1 (extracts in tests are not). */
+  wholeDocument?: boolean;
 }
 
 export class OrphanAttachmentError extends Error {
@@ -97,13 +99,27 @@ const LOOSE_SECTION = /^\s*(\d+[A-Z]{0,3})\.\s*[^\d\s]/;
 const REPEALED_SECTION = /^\s*(\d+[A-Z]{0,3})\.\s*\[([^\]]{2,300})\]\.?\s*(.*\b(?:Rep\.\s*by|Omitted\s+by|Repealed\s+by).*)$/;
 /** A superscript marker glued after a word: "becomes impossible or unlawful.1" (marker 1). */
 const GLUED_MARKER = /([A-Za-z\]][.;:,)])(\d{1,2})(?=\s|$)/g;
+/** A marker glued straight onto a word: "on such date2 as the Central Government may …" (marker 2). */
+const WORD_MARKER = /\b([a-z]{3,})(\d{1,2})(?=\s|$)/g;
 /** Footnote numbers restart on every page, so they stay small. */
 const MAX_FOOTNOTE = 30;
 /** Start of a table of contents: "ARRANGEMENT OF SECTIONS", or a "Contents" line in the Constitution. */
 const CONTENTS_HEADING = /^\s*(?:ARRANGEMENT\s+OF\s+(?:SECTIONS|ARTICLES|RULES)\b.*|CONTENTS)\s*$/i;
+/** Some India Code PDFs letter-space the heading: "A R R A N G E M E N T O F S E C T IO N S". */
+const isContentsHeading = (probe: string) => {
+  if (CONTENTS_HEADING.test(probe)) return true;
+  const pieces = probe.trim().split(/\s+/);
+  return pieces.length >= 8 && pieces.every((p) => /^[A-Z]{1,2}$/.test(p)) && /^ARRANGEMENTOF(?:SECTIONS|ARTICLES|RULES)$/.test(pieces.join(''));
+};
 /** "THE FIRST SCHEDULE", "THE SCHEDULE", "APPENDIX I": the sections are over. */
 const SCHEDULE_HEADING = /^\s*(?:THE\s+)?(?:(?:FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH|SEVENTH|EIGHTH|NINTH|TENTH|ELEVENTH|TWELFTH)\s+)?SCHEDULE\s*$|^\s*APPENDIX(?:\s+[IVX]+)?\s*$/;
 const FOOTNOTE_START = /^\s*(\d{1,2})\.\s+(\S.*)$/;
+/** India Code prints the Bill's Statement of Objects and Reasons after the last section: not law. */
+const OBJECTS_HEADING = /^\s*STATEMENT\s+OF\s+OBJECTS\s+AND\s+REASONS\b/i;
+/** "STATE AMENDMENTS" / "Maharashtra.—…": a State's change to the central text, printed inside it. */
+const STATE_AMENDMENT_HEADING = /^\s*STATE\s+AMENDMENTS?\s*$/;
+/** Words found in amendment footnotes and never in a section's title. */
+const FOOTNOTE_WORDS = /\b(?:Subs|Ins|Rep)\.\s*by\b|\b(?:omitted|inserted|substituted)\s+by\b|\bibid\b|\bw\.e\.\s?f\./i;
 const LEADING_MARKERS = /^\s*(?:\d{1,3}\[)+/;
 const MARKER = /(?:^|[\s(\u2014\u2013-])(\d{1,3})(?=\[|\*\s*\*)/g;
 const WEF = /w\.e\.f\.\s*(\d{1,2})[-./](\d{1,2})[-./](\d{4})/;
@@ -128,6 +144,25 @@ function isNextSection(prev: string | null, num: string): boolean {
   return n > pn || (n === pn && s > ps);
 }
 
+/** The very next section: 15 → 15A, 15B or 16 (never a jump). */
+function isImmediateSection(prev: string | null, num: string): boolean {
+  if (prev === null) return true;
+  const [pn, ps] = sectionOrder(prev);
+  const [n, s] = sectionOrder(num);
+  return (n === pn && s > ps) || n === pn + 1;
+}
+
+/** Acts print every section, even omitted ones, so numbers never leap: 86 → 2015 is a year, not a section. */
+function isPlausibleJump(prev: string | null, num: string): boolean {
+  return prev === null || sectionOrder(num)[0] - sectionOrder(prev)[0] <= 20;
+}
+
+/** A Part or Chapter title: a heading, or an all-capitals line of up to 16 words ("AMENDMENTS TO THE … CODE, 1908"). */
+function isChapterTitle(text: string): boolean {
+  const t = text.replace(/\d{1,3}(?=\[)/g, '').replace(/[[\]]/g, '').replace(/[.,;:]$/, '').trim();
+  return isHeadingLike(t) || (/^[A-Z]/.test(t) && t === t.toUpperCase() && /[A-Z]{3}/.test(t) && words(t) <= 16 && !/[;:]$/.test(t));
+}
+
 function isHeadingLike(text: string): boolean {
   const t = text.trim();
   return /^[A-Z]/.test(t) && words(t) <= 10 && !/[.;:,\u2014\u2013)-]$/.test(t) && !/^\(/.test(t);
@@ -146,11 +181,12 @@ function displayText(raw: string): string {
   return raw
     .replace(MARKER, (m, _n, offset: number) => (offset === 0 && /^\d/.test(m) ? '' : m.charAt(0)))
     .replace(GLUED_MARKER, '$1')
+    .replace(WORD_MARKER, '$1')
     .trimEnd();
 }
 
 function markersIn(raw: string): string[] {
-  return [...[...raw.matchAll(MARKER)].map((m) => m[1]!), ...[...raw.matchAll(GLUED_MARKER)].map((m) => m[2]!)];
+  return [...raw.matchAll(MARKER), ...raw.matchAll(GLUED_MARKER), ...raw.matchAll(WORD_MARKER)].map((m) => m[m.length - 1]!);
 }
 
 function parseAmendment(f: Footnote): Amendment {
@@ -204,6 +240,18 @@ function absorbStrayMarkers(lines: Line[]): MarkedLine[] {
   return out;
 }
 
+/**
+ * Whole section numbers missing between 1 and the highest one found (15 → 17 means 16 is missing). An Act's
+ * sections are numbered without gaps (repealed ones keep a one-line entry), so a gap means the extraction lost text.
+ */
+export function missingSections(chunks: Pick<StatuteChunk, 'number' | 'parentKey'>[]): number[] {
+  const have = new Set(chunks.filter((c) => c.parentKey === null).map((c) => Number(/^\d+/.exec(c.number)?.[0])));
+  const max = Math.max(0, ...[...have].filter(Number.isFinite));
+  const missing: number[] = [];
+  for (let n = 1; n <= max; n++) if (!have.has(n)) missing.push(n);
+  return missing;
+}
+
 export function splitStatute(input: Line[] | string, opts: StatuteOptions): StatuteChunk[] {
   const lines: MarkedLine[] = absorbStrayMarkers(
     typeof input === 'string' ? input.split(/\r?\n/).filter((t) => t.trim()).map((text) => ({ pageNo: 0, text })) : input,
@@ -214,6 +262,13 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
   const units: Unit[] = [];
   const footnotes: Footnote[] = [];
   const markerHome = new Map<string, Unit>(); // `${page}:${marker}` → unit
+  const pageMarkers = new Map<number | null, Set<string>>(); // footnote markers seen in the law text of each page
+  const noteMarkers = (pageNo: number | null, unit: Unit, markers: string[]) => {
+    for (const m of markers) {
+      markerHome.set(`${pageNo}:${m}`, unit);
+      pageMarkers.set(pageNo, (pageMarkers.get(pageNo) ?? new Set()).add(m));
+    }
+  };
   // Context header: a Part and/or a Chapter inside it ("Part V: The Union › Chapter I: The executive").
   let partLabel: string | null = null;
   let chapterLabel: string | null = null;
@@ -221,7 +276,7 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
   let pendingChapter: { kind: 'Part' | 'Chapter'; label: string } | null = null; // waiting for its title line
   const setContext = (kind: 'Part' | 'Chapter', rawLabel: string) => {
     // Footnote markers and amendment brackets are not part of a heading: "The states 1***", "[The union territories]".
-    const label = rawLabel.replace(/\s*\d{0,3}\*+(\s*\*)*/g, '').replace(/[[\]]/g, '').replace(/\s+/g, ' ').trim();
+    const label = rawLabel.replace(/\s*\d{0,3}\*+(\s*\*)*/g, '').replace(/\d{1,3}(?=\[)/g, '').replace(/[[\]]/g, '').replace(/\s+/g, ' ').trim();
     if (kind === 'Part') {
       partLabel = label;
       chapterLabel = null;
@@ -241,6 +296,8 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
   // "ARRANGEMENT OF SECTIONS" (the table of contents) lists every heading without its ".—"; skip it until the
   // first line that is a full section heading on its own, so contents entries never become sections.
   let inContents = false;
+  // The library keeps the central text: a State amendment block is skipped up to the next section or chapter.
+  let inStateAmendment = false;
 
   for (let i = 0; i < lines.length; i++) {
     const { pageNo, strayMarkers } = lines[i]!;
@@ -252,7 +309,7 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
       continue;
     }
     let probe = stripLead(raw);
-    if (CONTENTS_HEADING.test(probe)) {
+    if (isContentsHeading(probe)) {
       inContents = true;
       continue;
     }
@@ -268,7 +325,7 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
           const rest = c[3]?.replace(/^[\s.\u2014\u2013-]+/, '').trim();
           setContext(kind, rest ? `${kind} ${c[2]}: ${sentenceCase(rest)}` : `${kind} ${c[2]}`);
           pendingChapter = rest ? null : { kind, label: `${kind} ${c[2]}` };
-        } else if (pendingChapter && isHeadingLike(probe.replace(/[.,;:\]]$/, ''))) {
+        } else if (pendingChapter && isChapterTitle(probe)) {
           setContext(pendingChapter.kind, `${pendingChapter.label}: ${sentenceCase(probe.replace(/[.]$/, ''))}`);
           pendingChapter = null;
         } else pendingChapter = null;
@@ -277,18 +334,28 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
       inContents = false;
     }
     // Schedules and appendices follow the last section; they are not sections and get their own chunking later.
-    if (units.length > 0 && SCHEDULE_HEADING.test(probe)) break;
+    if (units.length > 0 && (SCHEDULE_HEADING.test(probe) || OBJECTS_HEADING.test(probe))) break;
+    if (units.length > 0 && STATE_AMENDMENT_HEADING.test(probe)) {
+      inStateAmendment = true;
+      continue;
+    }
     let section: string[] | null = P.section.exec(probe);
+    // "3. Ins. by s. 2, ibid. (w.e.f. 23-10-2015)." is a footnote even when a dash follows on a joined line.
+    if (section && FOOTNOTE_WORDS.test(section[2]!)) section = null;
     let repealedLine = false;
 
     // A heading that wraps: "25. Agreement without consideration, ... registered, or is a promise" + next line.
     const loose = LOOSE_SECTION.exec(probe);
-    if (!section && loose && isNextSection(lastSection, loose[1]!)) {
+    if (!section && loose && isNextSection(lastSection, loose[1]!) && !FOOTNOTE_WORDS.test(probe)) {
       let joined = raw;
       for (let k = 1; k <= 3 && i + k < lines.length; k++) {
         const nextText = lines[i + k]!.text;
         const nextProbe = stripLead(nextText);
-        if (LOOSE_SECTION.test(nextProbe) || P.chapter.test(nextProbe) || attachmentOf(nextProbe) || SEPARATOR.test(nextText)) break;
+        // A wrapped heading can continue with a year ("… prior to 23rd October," + "2015.—Unless …"); any other
+        // numbered line starts something new.
+        const nextLoose = LOOSE_SECTION.exec(nextProbe);
+        const yearLine = nextLoose !== null && !isPlausibleJump(loose[1]!, nextLoose[1]!);
+        if ((nextLoose && !yearLine) || P.chapter.test(nextProbe) || attachmentOf(nextProbe) || SEPARATOR.test(nextText)) break;
         joined = `${joined.trimEnd()} ${nextText.trim()}`;
         const m = P.section.exec(stripLead(joined)) ?? (REPEALED_SECTION.test(stripLead(joined)) ? null : undefined);
         if (m === null) {
@@ -314,12 +381,34 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
         repealedLine = true;
       }
     }
-    const startsSection = section !== null && isNextSection(lastSection, section[1]!);
+    // The first section of an Act (or Article of the Constitution) is always 1. A first "section" with any other
+    // number is a contents entry that slipped through (TPA: "108. … lessee." + "A.—Rights …"), and taking it would
+    // silently drop every section before it.
+    // Inside a page's footnote block, a numbered note that ends in a dash ("5. The Act has been extended to—")
+    // looks like a heading; there only the very next number (15 → 15A or 16) may start a section, and not when that
+    // number is a footnote marker on this page ("2. This Act shall come into force in—").
+    const inFootnotes = footnotePage !== null && footnotePage === pageNo;
+    const startsSection =
+      section !== null &&
+      isNextSection(lastSection, section[1]!) &&
+      (!opts.wholeDocument || isPlausibleJump(lastSection, section[1]!)) &&
+      (lastSection !== null || !opts.wholeDocument || /^1[A-Z]?$/.test(section[1]!)) &&
+      (!inFootnotes || (isImmediateSection(lastSection, section[1]!) && !pageMarkers.get(pageNo)?.has(section[1]!)));
+
+    if (inStateAmendment) {
+      if (!startsSection && !P.chapter.test(probe)) continue;
+      inStateAmendment = false;
+    }
 
     if (!startsSection) {
-      const amend = P.amendment.exec(raw);
-      if (amend && Number(amend[1]) <= MAX_FOOTNOTE) {
-        footnotes.push({ marker: amend[1]!, pageNo, note: amend[2]! });
+      // A footnote is "N. note" at the foot of the page: its wording says so ("Subs. by", "See s. 138, infra"), or
+      // marker N appeared earlier on the same page ("1[", "contract.1").
+      const amend = P.amendment.exec(raw) ?? P.editorialNote.exec(raw);
+      const start = amend ? null : FOOTNOTE_START.exec(raw);
+      const marked = start && pageMarkers.get(pageNo)?.has(start[1]!) ? start : null;
+      const note = amend ?? marked;
+      if (note && Number(note[1]) <= MAX_FOOTNOTE) {
+        footnotes.push({ marker: note[1]!, pageNo, note: note[2]! });
         footnotePage = pageNo;
         continue;
       }
@@ -346,7 +435,7 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
       pendingChapter = rest ? null : { kind, label };
       continue;
     }
-    if (pendingChapter && !startsSection && !attachmentOf(probe) && isHeadingLike(probe.replace(/[.,;:]$/, ''))) {
+    if (pendingChapter && !startsSection && !attachmentOf(probe) && isChapterTitle(probe)) {
       setContext(pendingChapter.kind, `${pendingChapter.label}: ${sentenceCase(probe.replace(/[.]$/, ''))}`);
       pendingChapter = null;
       continue;
@@ -372,7 +461,7 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
       units.push(unit);
       lastSection = unit.number;
       footnotePage = null; // a new section ends the footnote block on this page
-      for (const m of [...markersIn(raw), ...(strayMarkers ?? [])]) markerHome.set(`${pageNo}:${m}`, unit);
+      noteMarkers(pageNo, unit, [...markersIn(raw), ...(strayMarkers ?? [])]);
       continue;
     }
 
@@ -382,7 +471,7 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
       if (attach) throw new OrphanAttachmentError(attach, pageNo, raw);
       continue; // front matter: long title, preamble, enactment formula
     }
-    for (const m of [...markersIn(raw), ...(strayMarkers ?? [])]) markerHome.set(`${pageNo}:${m}`, unit);
+    noteMarkers(pageNo, unit, [...markersIn(raw), ...(strayMarkers ?? [])]);
 
     const prevLine = unit.lines[unit.lines.length - 1]!;
     const sub = P.subSection.exec(probe);

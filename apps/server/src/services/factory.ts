@@ -3,6 +3,7 @@ import type { Config } from '../config.ts';
 import { createGateway, type Gateway } from './llm-gateway/index.ts';
 import { createKanoon, type Kanoon } from './kanoon/index.ts';
 import { createIndiaCode, type IndiaCode } from './india-code/index.ts';
+import { createEscr, type Escr } from './escr/index.ts';
 import { createWebSearch, type WebSearch } from './web-search/index.ts';
 import { createStorage, type Storage } from './storage/index.ts';
 import type { UsageSink } from './usage.ts';
@@ -34,6 +35,11 @@ export function voyageFrom(config: Config, usage: UsageSink): Voyage {
     },
     usage,
   );
+}
+
+/** Supreme Court Reports (official, free, no key); its catalogue is cached in our storage. */
+export function escrFrom(storage: Storage): Escr {
+  return createEscr({ storage });
 }
 
 /** Null when no Anthropic key is set: callers degrade honestly (e.g. labels stay 'unknown'). */

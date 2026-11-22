@@ -5,7 +5,7 @@
  */
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
-import { cleanPages, splitStatute, type StatuteChunk } from '@nyaai/legal';
+import { cleanPages, missingSections, splitStatute, type StatuteChunk } from '@nyaai/legal';
 import type { IngestStage } from '@nyaai/shared';
 import type { Storage } from '../storage/index.ts';
 import { extractPages, fetchOriginal } from './extract.ts';
@@ -19,7 +19,17 @@ export interface IngestDeps {
 }
 
 export type IngestResult =
-  | { kind: 'done'; chunks: number; units: number; pages: number; hash: string }
+  | {
+      kind: 'done';
+      chunks: number;
+      units: number;
+      pages: number;
+      hash: string;
+      /** Section numbers absent between 1 and the last: lost text. */
+      missing: number[];
+      /** Chunks of an earlier load that the new split no longer has. */
+      removed: number;
+    }
   | { kind: 'duplicate'; duplicateOf: string };
 
 interface SourceRow {
@@ -69,15 +79,40 @@ export async function ingestSource(sourceId: string, deps: IngestDeps): Promise<
     actName: src.act_name ?? src.title,
     actYear: src.act_year ?? undefined,
     kind: src.type === 'constitution' ? 'constitution' : 'act',
+    wholeDocument: true,
   });
   if (units.length === 0) throw new Error('No sections were found; the document may not be a statute.');
 
+  let removed: number;
   const client = await library.connect();
   try {
     await client.query('begin');
-    await client.query('delete from chunks where source_id = $1', [src.id]);
+    // Re-loading a source (after a splitter fix) keeps each section's chunk id, so citations, concept links and the
+    // Studio's source drawer still point at it. Changed text loses its embedding and is embedded again.
+    const existing = new Map(
+      (
+        await client.query<{ id: string; kind: string; section: string | null; article: string | null; header: string | null }>(
+          'select id, kind, section, article, header from chunks where source_id = $1',
+          [src.id],
+        )
+      ).rows.map((r) => [existingKey(src, r), r.id]),
+    );
     const ids = new Map<string, string>();
-    for (const u of units) ids.set(u.key, await insertChunk(client, src, u, ids));
+    for (const u of units) {
+      const id = existing.get(u.key);
+      if (id) {
+        await updateChunk(client, src, u, id, ids);
+        existing.delete(u.key);
+        ids.set(u.key, id);
+      } else ids.set(u.key, await insertChunk(client, src, u, ids));
+    }
+    // Sections the new split no longer has (a footnote once taken for a section): children first.
+    if (existing.size) {
+      const gone = [...existing.values()];
+      await client.query('delete from chunks where id = any($1) and parent_id is not null', [gone]);
+      await client.query('delete from chunks where id = any($1)', [gone]);
+    }
+    removed = existing.size;
     await client.query(
       "update sources set content_hash = $2, storage_key = $3, fetched_at = now(), status = 'processing' where id = $1",
       [src.id, hash, key],
@@ -89,7 +124,49 @@ export async function ingestSource(sourceId: string, deps: IngestDeps): Promise<
   } finally {
     client.release();
   }
-  return { kind: 'done', chunks: units.length, units: units.filter((u) => u.parentKey === null).length, pages: pages.length, hash };
+  return {
+    kind: 'done',
+    chunks: units.length,
+    units: units.filter((u) => u.parentKey === null).length,
+    pages: pages.length,
+    hash,
+    missing: src.type === 'act' ? missingSections(units) : [],
+    removed,
+  };
+}
+
+/** The splitter's key ("s56", "s56(2)", "a19(1)") for a stored chunk. */
+function existingKey(src: SourceRow, r: { kind: string; section: string | null; article: string | null; header: string | null }): string {
+  const base = `${src.type === 'constitution' ? 'a' : 's'}${r.section ?? r.article}`;
+  const sub = r.kind === 'subsection' ? /\(([^()]+)\)\s*$/.exec(r.header ?? '')?.[1] : null;
+  return sub ? `${base}(${sub})` : base;
+}
+
+async function updateChunk(c: pg.PoolClient, src: SourceRow, u: StatuteChunk, id: string, ids: Map<string, string>): Promise<void> {
+  const hash = sha256(`${u.header}\n${u.text}`);
+  await c.query(
+    `update chunks set parent_id = $2, seq = $3, kind = $4, header = $5, act_name = $6, act_year = $7, chapter = $8, page_no = $9,
+                       law_status = $10, valid_from = $11, amendments = $12::jsonb, text = $13, content_hash = $14, status = 'processing',
+                       embedding = case when content_hash = $14 then embedding end,
+                       embed_model = case when content_hash = $14 then embed_model end
+      where id = $1`,
+    [
+      id,
+      u.parentKey ? (ids.get(u.parentKey) ?? null) : null,
+      u.seq,
+      u.kind,
+      u.header,
+      src.act_name ?? src.title,
+      src.act_year,
+      u.chapter,
+      u.pageNo,
+      u.lawStatus,
+      u.validFrom,
+      JSON.stringify(u.amendments),
+      u.text,
+      hash,
+    ],
+  );
 }
 
 async function insertChunk(c: pg.PoolClient, src: SourceRow, u: StatuteChunk, ids: Map<string, string>): Promise<string> {

@@ -20,6 +20,7 @@ export interface KanoonHit {
   title: string;
   publishdate: string | null;
   docsource: string | null;
+  docsize: number | null;
 }
 
 export interface Kanoon {
@@ -59,12 +60,18 @@ export function createKanoon(cfg: KanoonConfig, usage: UsageSink): Kanoon {
   return {
     async search(query, opts = {}) {
       const q = opts.doctypes ? `${query} doctypes:${opts.doctypes}` : query;
-      const r = await post<{ docs?: { tid: number; title: string; publishdate?: string; docsource?: string }[] }>(
+      const r = await post<{ docs?: { tid: number; title: string; publishdate?: string; docsource?: string; docsize?: number }[] }>(
         `/search/?formInput=${encodeURIComponent(q)}&pagenum=${opts.page ?? 0}`,
         'kanoon.search',
         cfg.searchCostMicroUsd ?? 6_000,
       );
-      return (r.docs ?? []).map((d) => ({ tid: d.tid, title: stripTags(d.title), publishdate: d.publishdate ?? null, docsource: d.docsource ?? null }));
+      return (r.docs ?? []).map((d) => ({
+        tid: d.tid,
+        title: stripTags(d.title),
+        publishdate: d.publishdate ?? null,
+        docsource: d.docsource ?? null,
+        docsize: typeof d.docsize === 'number' ? d.docsize : null,
+      }));
     },
     async doc(tid) {
       return post<KanoonDoc>(`/doc/${tid}/`, 'kanoon.doc', cfg.docCostMicroUsd ?? 6_000);

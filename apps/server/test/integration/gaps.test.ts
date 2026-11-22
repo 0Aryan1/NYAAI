@@ -84,9 +84,9 @@ describe.skipIf(!up)('library gaps and trusted-source lookup (integration)', () 
   // Fakes: India Code finds two Acts with the same name (so nothing is loaded automatically), Kanoon serves one judgment.
   const indiaCodeCalls: string[] = [];
   const fakeIndiaCode: IndiaCode = {
-    findCentralActs: async (name, year) => {
+    findCentralActs: async (name) => {
       indiaCodeCalls.push(name);
-      const y = year ?? 1950;
+      const y = 1950;
       const act = (id: string): IndiaCodeAct => ({ itemId: id, title: `The ${name}, ${y}`, year: y, repealed: false, actNumber: '1', pageUrl: `https://indiacode.gov.in/handle/${id}` });
       return [act('11111111-1111-1111-1111-111111111111'), act('22222222-2222-2222-2222-222222222222')];
     },
@@ -96,7 +96,7 @@ describe.skipIf(!up)('library gaps and trusted-source lookup (integration)', () 
   const fakeKanoon: Kanoon = {
     search: async (q) => {
       kanoonQueries.push(q);
-      return q.includes(w) ? [{ tid, title: `Pelican Herd vs Harbour Board ${w} on 1 January, 1999`, publishdate: '1999-01-01', docsource: 'Supreme Court of India' }] : [];
+      return q.includes(w) ? [{ tid, title: `Pelican Herd vs Harbour Board ${w} on 1 January, 1999`, publishdate: '1999-01-01', docsource: 'Supreme Court of India', docsize: null }] : [];
     },
     doc: async (id) => ({
       tid: id,

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { cleanPages, type Line } from './clean.ts';
-import { OrphanAttachmentError, splitStatute, type StatuteChunk } from './statute.ts';
+import { OrphanAttachmentError, splitStatute, type StatuteChunk, missingSections } from './statute.ts';
 
 function fixture(name: string): Line[] {
   const raw = readFileSync(new URL(`../test/fixtures/${name}`, import.meta.url), 'utf8');
@@ -222,5 +222,84 @@ describe('splitStatute: the official Constitution of India (Legislative Departme
     expect(a19.text).not.toContain('(Part III.');
     expect(a19.amendments.find((a) => a.amendingAct === 'Constitution (Ninety-seventh Amendment) Act, 2011')?.wef).toBe('2012-02-08');
     expect(byKey(chunks, 'a31').lawStatus).toBe('repealed');
+  });
+});
+
+describe('splitStatute: whole India Code Acts (rules learned from the ADR and Property Law Acts)', () => {
+  const split = (lines: [number, string][]) =>
+    splitStatute(lines.map(([pageNo, text]) => ({ pageNo, text })), { actName: 'X', actYear: 1882, kind: 'act', wholeDocument: true });
+  const top = (lines: [number, string][]) => split(lines).filter((c) => c.parentKey === null);
+
+  it('skips a letter-spaced contents list and never starts an Act at a section other than 1', () => {
+    const units = top([
+      [1, 'A R R A N G E M E N T O F S E C T IO N S'],
+      [1, '1. Short title .'],
+      [1, '108. Rights and liabilities of lessor and lessee.'],
+      [1, 'A.—Rights and liabilities of the lessor.'],
+      [2, '1. Short title.—This Act may be called the X Act, 1882.'],
+      [2, '2. Repeal of Acts.—Nothing herein contained shall be deemed to affect any rule.'],
+    ]);
+    expect(units.map((u) => u.number)).toEqual(['1', '2']);
+    expect(
+      top([
+        [1, '108. Rights and liabilities of lessor and lessee.'],
+        [1, 'A.—Rights and liabilities of the lessor.'],
+      ]),
+    ).toEqual([]);
+  });
+
+  it('keeps footnotes out of the law text: by marker on the page, by wording, and a commencement note', () => {
+    const units = top([
+      [1, '1. Short title, extent and commencement.—(1) This Act may be called the X Act.'],
+      [1, '(3) It shall come into force on such date2 as the Central Government may appoint.'],
+      [1, '1. The words “except the State of Jammu and Kashmir” Omitted by the Order, 2020.'],
+      [1, '2. This Act shall come into force in—'],
+      [1, '(i) Union territory of Andaman and Nicobar Islands on 19th November, 1986.'],
+      [2, '2. Definitions.—In this Act, unless the context otherwise requires,—'],
+      [2, '(a) “Court” means a Family Court;'],
+      [2, '1. See s. 138, infra.'],
+    ]);
+    expect(units.map((u) => u.number)).toEqual(['1', '2']);
+    expect(units[0]!.text).toContain('on such date as the Central Government');
+    expect(units[0]!.text).not.toMatch(/Andaman|Jammu/);
+    expect(units[1]!.text).not.toMatch(/infra/);
+  });
+
+  it('joins a heading that wraps onto a line starting with a year, but never a footnote', () => {
+    const units = top([
+      [1, '1. Short title.—This Act may be called the X Act.'],
+      [1, '2. Definitions.—In this Part, unless the context otherwise requires,—'],
+      [1, '3. Ins. by s. 2, ibid. (w.e. f. 23-10-2015).'],
+      [2, '(7) An arbitral award made under this Part shall be considered as a domestic award.'],
+      [2, '(8) Where this Part—'],
+      [3, '3. Effect of arbitral and related court proceedings commenced prior to 23rd October,'],
+      [3, '2015.—Unless the parties otherwise agree, the amendments shall not apply.'],
+    ]);
+    expect(units.map((u) => u.number)).toEqual(['1', '2', '3']);
+    expect(units[1]!.text).toContain('(7) An arbitral award');
+    expect(units[2]!.title).toBe('Effect of arbitral and related court proceedings commenced prior to 23rd October, 2015');
+  });
+
+  it('leaves out State amendments and stops at the Statement of Objects and Reasons', () => {
+    const units = top([
+      [1, '1. Short title.—This Act may be called the X Act.'],
+      [1, '2. Jurisdiction.—The Courts shall try all suits of a civil nature.'],
+      [1, 'STATE AMENDMENTS'],
+      [1, 'Maharashtra.—'],
+      [1, 'Section 2 of the Code, in its application to the State of Maharashtra, shall be deleted.'],
+      [2, 'CHAPTER II'],
+      [2, 'AMENDMENTS TO THE PROVISIONS OF THE CODE OF CIVIL PROCEDURE, 1908'],
+      [2, '3. Rules.—The State Government may make rules.'],
+      [3, 'STATEMENT OF OBJECTS AND REASONS'],
+      [3, '2. The Bill inter alia, seeks to:—'],
+    ]);
+    expect(units.map((u) => u.number)).toEqual(['1', '2', '3']);
+    expect(units[1]!.text).not.toMatch(/Maharashtra|deleted/);
+    expect(units[2]!.chapter).toBe('Chapter II: Amendments to the provisions of the code of civil procedure, 1908');
+    expect(units[2]!.text).not.toMatch(/Bill/);
+  });
+
+  it('reports section numbers missing between 1 and the last', () => {
+    expect(missingSections([{ number: '1', parentKey: null }, { number: '2', parentKey: null }, { number: '4A', parentKey: null }])).toEqual([3]);
   });
 });

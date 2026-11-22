@@ -14,14 +14,14 @@
  * Act or case name taken from them by code, never text from a retrieved document (LLD §17.6 rule 2).
  */
 import type pg from 'pg';
-import { caseMatches, classifyGap, libraryActName, pickAct, questionKey, sameAct, type GapClass } from '@nyaai/legal';
+import { classifyGap, pickAct, pickCaseHit, questionKey, sameAct, type GapClass } from '@nyaai/legal';
 import type { IndiaCode } from '../india-code/index.ts';
 import type { Kanoon } from '../kanoon/index.ts';
 import type { Storage } from '../storage/index.ts';
 import type { WebLead, WebSearch } from '../web-search/index.ts';
-import { finishSource, type FinishDeps } from '../ingest/finish.ts';
+import type { FinishDeps } from '../ingest/finish.ts';
+import { loadIndiaCodeAct } from '../ingest/india-code.ts';
 import { ingestKanoonJudgment } from '../ingest/kanoon.ts';
-import { ingestSource } from '../ingest/source.ts';
 import { search, type SearchDeps, type SearchRequest, type SearchResult } from '../search/index.ts';
 
 export type Provider = 'india_code' | 'indian_kanoon' | 'web';
@@ -110,7 +110,7 @@ export function createGapLookup(deps: LookupDeps): GapLookup {
       return void attempts.push({ at: at(), provider: 'india_code', outcome: 'skipped', detail: `${gap.act_name} is already in the library` });
     }
     const wanted = { name: gap.act_name, year: gap.act_year };
-    const pick = pickAct(wanted, await deps.indiaCode.findCentralActs(wanted.name, wanted.year));
+    const pick = pickAct(wanted, await deps.indiaCode.findCentralActs(wanted.name));
     if (pick.kind === 'none') return void attempts.push({ at: at(), provider: 'india_code', outcome: 'nothing', detail: `No central Act named "${wanted.name}"${wanted.year ? `, ${wanted.year}` : ''}` });
     if (pick.kind === 'repealed') {
       leads.push({ provider: 'india_code', title: pick.act.title, url: pick.act.pageUrl, lastUpdated: null, checked: true });
@@ -123,27 +123,16 @@ export function createGapLookup(deps: LookupDeps): GapLookup {
     if (Date.now() > deadline) return void attempts.push({ at: at(), provider: 'india_code', outcome: 'skipped', detail: 'out of time for this lookup' });
 
     const act = pick.act;
-    const pdf = await deps.indiaCode.englishPdf(act.itemId);
-    if (!pdf) {
+    const r = await loadIndiaCodeAct(act, { ...deps, indiaCode: deps.indiaCode }, { provisional: true });
+    if (r.kind === 'no_pdf') {
       leads.push({ provider: 'india_code', title: act.title, url: act.pageUrl, lastUpdated: null, checked: true });
       return void attempts.push({ at: at(), provider: 'india_code', outcome: 'failed', detail: `${act.title} has no English PDF on India Code` });
     }
-    const sourceId =
-      (await library.query<{ id: string }>("select id from sources where origin = 'india_code' and url = $1 and status <> 'retired' limit 1", [pdf])).rows[0]?.id ??
-      (
-        await library.query<{ id: string }>(
-          `insert into sources (college_id, visibility, type, origin, title, act_name, act_year, url, content_hash)
-           values (global_college(), 'shared', 'act', 'india_code', $1, $2, $3, $4, 'pending:' || gen_random_uuid()) returning id`,
-          [act.title, libraryActName(act.title), act.year, pdf],
-        )
-      ).rows[0]!.id;
-    const split = await ingestSource(sourceId, { library, storage: deps.storage, progress: deps.progress });
-    if (split.kind === 'duplicate') {
-      return void attempts.push({ at: at(), provider: 'india_code', outcome: 'skipped', detail: `${act.title} is already in the library`, sourceIds: [split.duplicateOf] });
+    if (r.kind === 'duplicate') {
+      return void attempts.push({ at: at(), provider: 'india_code', outcome: 'skipped', detail: `${act.title} is already in the library`, sourceIds: [r.sourceId] });
     }
-    await finishSource(sourceId, { ...deps, provisional: true });
-    loaded.push(sourceId);
-    attempts.push({ at: at(), provider: 'india_code', outcome: 'loaded', detail: `${act.title}: ${split.units} sections (not yet reviewed)`, sourceIds: [sourceId] });
+    loaded.push(r.sourceId);
+    attempts.push({ at: at(), provider: 'india_code', outcome: 'loaded', detail: `${act.title}: ${r.units} sections (not yet reviewed)`, sourceIds: [r.sourceId] });
   }
 
   /** Indian Kanoon: the named case, or the top judgments for the topic. */
@@ -152,7 +141,10 @@ export function createGapLookup(deps: LookupDeps): GapLookup {
     if (!deps.kanoon) return void attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'skipped', detail: 'Indian Kanoon is not set up' });
     const query = gap.kind === 'case' && gap.case_name ? gap.case_name : gap.question;
     let hits = await deps.kanoon.search(query, { doctypes: 'judgments' });
-    if (gap.kind === 'case' && gap.case_name) hits = hits.filter((h) => caseMatches(gap.case_name!, h.title)).slice(0, 1);
+    if (gap.kind === 'case' && gap.case_name) {
+      const named = pickCaseHit(gap.case_name, hits);
+      hits = named ? [named] : [];
+    }
     else hits = hits.slice(0, maxJudgments * 2);
     if (!hits.length) return void attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'nothing', detail: gap.kind === 'case' ? `No judgment titled like "${gap.case_name}"` : 'No judgments found' });
 

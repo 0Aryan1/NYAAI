@@ -32,6 +32,16 @@ export interface JudgmentInput {
   bench: string[];
   headnote: string | null;
   blocks: JudgmentBlock[];
+  /**
+   * The official reporter's notes on the opinions (e-SCR headnotes): who formed the majority, who concurred or
+   * dissented separately. Used when the judgment text itself does not say.
+   */
+  reporterNote?: { majority: string[]; concurring: string[]; dissenting: string[] };
+  /**
+   * Quotations are reliably marked (`quoted`): true for PDFs, where they are set off by indentation. Indian Kanoon's
+   * blockquote flag also marks some of the court's own paragraphs, so it is not relied on.
+   */
+  quotesMarked?: boolean;
 }
 
 export interface Opinion {
@@ -64,11 +74,77 @@ export interface SplitJudgment {
 }
 
 const COURT_NO = /^\s*\[?(\d{1,4})\]?[.)]\s+/;
+/**
+ * A quoted statute section ("4. Effect of foreign awards.—", "46. When foreign award binding.—") carries a number
+ * that is not the court's: judgments quote provisions in their own numbering (PASL Wind, 2021, quotes ss. 4–6 of the
+ * 1961 Act inside para 3, and the court's paras 4–6 were swallowed).
+ */
+const QUOTED_PROVISION = /^\s*\d{1,4}[A-Z]?\.\s*[A-Z][^.\n—–]{2,100}\.\s*[—–]/;
+/** The court's own paragraph number, or null for a quotation that only looks numbered. */
+/**
+ * A court's numbering sometimes skips (BALCO goes 187 → 189), or restarts at 1 for the next opinion. A number up to 3 ahead counts when the number after it
+ * follows within the next 12 blocks; quoted lists ("33", "37", "42") never confirm themselves that way.
+ */
+function confirmedJump(blocks: { text: string }[], i: number, no: number, expected: number): boolean {
+  const ahead = blocks.slice(i + 1, i + 16).map(courtNo);
+  // While the court's own next number still turns up shortly, this number belongs to a quotation.
+  if (ahead.includes(String(expected))) return false;
+  const followed = () => ahead.slice(0, 12).some((a) => a === String(no + 1) || a === String(no + 2));
+  // A second opinion that numbers its paragraphs from 1 again (S.B.P. & Co., 2005: the dissent after para 46).
+  if (no === 1 && expected > 5) return followed();
+  if (no <= expected || no - expected > 10) return false;
+  return followed();
+}
+// (Kanoon's blockquote flag is not used: it also marks some of the court's own numbered paragraphs.)
+/** A paragraph that grew past this by merging unnumbered blocks is cut at the next block that starts cleanly. */
+const MAX_MERGED_CHARS = 8000;
+const courtNo = (b: { text: string }) => (QUOTED_PROVISION.test(b.text) ? null : (COURT_NO.exec(b.text)?.[1] ?? null));
+/** Sub-paragraph numbers ("3.1.", "4.2"): the court numbers the parts of paragraph 3 instead of paragraph 3 itself. */
+const SUB_NO = /^\s*(\d{1,4})\.(\d{1,2})\.?\s+(?=\S)/;
+
+/**
+ * The court's running numbering. A whole number counts when it is the next one (or a confirmed jump or restart).
+ * A sub-number counts only as the first part of the next paragraph ("3.1" after 2) or the next part of the current
+ * one ("3.2" after 3.1); a quoted clause numbered "6.1" in the middle of paragraph 3 does not.
+ */
+class Numbering {
+  expected = 1;
+  private major = 0;
+  private minor = 0;
+
+  accept(blocks: { text: string }[], i: number): string | null {
+    const b = blocks[i]!;
+    const sub = QUOTED_PROVISION.test(b.text) ? null : SUB_NO.exec(b.text);
+    if (sub) {
+      const major = Number(sub[1]);
+      const minor = Number(sub[2]);
+      const opens = major === this.expected && minor === 1;
+      const continues = major === this.major && this.minor > 0 && minor === this.minor + 1;
+      if (!opens && !continues) return null;
+      if (opens) this.expected = major + 1;
+      this.major = major;
+      this.minor = minor;
+      return `${major}.${minor}`;
+    }
+    const no = courtNo(b);
+    if (no && (Number(no) === this.expected || confirmedJump(blocks, i, Number(no), this.expected))) {
+      this.restartAt(Number(no));
+      return no;
+    }
+    return null;
+  }
+
+  restartAt(no: number) {
+    this.expected = no + 1;
+    this.major = no;
+    this.minor = 0;
+  }
+}
 const APPEARANCE = /\bfor the (appellants?|respondents?|petitioners?|interveners?|State|Union)\b[^.]*\.?\s*$/i;
-const JUDGE_SIGNATURE = /^\s*([A-Z][A-Za-z.'\s]{1,60}?),?\s*(C\.\s?J\.(?:I\.)?|JJ?\.)\s*[-—–:.]+\s*/;
+const JUDGE_SIGNATURE = /^\s*([A-Z][A-Za-z.'\s]{1,60}?),?\s*(C\.\s?J\.(?:I\.)?|CJI\b\.?|JJ?\.)\s*[-—–:.]+\s*/;
 const INLINE_SIGNATURE = /(?:^|[.;]\s+)([A-Z][A-Z.'\s]{2,40}),?\s*(C\.\s?J\.|J\.)\s*[-—–:]*\s*(?=[A-Z])/;
 /** "R.F. NARIMAN, J." alone in a block: the next block starts that judge's opinion. */
-const SIGNATURE_ALONE = /^\s*([A-Z][A-Za-z.'\s]{1,60}?),?\s*(C\.\s?J\.(?:I\.)?|JJ?\.)\s*$/;
+const SIGNATURE_ALONE = /^\s*([A-Z][A-Za-z.'\s]{1,60}?),?\s*(C\.\s?J\.(?:I\.)?|CJI\.?|JJ?\.)\s*$/;
 /** Judges' signature lines at the end ("……J. (PINAKI CHANDRA GHOSE)", "New Delhi; April 11, 2017"). */
 const SIGNATURE_LINE = /^[\s.…]*(?:J\.|CJI\.?)\s*\(|(?:\.|…){5,}\s*J\.|^\s*New\s+Delhi[;,]?\s+[A-Z][a-z]+\s+\d{1,2},?\s+\d{4}\.?\s*$|^\s*\(\s*[A-Z][A-Z.\s]{2,40}\)\s*(?:New\s+Delhi.*)?$|^\s*(?:New\s+Delhi[;,]?\s*)?[A-Z][a-z]+\s+\d{1,2},\s*\d{4}\.?\s*$/;
 const OPENERS = /^\s*(?:I|We)\s+(?:have\s+had\s+the\s+(?:advantage|benefit|privilege)\s+of\s+(?:reading|perusing|going through)|respectfully\s+(?:disagree|differ)|agree\s+with\s+the\s+conclusion|regret\s+(?:that\s+)?(?:I|we)\s+(?:am|are)\s+unable\s+to\s+agree)/i;
@@ -86,19 +162,31 @@ const HOLDING = /\bwe\s+hold\b|\bin\s+view\s+of\s+the\s+(?:above|foregoing)\b|\b
 const COURT_CONCLUSION = /\bwe\s+hold\b|\bwe\s+are\s+(?:clearly\s+)?of\s+(?:the\s+)?(?:view|opinion)\b|\bin\s+our\s+(?:view|opinion|judgment)\b|\b(?:the\s+)?(?:appeals?|petitions?|writ\s+petitions?)\s+(?:is|are|stands?)\s+(?:accordingly\s+)?(?:allowed|dismissed|partly\s+allowed)\b|\bthe\s+result\s+is\s+that\b/i;
 const ISSUE = /\b(?:question|point|issue)s?\s+(?:that|which)?\s*(?:arises?|falls?|requires?|calls?)\s+for\s+(?:our\s+)?(?:consideration|determination|decision)|\bthe\s+(?:only|sole|main|short|real)\s+(?:question|point|issue)\b/i;
 
-const lastName = (s: string) => s.replace(/\b(?:C\.?\s?J\.?|JJ?\.?|Hon'?ble|Mr\.?|Justice)\b/gi, '').replace(/[^A-Za-z\s]/g, ' ').trim().split(/\s+/).pop()?.toLowerCase() ?? '';
+const lastName = (s: string) => s.replace(/\b(?:CJI|C\.?\s?J\.?|JJ?\.?|Hon'?ble|Mr\.?|Justice)\b/gi, '').replace(/[^A-Za-z\s]/g, ' ').trim().split(/\s+/).pop()?.toLowerCase() ?? '';
 
-/** The court's numbering counts when block numbers rise one by one through ≥ 80% of the text. */
-export function courtNumbering(blocks: JudgmentBlock[]): boolean {
-  let expected = 1;
+/** How far the court's own numbering runs through the blocks (see `courtNumbering`). */
+export function courtNumberingStats(blocks: JudgmentBlock[]): { accepted: number; own: number; coverage: number } {
+  const numbering = new Numbering();
   let covered = 0;
   const total = blocks.reduce((n, b) => n + b.text.length, 0) || 1;
-  for (const b of blocks) {
-    const m = COURT_NO.exec(b.text);
-    if (m && Number(m[1]) === expected) expected++;
-    if (expected > 1) covered += b.text.length;
+  let accepted = 0;
+  for (let i = 0; i < blocks.length; i++) {
+    if (numbering.accept(blocks, i)) accepted++;
+    if (numbering.expected > 1) covered += blocks[i]!.text.length;
   }
-  return expected > 3 && covered / total >= 0.8;
+  return { accepted, own: blocks.filter((b) => !b.quoted).length, coverage: covered / total };
+}
+
+/**
+ * The court's numbering counts when it runs through ≥ 80% of the text and numbers at least 1 in 5 blocks. A few
+ * numbered blocks in a long judgment (A. Ayyasamy: 10 of 107) are quotations, not the court's numbering. When
+ * quotations are reliably marked (PDFs give each its own block), only the court's own blocks are counted, and a long
+ * run (25+) counts however many quoted extracts sit between (Ssangyong, 2019, quotes whole numbered paragraphs).
+ */
+export function courtNumbering(blocks: JudgmentBlock[], quotesMarked = false): boolean {
+  const { accepted, own, coverage } = courtNumberingStats(blocks);
+  if (!quotesMarked) return accepted > 3 && accepted >= blocks.length * 0.2 && coverage >= 0.8;
+  return accepted > 3 && (accepted >= own * 0.2 || accepted >= 25) && coverage >= 0.8;
 }
 
 export function ruleRole(text: string): ParaRole | null {
@@ -121,7 +209,8 @@ function splitInlineSignatures(blocks: JudgmentBlock[]): WorkingBlock[] {
   const out: WorkingBlock[] = [];
   let pendingJudge: string | null | undefined;
   for (const raw of blocks) {
-    const alone = SIGNATURE_ALONE.exec(raw.text);
+    // "The Judgment of the Court was delivered by DIPAK MISRA, J." also ends like a signature: read it as the sentence.
+    const alone = DELIVERED_BY.test(raw.text) ? null : SIGNATURE_ALONE.exec(raw.text);
     if (alone) {
       pendingJudge = alone[1]!.trim();
       continue;
@@ -139,6 +228,8 @@ function splitInlineSignatures(blocks: JudgmentBlock[]): WorkingBlock[] {
       const head = b.text.slice(0, del.index + del[0].length).trim();
       if (head) out.push({ ...b, text: head, caption: true });
       if (after) out.push({ ...b, text: after, opinionStart: { judge: del[2]!.trim() } });
+      // The sentence stands alone (a PDF line): the judge's opinion starts with the next block.
+      else pendingJudge = del[2]!.trim();
       continue;
     }
     if (sig) {
@@ -169,6 +260,8 @@ function splitInlineSignatures(blocks: JudgmentBlock[]): WorkingBlock[] {
 
 interface Unit extends WorkingBlock {
   courtNo: string | null;
+  /** A long paragraph's later part, cut for size: the court number it continues. */
+  continuesNo?: string | null;
 }
 
 /**
@@ -178,28 +271,33 @@ interface Unit extends WorkingBlock {
  */
 function mergeContinuations(blocks: WorkingBlock[], courtNumbers: boolean): Unit[] {
   const units: Unit[] = [];
-  let expected = 1;
-  for (const b of blocks) {
+  const numbering = new Numbering();
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i]!;
     const prev = units[units.length - 1];
-    const no = COURT_NO.exec(b.text)?.[1];
+    const no = courtNo(b);
     if (courtNumbers) {
-      if (no && Number(no) === expected) {
-        units.push({ ...b, courtNo: no });
-        expected++;
+      const accepted = numbering.accept(blocks, i);
+      if (accepted) {
+        units.push({ ...b, courtNo: accepted, continuesNo: null });
         continue;
       }
       if (b.opinionStart && no) {
         units.push({ ...b, courtNo: no });
-        expected = Number(no) + 1;
+        numbering.restartAt(Number(no));
         continue;
       }
     }
+    const expected = numbering.expected;
     // Old reports break a paragraph at the page end: the next block starts mid-sentence (lower case, or the block
     // before did not finish its sentence). That is the same paragraph.
     const brokenAtPage = prev ? /^[a-z(,;]/.test(b.text) || !/[.:;?!"”)\]]\s*$/.test(prev.text) : false;
-    const continues = prev && !b.opinionStart && !b.courtOrder && (courtNumbers ? expected > 1 : b.quoted || brokenAtPage);
+    // With court numbering, unnumbered blocks join the paragraph before them, unless it has already grown long and
+    // this block starts cleanly (Kanoon lost its number): then it is a continuation of its own, never given a number.
+    const tooLong = courtNumbers && prev !== undefined && prev.text.length > MAX_MERGED_CHARS && !b.quoted && !brokenAtPage;
+    const continues = prev && !b.opinionStart && !b.courtOrder && !tooLong && (courtNumbers ? expected > 1 : b.quoted || brokenAtPage);
     if (continues) prev.text = `${prev.text}\n${b.text}`;
-    else units.push({ ...b, courtNo: null });
+    else units.push({ ...b, courtNo: null, continuesNo: tooLong ? (prev.courtNo ?? prev.continuesNo ?? null) : null });
   }
   return units;
 }
@@ -214,13 +312,17 @@ export function splitJudgment(input: JudgmentInput): SplitJudgment {
   // Blocks before the first opinion start (when it comes early) are the case caption: jurisdiction line, parties.
   const firstStart = split.findIndex((b) => b.opinionStart);
   const body = split.filter((b, i) => !b.caption && !(firstStart > 0 && firstStart <= 5 && i < firstStart));
-  const useCourtNumbers = courtNumbering(body);
+  const useCourtNumbers = courtNumbering(body, input.quotesMarked);
   const blocks = mergeContinuations(body, useCourtNumbers);
 
   // Who formed the majority, when the judgment says so (the sentence sits in the caption, so look before dropping it).
   const delivered = split.map((b) => DELIVERED_BY.exec(b.text)).find(Boolean);
   const majorityJudges = delivered ? delivered[1]!.split(/,|\band\b/).map(lastName).filter(Boolean) : [];
   if (delivered) majorityJudges.push(lastName(delivered[2]!));
+  else if (input.reporterNote?.majority.length) majorityJudges.push(...input.reporterNote.majority.map(lastName).filter(Boolean));
+  const noted = (list: string[] | undefined) => new Set((list ?? []).map(lastName).filter(Boolean));
+  const dissenters = noted(input.reporterNote?.dissenting);
+  const concurrers = noted(input.reporterNote?.concurring);
   const majorityIsBench = majorityJudges.length > 0 && benchSize > 0 && majorityJudges.length > benchSize / 2;
 
   // Group blocks into opinions.
@@ -238,6 +340,15 @@ export function splitJudgment(input: JudgmentInput): SplitJudgment {
     if (opinionGroups.length === 1) return 'majority';
     const text = g.blocks.map((b) => b.text).join(' ');
     const judge = g.judge ? lastName(g.judge) : '';
+    // The official reporter names the separate opinions.
+    if (judge && dissenters.has(judge)) return 'dissent';
+    if (judge && concurrers.has(judge)) return 'concurring';
+    if (dissenters.size || concurrers.size) {
+      // Every other opinion is accounted for, and the dissenters are fewer than half the Bench: the one opinion
+      // left is the Court's (Gayatri Balasamy, 2025: one dissent of five; Vidya Drolia, 2020: one concurrence).
+      const unnamed = opinionGroups.filter((x) => !x.judge || (!dissenters.has(lastName(x.judge)) && !concurrers.has(lastName(x.judge))));
+      if (unnamed.length === 1 && unnamed[0] === g && benchSize > 0 && dissenters.size < benchSize / 2) return 'majority';
+    }
     if (majorityJudges.length) {
       if (judge && majorityJudges.includes(judge)) return majorityIsBench ? 'majority' : 'unknown';
       if (DISSENT_SIGNAL.test(text)) return 'dissent';
@@ -271,7 +382,7 @@ export function splitJudgment(input: JudgmentInput): SplitJudgment {
     g.blocks.forEach((b, bi) => {
       n++;
       const court = useCourtNumbers ? (b.courtNo ?? undefined) : undefined;
-      const paraNo = court ?? String(n);
+      const paraNo = court ?? (useCourtNumbers && b.continuesNo ? `${b.continuesNo} (cont.)` : String(n));
       let role = ruleRole(b.text);
       if (g.courtOrder) role = 'holding';
       if (!role && gi === 0 && firstIssue > 0 && bi < firstIssue) role = 'facts';

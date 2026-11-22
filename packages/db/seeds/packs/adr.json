@@ -1,0 +1,55 @@
+{
+  "course": "Alternative Dispute Resolution",
+  "outline": "CNLU ADR Course Outline 2025 (Sem 6, Dr. Hrishikesh Manu)",
+  "acts": [
+    { "name": "Arbitration and Conciliation Act", "year": 1996, "units": ["II", "III"] },
+    { "name": "Code of Civil Procedure", "year": 1908, "units": ["I"], "note": "Section 89 is in the body. Order X rules 1A–1C are in the First Schedule, which the statute splitter does not read yet." },
+    { "name": "Mediation Act", "year": 2023, "units": ["IV"] },
+    { "name": "Legal Services Authorities Act", "year": 1987, "units": ["V"] },
+    { "name": "Family Courts Act", "year": 1984, "units": ["V"] },
+    { "name": "Gram Nyayalayas Act", "year": 2008, "units": ["V"] },
+    { "name": "Commercial Courts Act", "year": 2015, "units": ["V"], "note": "Section 12A: pre-institution mediation." },
+    { "name": "Lokpal and Lokayuktas Act", "year": 2013, "units": ["V"] },
+    { "name": "Industrial Relations Code", "year": 2020, "units": ["V"], "note": "The outline's 'voluntary reference' and 'conciliation of industrial disputes' were Industrial Disputes Act, 1947 topics. The Code replaced that Act from 21 Nov 2025; teach from the Code." }
+  ],
+  "cases": [
+    { "unit": "I", "name": "Salem Advocate Bar Association v. Union of India", "year": 2005, "topic": "Section 89 CPC; draft ADR and mediation rules" },
+    { "unit": "I", "name": "Afcons Infrastructure Ltd. v. Cherian Varkey Construction Co. (P) Ltd.", "year": 2010, "topic": "Section 89 CPC; which cases suit ADR" },
+
+    { "unit": "II", "name": "K.K. Modi v. K.N. Modi", "year": 1998, "topic": "What makes an agreement an arbitration agreement" },
+    { "unit": "II", "name": "Jagdish Chander v. Ramesh Chander", "year": 2007, "topic": "Arbitration agreement: intention to refer must be clear" },
+    { "unit": "II", "name": "Bhatia International v. Bulk Trading S.A.", "year": 2002, "topic": "Part I and foreign-seated arbitrations (overruled prospectively)" },
+    { "unit": "II", "name": "Bharat Aluminium Co. v. Kaiser Aluminium Technical Services", "year": 2012, "topic": "Seat of arbitration; Part I applies to India-seated arbitrations" },
+    { "unit": "II", "name": "BGS SGS Soma JV v. NHPC Ltd.", "year": 2019, "topic": "Seat versus venue" },
+    { "unit": "II", "name": "S.B.P. & Co. v. Patel Engineering Ltd.", "year": 2005, "titleWords": ["b.p", "patel engineering"], "topic": "Nature of the power to appoint arbitrators (section 11)" },
+    { "unit": "II", "name": "Perkins Eastman Architects DPC v. HSCC (India) Ltd.", "year": 2019, "topic": "Unilateral appointment of arbitrators" },
+    { "unit": "II", "name": "TRF Ltd. v. Energo Engineering Projects Ltd.", "year": 2017, "topic": "An ineligible person cannot nominate an arbitrator" },
+    { "unit": "II", "name": "Central Organisation for Railway Electrification v. ECI SPIC SMO MCML (JV)", "year": 2024, "topic": "Unilateral appointment clauses and equal treatment (Constitution Bench)" },
+    { "unit": "II", "name": "Booz Allen and Hamilton Inc. v. SBI Home Finance Ltd.", "year": 2011, "topic": "Arbitrability: rights in rem and in personam" },
+    { "unit": "II", "name": "A. Ayyasamy v. A. Paramasivam", "year": 2016, "topic": "Arbitrability of fraud allegations" },
+    { "unit": "II", "name": "Vidya Drolia v. Durga Trading Corporation", "year": 2020, "topic": "Arbitrability test; tenancy disputes" },
+    { "unit": "II", "name": "Chloro Controls India (P) Ltd. v. Severn Trent Water Purification Inc.", "year": 2012, "topic": "Non-signatories; group of companies" },
+    { "unit": "II", "name": "Cox and Kings Ltd. v. SAP India Pvt. Ltd.", "year": 2023, "topic": "Group of companies doctrine (Constitution Bench)" },
+    { "unit": "II", "name": "In Re: Interplay between Arbitration Agreements under the Arbitration and Conciliation Act, 1996 and the Indian Stamp Act, 1899", "year": 2023, "titleWords": ["interplay", "arbitration agreements"], "topic": "Unstamped arbitration agreements (seven judges)" },
+    { "unit": "II", "name": "Oil & Natural Gas Corporation Ltd. v. Saw Pipes Ltd.", "year": 2003, "topic": "Patent illegality and public policy (section 34)" },
+    { "unit": "II", "name": "Associate Builders v. Delhi Development Authority", "year": 2014, "topic": "Public policy grounds under section 34" },
+    { "unit": "II", "name": "Ssangyong Engineering and Construction Co. Ltd. v. National Highways Authority of India", "year": 2019, "topic": "Section 34 after the 2015 amendment" },
+    { "unit": "II", "name": "Kinnari Mullick v. Ghanshyam Das Damani", "year": 2017, "topic": "Remitting an award under section 34(4)" },
+    { "unit": "II", "name": "Hindustan Construction Company Ltd. v. Union of India", "year": 2019, "topic": "No automatic stay of an award once a section 34 challenge is filed" },
+    { "unit": "II", "name": "Gayatri Balasamy v. ISG Novasoft Technologies Ltd.", "year": 2025, "topic": "Whether courts may modify an award (Constitution Bench)" },
+
+    { "unit": "III", "name": "Renusagar Power Co. Ltd. v. General Electric Co.", "year": 1993, "topic": "Public policy in enforcing a foreign award" },
+    { "unit": "III", "name": "Shri Lal Mahal Ltd. v. Progetto Grano Spa", "year": 2013, "topic": "Narrow public policy under section 48" },
+    { "unit": "III", "name": "Vijay Karia v. Prysmian Cavi E Sistemi SRL", "year": 2020, "topic": "Resisting enforcement under section 48; no appeal beyond section 50" },
+    { "unit": "III", "name": "PASL Wind Solutions Private Limited v. GE Power Conversion India Private Limited", "year": 2021, "topic": "Two Indian parties may choose a foreign seat" },
+
+    { "unit": "IV", "name": "M.R. Krishna Murthi v. New India Assurance Co. Ltd.", "year": 2019, "topic": "The Court's call for a mediation law" },
+
+    { "unit": "V", "name": "K. Srinivas Rao v. D.A. Deepa", "year": 2013, "topic": "Mediation of matrimonial disputes" },
+    { "unit": "V", "name": "State of Punjab v. Jalour Singh", "year": 2008, "topic": "A Lok Adalat cannot decide; it only records a settlement" },
+    { "unit": "V", "name": "B.P. Moideen Sevamandir v. A.M. Kutty Hassan", "year": null, "topic": "Lok Adalat: settlement, not adjudication" },
+    { "unit": "V", "name": "M.H. Hoskot v. State of Maharashtra", "year": 1978, "topic": "Free legal aid as part of Article 21" },
+    { "unit": "V", "name": "Hussainara Khatoon v. Home Secretary, State of Bihar", "year": 1979, "topic": "Legal aid and speedy trial for undertrials" },
+    { "unit": "V", "name": "Patil Automation Private Limited v. Rakheja Engineers Private Limited", "year": 2022, "topic": "Pre-institution mediation under section 12A is mandatory" }
+  ]
+}

@@ -17,7 +17,8 @@ export interface IndiaCodeAct extends ActCandidate {
 }
 
 export interface IndiaCode {
-  findCentralActs(name: string, year?: number | null): Promise<IndiaCodeAct[]>;
+  /** Central Acts whose title contains the name; `year` is the year in the Act's title (the caller compares it). */
+  findCentralActs(name: string): Promise<IndiaCodeAct[]>;
   /** https link to the English PDF, or null when the item has none. */
   englishPdf(itemId: string): Promise<string | null>;
 }
@@ -59,25 +60,25 @@ export function createIndiaCode(cfg: IndiaCodeConfig = {}): IndiaCode {
   }
 
   return {
-    async findCentralActs(name, year) {
+    async findCentralActs(name) {
       const title = safeName(name);
       if (title.length < 3) return [];
-      const q = [
-        'dc.identifier.collection:ACT',
-        'dc.identifier.state_name:CENTRAL',
-        `dc.title:"${title}"`,
-        ...(year ? [`dc.date.act_year:${year}`] : []),
-      ].join(' AND ');
+      // No act_year filter: India Code files some Acts under the year of their Act number, not the year in their
+      // name (the Gram Nyayalayas Act, 2008 is Act 4 of 2009, filed as 2009). The year is read from the title
+      // instead, and pickAct compares it.
+      const q = ['dc.identifier.collection:ACT', 'dc.identifier.state_name:CENTRAL', `dc.title:"${title}"`].join(' AND ');
       const body = await getJson<SearchBody>(`/server/api/discover/search/objects?query=${encodeURIComponent(q)}&dsoType=ITEM&size=20`);
       return (body._embedded?.searchResult?._embedded?.objects ?? []).flatMap((o) => {
         const it = o._embedded?.indexableObject;
         if (!it) return [];
         const md = it.metadata;
-        const y = Number(first(md, 'dc.date.act_year'));
+        const actTitle = first(md, 'dc.title') ?? it.name;
+        const titleYear = /,?\s*((?:1[789]|20)\d\d)\.?\s*$/.exec(actTitle)?.[1];
+        const y = Number(titleYear ?? first(md, 'dc.date.act_year'));
         return [
           {
             itemId: it.uuid,
-            title: first(md, 'dc.title') ?? it.name,
+            title: actTitle,
             year: Number.isFinite(y) && y > 0 ? y : null,
             actNumber: first(md, 'dc.identifier.act_number'),
             repealed: first(md, 'dc.identifier.repealed') === 'true',

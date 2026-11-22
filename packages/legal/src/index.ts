@@ -7,3 +7,6 @@ export * from './courts.ts';
 export * from './query.ts';
 export * from './gaps.ts';
 export * from './coverage.ts';
+export * from './pdf-judgment.ts';
+export * from './compare.ts';
+export * from './escr.ts';

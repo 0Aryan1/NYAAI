@@ -170,7 +170,12 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
     `select distinct c.id from legal_concepts lc
        join concept_links cl on cl.concept_id = lc.id
        join chunks c on c.source_id = cl.source_id and (cl.chunk_id is null or c.id = cl.chunk_id)
-      where (lc.name % $6 or exists (select 1 from unnest(lc.aliases) a where a % $6) or $6 ilike '%' || lc.name || '%')
+      where (lc.name % $6 or exists (select 1 from unnest(lc.aliases) a where a % $6) or $6 ilike '%' || lc.name || '%'
+             -- a doctrine named inside a longer question ("… under the doctrine of lis pendens?"), as whole words
+             or exists (select 1 from unnest(lc.aliases) a
+                         where length(a) >= 5
+                           and ' ' || regexp_replace(lower($6), '[^a-z0-9]+', ' ', 'g') || ' '
+                               like '% ' || trim(regexp_replace(lower(a), '[^a-z0-9]+', ' ', 'g')) || ' %'))
         and (cl.kind = 'key_section' or cl.confirmed_at is not null)
         and c.parent_id is null and ${FILTERS}
       limit 20`,

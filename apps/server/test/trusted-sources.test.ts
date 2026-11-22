@@ -8,7 +8,7 @@ const json = (body: unknown, init: ResponseInit = {}) => new Response(JSON.strin
 const md = (o: Record<string, string>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [{ value: v }]]));
 
 describe('India Code client', () => {
-  it('searches central Acts by exact title and year, and reads the metadata', async () => {
+  it('searches central Acts by exact title, and takes the year from the title (India Code may file it under another)', async () => {
     const urls: string[] = [];
     const ic = createIndiaCode({
       fetchImpl: (async (url: string) => {
@@ -24,7 +24,7 @@ describe('India Code client', () => {
                         uuid: '76ce35a9-34b1-4929-8e21-82befadea2f8',
                         name: 'The Sale of Goods Act, 1930',
                         handle: '123456789/496436',
-                        metadata: md({ 'dc.title': 'The Sale of Goods Act, 1930', 'dc.date.act_year': '1930', 'dc.identifier.act_number': '3', 'dc.identifier.repealed': 'false' }),
+                        metadata: md({ 'dc.title': 'The Sale of Goods Act, 1930', 'dc.date.act_year': '1931', 'dc.identifier.act_number': '3', 'dc.identifier.repealed': 'false' }),
                       },
                     },
                   },
@@ -35,8 +35,8 @@ describe('India Code client', () => {
         });
       }) as typeof fetch,
     });
-    const acts = await ic.findCentralActs('The "Sale of Goods" Act', 1930);
-    expect(decodeURIComponent(urls[0]!)).toContain('dc.identifier.collection:ACT AND dc.identifier.state_name:CENTRAL AND dc.title:"Sale of Goods Act" AND dc.date.act_year:1930');
+    const acts = await ic.findCentralActs('The "Sale of Goods" Act');
+    expect(decodeURIComponent(urls[0]!)).toContain('dc.identifier.collection:ACT AND dc.identifier.state_name:CENTRAL AND dc.title:"Sale of Goods Act"&');
     expect(acts).toEqual([
       { itemId: '76ce35a9-34b1-4929-8e21-82befadea2f8', title: 'The Sale of Goods Act, 1930', year: 1930, actNumber: '3', repealed: false, pageUrl: 'https://indiacode.gov.in/handle/123456789/496436' },
     ]);

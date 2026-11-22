@@ -7,9 +7,13 @@
  */
 import express from 'express';
 import type { Queue } from 'bullmq';
+import { createHash } from 'node:crypto';
 import {
   CreateSourceRequest,
   CreateSourceResponse,
+  UploadJudgmentQuery,
+  UploadJudgmentResponse,
+  UploadJudgmentStatus,
   GapLookupResponse,
   LibraryGap,
   LibraryGapList,
@@ -21,6 +25,10 @@ import { z } from 'zod';
 import { AppError } from '../errors.ts';
 import { requireRole } from '../middleware/auth.ts';
 import { INGEST_JOB_OPTIONS, type IngestJobData } from '../jobs/queues.ts';
+import type { Storage } from '../services/storage/index.ts';
+import type { JudgmentPdfResult } from '../services/ingest/judgment-pdf.ts';
+
+const MAX_UPLOAD = 50 * 1024 * 1024;
 
 interface GapRow {
   id: string;
@@ -66,7 +74,7 @@ const toGap = (r: GapRow): LibraryGap =>
 
 const Id = z.uuid();
 
-export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined) {
+export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, storage?: Storage) {
   const r = express.Router();
   r.use('/library', requireRole('library_editor', 'admin'));
 
@@ -167,6 +175,72 @@ export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined) {
       { ...INGEST_JOB_OPTIONS, attempts: 1, jobId: `ingest.lookup-${id}-${Math.floor(Date.now() / 60_000)}` },
     );
     res.status(202).json(GapLookupResponse.parse({ jobId: job.id }));
+  });
+
+  /**
+   * A judgment PDF the editor has (an official court website's copy, or the college's own). Stored as it is, then read
+   * in the worker like any official PDF (services/ingest/judgment-pdf.ts). The job carries ids and the storage key only.
+   */
+  r.post('/library/uploads/judgment', express.raw({ type: 'application/pdf', limit: MAX_UPLOAD }), async (req, res) => {
+    if (!ingestQueue || !storage) throw new AppError('SERVICE_UNAVAILABLE', 'Uploading is not available right now.');
+    const q = UploadJudgmentQuery.parse(req.query);
+    const bytes = Buffer.isBuffer(req.body) ? new Uint8Array(req.body) : new Uint8Array();
+    if (bytes.byteLength < 100 || new TextDecoder().decode(bytes.subarray(0, 5)) !== '%PDF-') {
+      throw new AppError('NOT_A_PDF', 'That file is not a PDF. Upload the judgment as a PDF.');
+    }
+    const origin = q.official ? 'court_site' : 'upload';
+    const hash = createHash('sha256').update(bytes).digest('hex');
+    const key = `sources/${origin}/${hash}.pdf`;
+    const sourceId = await req.db!(async (c) => {
+      const same = (await c.query<{ id: string; title: string }>("select id, title from sources where content_hash = $1 and type = 'judgment' and status <> 'retired'", [hash])).rows[0];
+      if (same) throw new AppError('ALREADY_IN_LIBRARY', `This file is already in the library as ${same.title.replace(/\.$/, '')}.`, { sourceId: same.id });
+      if (q.replaces) {
+        const target = (await c.query<{ id: string }>("select id from sources where id = $1 and type = 'judgment' and visibility = 'shared' and status <> 'retired'", [q.replaces])).rows[0];
+        if (!target) throw new AppError('NOT_FOUND', 'We could not find the judgment this file should replace.');
+        return target.id;
+      }
+      return (
+        await c.query<{ id: string }>(
+          `insert into sources (college_id, visibility, type, origin, title, court, decided_on, url, storage_key, content_hash, status)
+           values (global_college(), 'shared', 'judgment', $1, $2, $3, $4, $5, $6, $7, 'processing') returning id`,
+          [origin, q.caseName, q.court, q.decidedOn ?? null, q.sourceUrl ?? null, key, hash],
+        )
+      ).rows[0]!.id;
+    });
+    if (!(await storage.exists(key))) await storage.put(key, bytes, 'application/pdf');
+    const job = await ingestQueue.add(
+      'ingest.judgment',
+      { sourceId, uploadKey: key, replace: !!q.replaces, official: q.official, requestedBy: req.identity!.userId },
+      { ...INGEST_JOB_OPTIONS, attempts: 1, jobId: `ingest.judgment-${sourceId}-${hash.slice(0, 12)}` },
+    );
+    res.status(202).json(UploadJudgmentResponse.parse({ jobId: job.id, sourceId }));
+  });
+
+  r.get('/library/uploads/:jobId', async (req, res) => {
+    if (!ingestQueue) throw new AppError('SERVICE_UNAVAILABLE', 'Uploading is not available right now.');
+    const jobId = z.string().regex(/^ingest\.judgment-[0-9a-f-]{36}-[0-9a-f]{12}$/).parse(req.params.jobId);
+    const job = await ingestQueue.getJob(jobId);
+    if (!job || job.data.requestedBy !== req.identity!.userId) throw new AppError('NOT_FOUND', 'We could not find that upload.');
+    const state = await job.getState();
+    const result = job.returnvalue as JudgmentPdfResult | null;
+    const outcome =
+      state === 'completed' && result
+        ? {
+            kind: result.kind,
+            sourceId: result.sourceId,
+            paragraphs: result.kind === 'loaded' ? result.paragraphs : null,
+            scanned: result.kind === 'loaded' ? result.scanned : null,
+            agreement: 'agreement' in result ? result.agreement : null,
+            status: result.kind === 'loaded' ? result.status : null,
+          }
+        : null;
+    res.json(
+      UploadJudgmentStatus.parse({
+        state: state === 'completed' ? 'done' : state === 'failed' ? 'failed' : state === 'active' ? 'reading' : 'waiting',
+        outcome,
+        message: state === 'failed' ? (job.failedReason?.includes('text layer') ? 'This PDF is a picture with no text in it. Upload a copy with selectable text.' : 'We could not read this PDF.') : null,
+      }),
+    );
   });
 
   return r;

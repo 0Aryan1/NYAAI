@@ -106,7 +106,44 @@ export function caseMatches(caseName: string, title: string): boolean {
   if (t.length < 2) return false;
   const words = parties.map(partyWord);
   if (words.every((w) => w === null)) return false;
-  return words.every((w, i) => w === null || t[i]!.includes(w));
+  // Whole words: "Associate Builders" is not "Sunrise Associates".
+  return words.every((w, i) => w === null || new RegExp(`(?:^|[^a-z])${w}(?:[^a-z]|$)`).test(t[i]!));
+}
+
+export interface CaseHit {
+  title: string;
+  publishdate: string | null;
+  docsource: string | null;
+  /** Document size, when the search reports it: the judgment is longer than a later order in the same matter. */
+  docsize?: number | null;
+}
+
+/**
+ * The search hit that is the named case. Party words must match (or, for a case with no "v." such as "In Re: …",
+ * every one of `titleWords`); `court: 'SC'` keeps Supreme Court documents only; the decision year breaks ties,
+ * so a later order in the same matter loses to the judgment itself.
+ */
+export function pickCaseHit<T extends CaseHit>(
+  caseName: string,
+  hits: T[],
+  opts: { year?: number | null; court?: 'SC' | null; titleWords?: string[] } = {},
+): T | null {
+  const sc = (h: T) => /supreme court of india/i.test(h.docsource ?? '');
+  const named = (h: T) =>
+    opts.titleWords?.length ? opts.titleWords.every((w) => h.title.toLowerCase().includes(w.toLowerCase())) : caseMatches(caseName, h.title);
+  const ok = hits.filter((h) => named(h) && (opts.court !== 'SC' || sc(h)));
+  const score = (h: T) => (opts.year && (h.publishdate?.startsWith(String(opts.year)) || h.title.endsWith(String(opts.year))) ? 2 : 0) + (sc(h) ? 1 : 0);
+  return ok.map((h, i) => ({ h, i, s: score(h) })).sort((a, b) => b.s - a.s || (b.h.docsize ?? 0) - (a.h.docsize ?? 0) || a.i - b.i)[0]?.h ?? null;
+}
+
+/**
+ * Indian Kanoon title query for a named case: the first two distinctive words of each party. Kanoon cuts long
+ * titles short ("Kaiser Aluminium Technical ..."), so the full name would miss.
+ */
+export function titleQuery(caseName: string): string {
+  const parties = caseName.split(/\s+(?:v\.?|vs\.?|versus)\s+/i);
+  const words = parties.flatMap((p) => (p.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter((w) => !PARTY_NOISE.has(w)).slice(0, 2));
+  return `title: ${words.join(' ')}`;
 }
 
 /** Normalised question for counting repeats: "Doctrine of Frustration?" and "doctrine of  frustration" are one gap. */

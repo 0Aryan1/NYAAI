@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CircleHelp, ExternalLink } from 'lucide-react';
+import { Check, CircleHelp, ExternalLink, FilePlus } from 'lucide-react';
 import type { ParaRole } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { cn } from '@/shared/lib/utils';
+import { UploadJudgment } from './UploadJudgment';
+
+/** Where a judgment's text came from, in the editor's words. */
+export function originLabel(origin: string, scanned: boolean): string {
+  const base = origin === 'court_site' ? 'Official copy' : origin === 'upload' ? 'Uploaded copy' : origin === 'indian_kanoon' ? 'Indian Kanoon copy' : 'Other copy';
+  return scanned ? `${base} (scanned)` : base;
+}
 
 /** Paragraph roles in the words a law teacher uses (HLD 5.2 b). */
 export const ROLE_LABELS: Record<ParaRole, string> = {
@@ -31,8 +38,9 @@ export function LibraryReviewPage() {
   const qc = useQueryClient();
   const list = useQuery({ queryKey: queryKeys.reviewJudgments, queryFn: api.reviewJudgments });
   const [selected, setSelected] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const current = selected ?? list.data?.judgments.find((j) => !j.rolesChecked)?.id ?? list.data?.judgments[0]?.id ?? null;
-  const detail = useQuery({ queryKey: queryKeys.reviewJudgment(current ?? ''), queryFn: () => api.reviewJudgment(current!), enabled: !!current });
+  const detail = useQuery({ queryKey: queryKeys.reviewJudgment(current ?? ''), queryFn: () => api.reviewJudgment(current!), enabled: !!current && !adding });
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['review'] });
   };
@@ -47,14 +55,21 @@ export function LibraryReviewPage() {
       <nav aria-label="Judgments" className="w-80 shrink-0 overflow-y-auto border-r border-border bg-surface p-3">
         <h1 className="px-2 text-lg font-semibold">Check judgments</h1>
         <p className="mb-3 px-2 text-xs text-muted">{list.data ? `${waiting} of ${list.data.judgments.length} still to check` : 'Loading…'}</p>
+        <Button className="mb-3 w-full" onClick={() => setAdding(true)} aria-pressed={adding}>
+          <FilePlus className="size-4" aria-hidden />
+          Add a judgment
+        </Button>
         <ul className="space-y-1">
           {list.data?.judgments.map((x) => (
             <li key={x.id}>
               <button
                 type="button"
-                onClick={() => setSelected(x.id)}
-                aria-current={x.id === current ? 'true' : undefined}
-                className={cn('w-full rounded-control px-2 py-2 text-left text-sm', x.id === current ? 'bg-bg' : 'hover:bg-bg')}
+                onClick={() => {
+                  setSelected(x.id);
+                  setAdding(false);
+                }}
+                aria-current={x.id === current && !adding ? 'true' : undefined}
+                className={cn('w-full rounded-control px-2 py-2 text-left text-sm', x.id === current && !adding ? 'bg-bg' : 'hover:bg-bg')}
               >
                 <span className="line-clamp-2 font-medium">{x.title}</span>
                 <span className="mt-1 flex flex-wrap gap-1 text-xs">
@@ -65,6 +80,7 @@ export function LibraryReviewPage() {
                   )}
                   {x.status === 'provisional' && <span className="text-flag-grey">· not yet approved</span>}
                   <span className="text-muted">· {x.paragraphs} paragraphs</span>
+                  <span className={cn(x.origin === 'court_site' && !x.scanned ? 'text-success' : 'text-muted')}>· {originLabel(x.origin, x.scanned)}</span>
                 </span>
               </button>
             </li>
@@ -73,20 +89,45 @@ export function LibraryReviewPage() {
       </nav>
 
       <main className="min-w-0 flex-1 overflow-y-auto p-6">
-        {!j ? (
+        {adding ? (
+          <UploadJudgment
+            judgments={list.data?.judgments ?? []}
+            onDone={(id) => {
+              setSelected(id);
+              setAdding(false);
+            }}
+          />
+        ) : !j ? (
           <p className="text-muted">{list.data?.judgments.length === 0 ? 'No judgments in the library yet.' : 'Choose a judgment.'}</p>
         ) : (
           <article className="mx-auto max-w-3xl">
             <header className="mb-4">
               <h2 className="text-xl font-semibold">{j.title}</h2>
               <p className="text-sm text-muted">
-                {[j.court, j.decidedOn].filter(Boolean).join(' · ')}
+                {[j.court, j.decidedOn, j.citation].filter(Boolean).join(' · ')}
                 {j.url && (
                   <a href={j.url} target="_blank" rel="noreferrer noopener" className="ml-2 inline-flex items-center gap-1 text-accent underline">
                     Open the original <ExternalLink className="size-3" aria-hidden />
                   </a>
                 )}
               </p>
+              <p className="mt-1 text-sm">
+                Text from: <strong>{originLabel(j.origin, j.scanned)}</strong>
+                {j.expiresAt ? ` · kept until ${j.expiresAt.slice(0, 10)}` : ' · kept permanently'}
+              </p>
+              {j.scanned && <p className="mt-1 text-sm text-flag-yellow">This text was read from a scan and may have reading errors. Check quoted words against the PDF.</p>}
+              {j.copies.filter((c) => !c.inUse).map((c, i) => (
+                <p key={i} className="mt-1 text-xs text-muted">
+                  Also held: {originLabel(c.origin, c.scanned)}
+                  {c.citation ? ` (${c.citation})` : ''}
+                  {c.agreement !== null ? `, agrees ${Math.round(c.agreement * 100)}% with the text above` : ''}
+                  {c.url && (
+                    <a href={c.url} target="_blank" rel="noreferrer noopener" className="ml-1 text-accent underline">
+                      PDF
+                    </a>
+                  )}
+                </p>
+              ))}
             </header>
 
             <div className="mb-6 rounded-card border border-border bg-surface p-4 text-sm">

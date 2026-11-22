@@ -23,6 +23,7 @@ import { requireCsrf } from './auth/csrf.ts';
 import { teacherLimit } from './middleware/rate-limit.ts';
 import { GoogleSignIn } from './auth/google.ts';
 import type { BuildJobData, IngestJobData } from './jobs/queues.ts';
+import type { Storage } from './services/storage/index.ts';
 import { lecturesRouter } from './api/lectures.ts';
 import { reviewRouter } from './api/review.ts';
 
@@ -38,9 +39,11 @@ export interface AppDeps {
   redis: Redis;
   queues?: { ingest?: Queue<IngestJobData>; build?: Queue<BuildJobData> };
   search?: Omit<SearchApiDeps, 'redis'>;
+  /** File storage, for judgment uploads (library editor). */
+  storage?: Storage;
 }
 
-export function createApp({ config, logger, pool, redis, queues, search }: AppDeps) {
+export function createApp({ config, logger, pool, redis, queues, search, storage }: AppDeps) {
   const app = express();
   const production = config.NODE_ENV === 'production';
   app.disable('x-powered-by');
@@ -85,7 +88,7 @@ export function createApp({ config, logger, pool, redis, queues, search }: AppDe
   v1.use(healthRouter({ pool, redis }));
   v1.use(authRouter({ config, pool, redis, google }));
   v1.use(SIGNED_IN, requireAuth({ pool, sessionSecret: config.SESSION_SECRET, production }), teacherLimit(redis), requireCsrf(config.CSRF_SECRET));
-  v1.use(meRouter(config), setupRouter(), homeRouter(), libraryRouter(queues?.ingest), lecturesRouter(queues?.build), reviewRouter());
+  v1.use(meRouter(config), setupRouter(), homeRouter(), libraryRouter(queues?.ingest, storage), lecturesRouter(queues?.build), reviewRouter());
   v1.use(searchRouter({ redis, voyage: search?.voyage ?? null, gateway: search?.gateway ?? null, minScore: search?.minScore ?? config.RERANK_MIN_SCORE }));
   app.use('/api/v1', v1);
 

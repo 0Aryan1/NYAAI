@@ -5,7 +5,7 @@
  */
 import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { identifyCourt, kanoonToJudgment, splitJudgment } from '@nyaai/legal';
+import { casePartyWords, identifyCourt, kanoonToJudgment, splitJudgment } from '@nyaai/legal';
 import { PROMPTS, fence } from '@nyaai/prompts';
 import type { Gateway } from '../llm-gateway/index.ts';
 import type { Kanoon } from '../kanoon/index.ts';
@@ -30,8 +30,27 @@ const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const FullName = z.object({ caseName: z.string().nullable() });
 
 /** Kanoon shortens long titles with "...": ask the light model for the full name, and keep it only if it checks out. */
-async function fullCaseName(name: string, opening: string, gateway: Gateway | null, usage: UsageSink): Promise<string> {
-  if (!/\.\.\.|…/.test(name) || !gateway) return name.replace(/\s*(\.\.\.|…)\s*$/, '');
+export async function fullCaseName(
+  name: string,
+  opening: string,
+  gateway: Gateway | null,
+  usage: UsageSink,
+  knownName?: string,
+  /** The caller already matched both parties of knownName against Kanoon's search title. */
+  verified = false,
+): Promise<string> {
+  // Cut short: "…" at the end, a dangling "And"/"&", or no second party at all.
+  const cut = /\.\.\.|…/.test(name) || /(?:\band|&)\s*$/i.test(name) || !/\s(?:v\.?|vs\.?)\s/i.test(name);
+  if (!cut) return name;
+  // A person named the case (a course pack): use that name when its first party is in Kanoon's title and its other
+  // party is in the judgment's opening (or both were matched against Kanoon's search title). Checked in code.
+  if (knownName) {
+    const [first, second] = casePartyWords(knownName);
+    const inTitle = !first || name.toLowerCase().includes(first);
+    const inOpening = !second || opening.toLowerCase().includes(second);
+    if ((first || second) && inTitle && (inOpening || verified)) return knownName.replace(/\s+vs\.?\s+/i, ' v. ').trim();
+  }
+  if (!gateway) return name.replace(/\s*(\.\.\.|…)\s*$/, '');
   const prefix = name.split(/\s*(?:\.\.\.|…)/)[0]!.trim();
   const boundary = randomBytes(6).toString('hex');
   const r = await gateway.run(
@@ -44,7 +63,7 @@ async function fullCaseName(name: string, opening: string, gateway: Gateway | nu
   return ok ? full : prefix;
 }
 
-export async function ingestKanoonJudgment(tid: number, deps: KanoonIngestDeps): Promise<KanoonIngestResult> {
+export async function ingestKanoonJudgment(tid: number, deps: KanoonIngestDeps, opts: { knownName?: string; nameVerified?: boolean } = {}): Promise<KanoonIngestResult> {
   const { library } = deps;
   await deps.progress?.('reading');
   const doc = await deps.kanoon.doc(tid);
@@ -58,7 +77,7 @@ export async function ingestKanoonJudgment(tid: number, deps: KanoonIngestDeps):
   const split = splitJudgment(input);
   const court = identifyCourt(input.court);
   const opening = split.chunks.filter((c) => c.kind !== 'headnote').slice(0, 3).map((c) => c.text).join('\n');
-  const caseName = await fullCaseName(input.caseName, opening, deps.gateway, deps.usage);
+  const caseName = await fullCaseName(input.caseName, opening, deps.gateway, deps.usage, opts.knownName, opts.nameVerified);
   const year = input.decidedOn?.slice(0, 4);
   const base = year ? `${caseName} (${year})` : caseName;
 
@@ -74,7 +93,9 @@ export async function ingestKanoonJudgment(tid: number, deps: KanoonIngestDeps):
                  now() + make_interval(days => $10))
          on conflict (origin, content_hash) do update
            set title = excluded.title, citation = excluded.citation, court = excluded.court, court_level = excluded.court_level,
-               bench_size = excluded.bench_size, decided_on = excluded.decided_on, fetched_at = now(), expires_at = excluded.expires_at
+               bench_size = excluded.bench_size, decided_on = excluded.decided_on, fetched_at = now(), expires_at = excluded.expires_at,
+               -- the paragraphs are rebuilt and labelled again, so the editor's role check no longer applies
+               roles_sampled = false
          returning id`,
         [caseName, input.citations.join('; ') || null, court?.court ?? null, court?.level ?? null, split.benchSize || null,
          input.decidedOn, `https://indiankanoon.org/doc/${tid}/`, key, hash, deps.cacheDays],

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { getDocumentProxy } from 'unpdf';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
-import type { Page } from '@nyaai/legal';
+import type { Page, PdfLine, PdfLines } from '@nyaai/legal';
 
 export const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -104,6 +104,97 @@ async function pdfPages(bytes: Uint8Array): Promise<Page[]> {
   const chars = pages.reduce((n, p) => n + p.text.replace(/\s/g, '').length, 0);
   if (chars < 40 * pages.length) throw new NoTextLayerError();
   return pages;
+}
+
+/** pdf.js operator codes that paint a picture (OPS.paintImageXObject, OPS.paintInlineImageXObject). */
+const PAINT_IMAGE = new Set([85, 86]);
+/** A footnote marker printed as a superscript: digits or a dagger, in a font well below the line's own. */
+const MARKER = /^[\d*†‡§]{1,3}$/;
+const SUPERSCRIPT_RATIO = 0.72;
+
+/**
+ * Judgment PDFs, line by line with each line's font size and left edge (packages/legal `pdfToJudgment` reads them).
+ * Superscript footnote markers are taken out of the text and kept in `marks`, so "1996¹" never becomes "19961".
+ * `scanned`: the pages are pictures of printed pages with a machine-read text layer (old Supreme Court Reports),
+ * judged on up to three pages after the first (the first may carry an emblem).
+ */
+export async function pdfLines(bytes: Uint8Array): Promise<PdfLines> {
+  const pdf = await getDocumentProxy(new Uint8Array(bytes), { verbosity: 0 });
+  const pages: PdfLines['pages'] = [];
+  const sizes = new Map<number, number>();
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const content = await (await pdf.getPage(i)).getTextContent();
+    const lines: PdfLine[] = [];
+    let cur: { parts: { str: string; size: number }[]; x: number | null; y: number; marks: string[] } | null = null;
+    let lastY: number | null = null;
+    let lastSize = 0;
+    const close = () => {
+      if (!cur) return;
+      const text = cur.parts.map((p) => p.str).join('');
+      if (text.trim()) {
+        // The line's size: the size most of its characters are set in.
+        const weight = new Map<number, number>();
+        for (const p of cur.parts) weight.set(p.size, (weight.get(p.size) ?? 0) + p.str.replace(/\s/g, '').length);
+        const size = [...weight.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
+        lines.push({ text, size, x: cur.x ?? 0, y: cur.y, marks: cur.marks });
+        const k = Math.round(size * 10) / 10;
+        sizes.set(k, (sizes.get(k) ?? 0) + text.replace(/\s/g, '').length);
+      } else if (cur.marks.length && lines.length) {
+        lines[lines.length - 1]!.marks.push(...cur.marks);
+      }
+      cur = null;
+    };
+    for (const raw of content.items as TextItem[]) {
+      if (typeof raw.str !== 'string') continue;
+      const y = raw.transform?.[5] ?? 0;
+      const x = raw.transform?.[4] ?? 0;
+      const size = Math.round((Math.abs(raw.transform?.[3] ?? 0) || lastSize) * 10) / 10;
+      const superscript = lastSize > 0 && size < lastSize * SUPERSCRIPT_RATIO && MARKER.test(raw.str.trim());
+      const threshold = Math.max(3, 0.7 * Math.max(size, lastSize));
+      if (!superscript && (cur === null || (lastY !== null && Math.abs(y - lastY) > threshold))) {
+        close();
+        cur = { parts: [], x: null, y, marks: [] };
+      }
+      cur ??= { parts: [], x: null, y, marks: [] };
+      if (superscript) {
+        cur.marks.push(raw.str.trim());
+      } else {
+        if (cur.x === null && raw.str.trim()) cur.x = x;
+        cur.parts.push({ str: raw.str, size });
+        // Track the main text baseline, not a superscript's.
+        if (size >= lastSize * 0.8 || lastY === null) {
+          lastY = y;
+          lastSize = size;
+        }
+      }
+      if (raw.hasEOL) close();
+    }
+    close();
+    pages.push({ pageNo: i, lines });
+  }
+  const chars = pages.reduce((n, p) => n + p.lines.reduce((m, l) => m + l.text.replace(/\s/g, '').length, 0), 0);
+  if (chars < 40 * pages.length) throw new NoTextLayerError();
+
+  const bodySize = [...sizes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
+  return { pages, scanned: await picturedPages(pdf), bodySize };
+}
+
+type PdfDoc = Awaited<ReturnType<typeof getDocumentProxy>>;
+
+/** Most sampled pages paint a picture: a scan of printed pages (judged on up to three pages after the first). */
+async function picturedPages(pdf: PdfDoc): Promise<boolean> {
+  const sample = pdf.numPages <= 1 ? [1] : [2, Math.ceil((pdf.numPages + 1) / 2), pdf.numPages].filter((n, i, a) => a.indexOf(n) === i);
+  let pictured = 0;
+  for (const n of sample) {
+    const ops = await (await pdf.getPage(n)).getOperatorList();
+    if (ops.fnArray.some((f: number) => PAINT_IMAGE.has(f))) pictured++;
+  }
+  return pictured * 2 > sample.length;
+}
+
+/** Whether a PDF is a scan of printed pages, without reading its text. */
+export async function pdfIsScanned(bytes: Uint8Array): Promise<boolean> {
+  return picturedPages(await getDocumentProxy(new Uint8Array(bytes), { verbosity: 0 }));
 }
 
 const BLOCK = new Set(['P', 'DIV', 'BR', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'SECTION', 'ARTICLE', 'TR', 'BLOCKQUOTE', 'PRE']);

@@ -42,3 +42,15 @@ describe('statute patterns (LLD §6.3)', () => {
     expect(P.amendment.test('56. Agreement to do impossible act.—An agreement ...')).toBe(false);
   });
 });
+
+describe('chapter and footnote markers found in India Code PDFs', () => {
+  it('reads a chapter number with a footnote marker glued on, and keeps arabic numbers whole', () => {
+    expect(P.chapter.exec('CHAPTER II1')?.[2]).toBe('II');
+    expect(P.chapter.exec('CHAPTER 12')?.[2]).toBe('12');
+    expect(P.chapter.exec('PART IVA')?.[2]).toBe('IVA');
+  });
+  it('treats a commencement note as a footnote', () => {
+    expect(P.amendment.test('1. 9th day of October, 2023, vide notification No. S.O. 4384(E), for Ss.1, 3')).toBe(true);
+    expect(P.amendment.test('1. Short title and commencement.—(1) This Act may be called')).toBe(false);
+  });
+});

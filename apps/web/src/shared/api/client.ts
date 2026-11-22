@@ -14,7 +14,10 @@ import {
   StudioSlides,
   ReviewJudgment,
   ReviewJudgmentList,
+  UploadJudgmentResponse,
+  UploadJudgmentStatus,
   type ParaRole,
+  type UploadJudgmentQuery,
   type PrepareLecture,
   type ProfileRequest,
   type StyleRequest,
@@ -58,6 +61,24 @@ async function call<T>(
   return parse ? parse(data) : (data as T);
 }
 
+/** Upload a judgment PDF as the request body; its details travel in the query string (POST /library/uploads/judgment). */
+async function uploadPdf(query: UploadJudgmentQuery, file: File): Promise<UploadJudgmentResponse> {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== '') params.set(k, String(v));
+  const res = await fetch(`/api/v1/library/uploads/judgment?${params.toString()}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { accept: 'application/json', 'content-type': 'application/pdf', 'x-csrf-token': csrfToken() },
+    body: file,
+  });
+  const data: unknown = await res.json().catch(() => null);
+  if (!res.ok) {
+    const err = ApiError.safeParse(data);
+    throw new ApiRequestError(res.status, err.success ? err.data : null);
+  }
+  return UploadJudgmentResponse.parse(data);
+}
+
 export interface Processor {
   name: string;
   purpose: string;
@@ -96,6 +117,8 @@ export const api = {
   setParagraphRole: (chunkId: string, role: ParaRole) => call<void>('PATCH', `/library/paragraphs/${chunkId}`, { body: { role } }),
   rolesChecked: (id: string) => call<void>('POST', `/library/judgments/${id}/roles-checked`),
   approveJudgment: (id: string) => call<void>('POST', `/library/judgments/${id}/approve`),
+  uploadJudgment: uploadPdf,
+  uploadStatus: (jobId: string) => call('GET', `/library/uploads/${encodeURIComponent(jobId)}`, { parse: (v) => UploadJudgmentStatus.parse(v) }),
 };
 
 export const queryKeys = {
@@ -110,4 +133,5 @@ export const queryKeys = {
   citationSource: (id: string) => ['citation', id, 'source'] as const,
   reviewJudgments: ['review', 'judgments'] as const,
   reviewJudgment: (id: string) => ['review', 'judgment', id] as const,
+  uploadStatus: (jobId: string) => ['review', 'upload', jobId] as const,
 };

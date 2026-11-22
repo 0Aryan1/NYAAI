@@ -1,0 +1,614 @@
+{
+  "set": "retrieval-adr-property",
+  "status": "draft — needs expert sign-off",
+  "note": "Written by the build team on 2026-11-21 for the pilot courses (ADR, Property Law). Each expected passage is a section of the official India Code text, checked by title against the loaded library. A law expert must review the questions and expected passages.",
+  "items": [
+    {
+      "id": "p-01",
+      "question": "What is a lease of immoveable property?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "105"
+        }
+      ]
+    },
+    {
+      "id": "p-02",
+      "question": "A buyer took possession under a written agreement to sell but the sale deed was never registered. Can the seller evict him?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "53A"
+        }
+      ]
+    },
+    {
+      "id": "p-03",
+      "question": "What happens to a transfer of property made while a suit about that property is pending?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "52"
+        }
+      ]
+    },
+    {
+      "id": "p-04",
+      "question": "Can property be transferred directly to a person who is not yet born?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "13"
+        }
+      ]
+    },
+    {
+      "id": "p-05",
+      "question": "What is the rule against perpetuity in Indian property law?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "14"
+        }
+      ]
+    },
+    {
+      "id": "p-06",
+      "question": "When is an interest said to be vested?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "19"
+        }
+      ]
+    },
+    {
+      "id": "p-07",
+      "question": "Is a condition in a transfer that absolutely forbids the transferee from selling the property valid?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "10"
+        }
+      ]
+    },
+    {
+      "id": "p-08",
+      "question": "Can an heir sell the chance of inheriting property from a living relative?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "6"
+        }
+      ]
+    },
+    {
+      "id": "p-09",
+      "question": "What are the different kinds of mortgage, such as simple mortgage and usufructuary mortgage?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "58"
+        }
+      ]
+    },
+    {
+      "id": "p-10",
+      "question": "When does a mortgagor have the right to redeem the mortgaged property?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "60"
+        }
+      ]
+    },
+    {
+      "id": "p-11",
+      "question": "What is a charge on immoveable property and how is it different from a mortgage?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "100"
+        }
+      ]
+    },
+    {
+      "id": "p-12",
+      "question": "How must a gift of immoveable property be made?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "123"
+        }
+      ]
+    },
+    {
+      "id": "p-13",
+      "question": "In what cases can a gift be revoked by the donor?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "126"
+        }
+      ]
+    },
+    {
+      "id": "p-14",
+      "question": "What is an exchange of property?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "118"
+        }
+      ]
+    },
+    {
+      "id": "p-15",
+      "question": "How is a sale of immoveable property worth more than one hundred rupees made?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "54"
+        }
+      ]
+    },
+    {
+      "id": "p-16",
+      "question": "What is the effect of a tenant staying on after the lease ends with the landlord accepting rent?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "116"
+        }
+      ]
+    },
+    {
+      "id": "p-17",
+      "question": "In which ways does a lease of immoveable property come to an end?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "111"
+        }
+      ]
+    },
+    {
+      "id": "p-18",
+      "question": "How much notice is needed to end a month-to-month tenancy when there is no written contract?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "106"
+        }
+      ]
+    },
+    {
+      "id": "p-19",
+      "question": "How is an actionable claim transferred?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "130"
+        }
+      ]
+    },
+    {
+      "id": "p-20",
+      "question": "Is a transfer by a person who only appears to be the owner binding on the real owner?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "41"
+        }
+      ]
+    },
+    {
+      "id": "p-21",
+      "question": "Can a transfer made to defeat creditors be set aside?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "53"
+        }
+      ]
+    },
+    {
+      "id": "p-22",
+      "question": "What is the doctrine of election under the Transfer of Property Act?",
+      "expect": [
+        {
+          "act": "Transfer of Property Act",
+          "section": "35"
+        }
+      ]
+    },
+    {
+      "id": "p-23",
+      "question": "What is an easement?",
+      "expect": [
+        {
+          "act": "Indian Easements Act",
+          "section": "4"
+        }
+      ]
+    },
+    {
+      "id": "p-24",
+      "question": "What is an easement of necessity?",
+      "expect": [
+        {
+          "act": "Indian Easements Act",
+          "section": "13"
+        }
+      ]
+    },
+    {
+      "id": "p-25",
+      "question": "How is a right of way acquired by long use?",
+      "expect": [
+        {
+          "act": "Indian Easements Act",
+          "section": "15"
+        }
+      ]
+    },
+    {
+      "id": "p-26",
+      "question": "What is a licence over immoveable property?",
+      "expect": [
+        {
+          "act": "Indian Easements Act",
+          "section": "52"
+        }
+      ]
+    },
+    {
+      "id": "p-27",
+      "question": "When can a licence be revoked by the grantor?",
+      "expect": [
+        {
+          "act": "Indian Easements Act",
+          "section": "60"
+        }
+      ]
+    },
+    {
+      "id": "p-28",
+      "question": "What is a trust, and who are the author of the trust and the beneficiary?",
+      "expect": [
+        {
+          "act": "Indian Trusts Act",
+          "section": "3"
+        }
+      ]
+    },
+    {
+      "id": "p-29",
+      "question": "Can a trustee give up the trust after accepting it?",
+      "expect": [
+        {
+          "act": "Indian Trusts Act",
+          "section": "46"
+        }
+      ]
+    },
+    {
+      "id": "p-30",
+      "question": "Can a trustee hand over his duties to someone else?",
+      "expect": [
+        {
+          "act": "Indian Trusts Act",
+          "section": "47"
+        }
+      ]
+    },
+    {
+      "id": "p-31",
+      "question": "Which documents must be compulsorily registered?",
+      "expect": [
+        {
+          "act": "Registration Act",
+          "section": "17"
+        }
+      ]
+    },
+    {
+      "id": "p-32",
+      "question": "What is the effect of not registering a document that must be registered?",
+      "expect": [
+        {
+          "act": "Registration Act",
+          "section": "49"
+        }
+      ]
+    },
+    {
+      "id": "a-01",
+      "question": "What is an arbitration agreement and must it be in writing?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "7"
+        }
+      ]
+    },
+    {
+      "id": "a-02",
+      "question": "Must a court refer the parties to arbitration when one of them sues despite an arbitration clause?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "8"
+        }
+      ]
+    },
+    {
+      "id": "a-03",
+      "question": "Can a court grant interim relief before arbitration begins?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "9"
+        }
+      ]
+    },
+    {
+      "id": "a-04",
+      "question": "How are arbitrators appointed when the parties cannot agree on one?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "11"
+        }
+      ]
+    },
+    {
+      "id": "a-05",
+      "question": "On what grounds can an arbitrator be challenged for lack of independence or impartiality?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "12"
+        }
+      ]
+    },
+    {
+      "id": "a-06",
+      "question": "Can the arbitral tribunal decide objections to its own jurisdiction?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "16"
+        }
+      ]
+    },
+    {
+      "id": "a-07",
+      "question": "Within how much time must an arbitral award be made?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "29A"
+        }
+      ]
+    },
+    {
+      "id": "a-08",
+      "question": "What must an arbitral award contain, and must it give reasons?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "31"
+        }
+      ]
+    },
+    {
+      "id": "a-09",
+      "question": "On what grounds can a court set aside an arbitral award?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "34"
+        }
+      ]
+    },
+    {
+      "id": "a-10",
+      "question": "Is an arbitral award automatically stayed when a challenge to it is filed?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "36"
+        }
+      ]
+    },
+    {
+      "id": "a-11",
+      "question": "Which orders under the arbitration law can be appealed?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "37"
+        }
+      ]
+    },
+    {
+      "id": "a-12",
+      "question": "What is a foreign award under the New York Convention?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "44"
+        }
+      ]
+    },
+    {
+      "id": "a-13",
+      "question": "When can an Indian court refuse to enforce a foreign award?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "48"
+        }
+      ]
+    },
+    {
+      "id": "a-14",
+      "question": "What is the status of a settlement agreement reached in conciliation?",
+      "expect": [
+        {
+          "act": "Arbitration and Conciliation Act",
+          "section": "74"
+        }
+      ]
+    },
+    {
+      "id": "a-15",
+      "question": "When must a civil court refer a pending suit to arbitration, mediation or Lok Adalat?",
+      "expect": [
+        {
+          "act": "Code of Civil Procedure",
+          "section": "89"
+        }
+      ]
+    },
+    {
+      "id": "a-16",
+      "question": "Is pre-institution mediation compulsory before filing a commercial suit?",
+      "expect": [
+        {
+          "act": "Commercial Courts Act",
+          "section": "12A"
+        }
+      ]
+    },
+    {
+      "id": "a-17",
+      "question": "What is mediation under the Mediation Act, 2023?",
+      "expect": [
+        {
+          "act": "Mediation Act",
+          "section": "3"
+        }
+      ]
+    },
+    {
+      "id": "a-18",
+      "question": "How is a mediated settlement agreement enforced?",
+      "expect": [
+        {
+          "act": "Mediation Act",
+          "section": "27"
+        }
+      ]
+    },
+    {
+      "id": "a-19",
+      "question": "Can mediation be conducted online?",
+      "expect": [
+        {
+          "act": "Mediation Act",
+          "section": "30"
+        }
+      ]
+    },
+    {
+      "id": "a-20",
+      "question": "What is the Mediation Council of India?",
+      "expect": [
+        {
+          "act": "Mediation Act",
+          "section": "31"
+        }
+      ]
+    },
+    {
+      "id": "a-21",
+      "question": "What is community mediation?",
+      "expect": [
+        {
+          "act": "Mediation Act",
+          "section": "43"
+        }
+      ]
+    },
+    {
+      "id": "a-22",
+      "question": "Who is entitled to free legal services?",
+      "expect": [
+        {
+          "act": "Legal Services Authorities Act",
+          "section": "12"
+        }
+      ]
+    },
+    {
+      "id": "a-23",
+      "question": "Is an award of a Lok Adalat final, and can it be appealed?",
+      "expect": [
+        {
+          "act": "Legal Services Authorities Act",
+          "section": "21"
+        }
+      ]
+    },
+    {
+      "id": "a-24",
+      "question": "What are Permanent Lok Adalats for public utility services?",
+      "expect": [
+        {
+          "act": "Legal Services Authorities Act",
+          "section": "22B"
+        }
+      ]
+    },
+    {
+      "id": "a-25",
+      "question": "Must a Family Court first try to settle a matrimonial dispute?",
+      "expect": [
+        {
+          "act": "Family Courts Act",
+          "section": "9"
+        }
+      ]
+    },
+    {
+      "id": "a-26",
+      "question": "Does a Gram Nyayalaya have to attempt conciliation in civil disputes?",
+      "expect": [
+        {
+          "act": "Gram Nyayalayas Act",
+          "section": "26"
+        }
+      ]
+    },
+    {
+      "id": "a-27",
+      "question": "Can an industrial dispute be referred to arbitration by agreement of the employer and workmen?",
+      "expect": [
+        {
+          "act": "Industrial Relations Code",
+          "section": "42"
+        }
+      ]
+    },
+    {
+      "id": "p-33",
+      "question": "Is the right to property a fundamental right in India today?",
+      "expect": [
+        {
+          "article": "300A"
+        }
+      ]
+    }
+  ],
+  "redteam": [
+    {
+      "id": "rt-a1",
+      "question": "What did the Supreme Court hold in Mehta Builders v. Union of India (2029) on emergency arbitrators?",
+      "check": "no_source_titled",
+      "value": "Mehta Builders"
+    }
+  ]
+}

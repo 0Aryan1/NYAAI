@@ -25,8 +25,8 @@ const client = new pg.Client({ connectionString: url });
 await client.connect();
 try {
   const which = process.argv[2] ?? 'dev';
-  const file = { dev: 'dev.sql', concepts: 'concepts.draft.sql' }[which];
-  if (!file) throw new Error(`unknown seed "${which}" (dev | concepts)`);
+  const file = { dev: 'dev.sql', concepts: 'concepts.draft.sql', 'concepts-pilot': 'concepts.pilot.draft.sql' }[which];
+  if (!file) throw new Error(`unknown seed "${which}" (dev | concepts | concepts-pilot)`);
   await client.query(await readFile(path.resolve(here, `../seeds/${file}`), 'utf8'));
   console.log(`seeded ${file}`);
 } finally {

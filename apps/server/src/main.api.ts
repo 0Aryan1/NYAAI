@@ -5,7 +5,7 @@ import { createLogger } from './logger.ts';
 import { createRedis } from './redis.ts';
 import { createApp } from './app.ts';
 import type { BuildJobData, IngestJobData } from './jobs/queues.ts';
-import { gatewayFrom, voyageFrom } from './services/factory.ts';
+import { gatewayFrom, storageFrom, voyageFrom } from './services/factory.ts';
 
 const config = { ...loadConfig(), APP_ROLE: 'api' as const };
 const logger = createLogger(config);
@@ -24,6 +24,7 @@ const server = createApp({
   pool,
   redis,
   queues: { ingest, build },
+  storage: storageFrom(config),
   search: {
     voyage: config.VOYAGE_API_KEY ? (usage) => voyageFrom(config, usage) : null,
     gateway: gatewayFrom(config),

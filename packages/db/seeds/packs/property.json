@@ -1,0 +1,44 @@
+{
+  "course": "Property Law",
+  "outline": "CNLU Syllabus July–December 2024, Sem 3: Property Law (8 modules)",
+  "acts": [
+    { "name": "Transfer of Property Act", "year": 1882, "units": ["I", "II", "III", "IV", "V", "VI", "VII"] },
+    { "name": "Indian Easements Act", "year": 1882, "units": ["VIII"] },
+    { "name": "Indian Trusts Act", "year": 1882, "units": ["VIII"] },
+    { "name": "Right to Fair Compensation and Transparency in Land Acquisition, Rehabilitation and Resettlement Act", "year": 2013, "units": ["I"], "note": "Listed in the outline's bare Acts." },
+    { "name": "Registration Act", "year": 1908, "units": ["II", "III", "V", "VI"], "note": "Not named in the outline. Needed for what must be registered (sale, mortgage, lease, gift) and for section 53A." }
+  ],
+  "cases": [
+    { "unit": "I", "name": "Jilubhai Nanbhai Khachar v. State of Gujarat", "year": 1994, "topic": "Right to property after the 44th Amendment (Article 300A)" },
+    { "unit": "I", "name": "Vidya Devi v. State of Himachal Pradesh", "year": 2020, "titleWords": ["vidaya devi", "himachal"], "topic": "Article 300A: no deprivation without authority of law" },
+    { "unit": "I", "name": "Kolkata Municipal Corporation v. Bimal Kumar Shah", "year": 2024, "topic": "Procedural sub-rights under Article 300A" },
+    { "unit": "I", "name": "Indore Development Authority v. Manoharlal", "year": 2020, "topic": "Lapse of acquisition under section 24 of the 2013 Act (Constitution Bench)" },
+
+    { "unit": "II", "name": "Jumma Masjid, Mercara v. Kodimaniandra Deviah", "year": 1962, "topic": "Transfer by an unauthorised person; spes successionis and section 43" },
+    { "unit": "II", "name": "Zoroastrian Co-operative Housing Society Ltd. v. District Registrar, Co-operative Societies (Urban)", "year": 2005, "topic": "Restraints on alienation (section 10)" },
+    { "unit": "II", "name": "Rambaran Prosad v. Ram Mohit Hazra", "year": 1966, "titleWords": ["rambaran", "mohit hazra"], "topic": "Rule against perpetuity and pre-emption covenants", "note": "Spelt so in the official report ([1967] 1 S.C.R. 293, decided 6 Sep 1966); often cited as Ram Baran Prasad (1967)." },
+    { "unit": "II", "name": "Rajes Kanta Roy v. Santi Debi", "year": 1956, "titleWords": ["rajes kanta roy", "santi debi"], "topic": "Vested and contingent interests", "note": "Spelt so in the official report ([1957] 1 S.C.R. 77, decided 19 Nov 1956)." },
+    { "unit": "II", "name": "Jayaram Mudaliar v. Ayyaswami", "year": 1972, "topic": "Doctrine of lis pendens (section 52)" },
+    { "unit": "II", "name": "Shrimant Shamrao Suryavanshi v. Pralhad Bhairoba Suryavanshi", "year": 2002, "topic": "Part performance (section 53A) as a shield after limitation" },
+    { "unit": "II", "name": "Suraj Lamp & Industries Pvt. Ltd. v. State of Haryana", "year": 2011, "topic": "Sale only by a registered deed; SA/GPA/Will transfers" },
+
+    { "unit": "IV", "name": "Seth Ganga Dhar v. Shankar Lal", "year": 1958, "topic": "Clog on the equity of redemption" },
+    { "unit": "IV", "name": "Pomal Kanji Govindji v. Vrajlal Karsandas Purohit", "year": 1988, "topic": "Clog on redemption; long-term mortgages" },
+    { "unit": "IV", "name": "Narandas Karsondas v. S.A. Kamtam", "year": 1976, "topic": "When the right of redemption ends" },
+    { "unit": "IV", "name": "Shivdev Singh v. Sucha Singh", "year": 2000, "topic": "Right of redemption" },
+
+    { "unit": "V", "name": "Associated Hotels of India Ltd. v. R.N. Kapoor", "year": 1959, "topic": "Lease versus licence" },
+    { "unit": "V", "name": "Qudrat Ullah v. Municipal Board, Bareilly", "year": 1973, "topic": "Lease versus licence" },
+    { "unit": "V", "name": "Shanti Prasad Devi v. Shankar Mahto", "year": 2005, "topic": "Holding over needs the lessor's assent (section 116)" },
+    { "unit": "V", "name": "Nopany Investments (P) Ltd. v. Santokh Singh (HUF)", "year": 2007, "topic": "Notice to quit under section 106" },
+
+    { "unit": "VI", "name": "Renikuntla Rajamma v. K. Sarwanamma", "year": 2014, "topic": "A gift reserving a life interest is still a gift" },
+    { "unit": "VI", "name": "Asokan v. Lakshmikutty", "year": 2007, "topic": "Acceptance of a gift" },
+
+    { "unit": "VII", "name": "Sunrise Associates v. Govt. of NCT of Delhi", "year": 2006, "topic": "Lottery tickets as actionable claims" },
+    { "unit": "VII", "name": "Vikas Sales Corporation v. Commissioner of Commercial Taxes", "year": 1996, "topic": "What is (and is not) an actionable claim" },
+
+    { "unit": "VIII", "name": "Hero Vinoth v. Seshammal", "year": 2006, "topic": "Easement of necessity versus easement by grant" },
+    { "unit": "VIII", "name": "Justiniano Antao v. Bernadette B. Pereira", "year": 2004, "topic": "Easement of necessity" }
+  ]
+}

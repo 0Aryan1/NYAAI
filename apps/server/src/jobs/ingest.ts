@@ -11,6 +11,7 @@ import { publishEvent } from '../services/events.ts';
 import { ingestSource } from '../services/ingest/source.ts';
 import { finishSource } from '../services/ingest/finish.ts';
 import { ingestKanoonJudgment } from '../services/ingest/kanoon.ts';
+import { loadJudgmentPdf } from '../services/ingest/judgment-pdf.ts';
 import type { IndiaCode } from '../services/india-code/index.ts';
 import type { WebSearch } from '../services/web-search/index.ts';
 import { createGapLookup } from '../services/lookup/index.ts';
@@ -31,14 +32,14 @@ export interface IngestProcessorDeps {
   cacheDays: number;
 }
 
-const JOBS = new Set(['ingest.source', 'ingest.kanoon', 'ingest.lookup']);
+const JOBS = new Set(['ingest.source', 'ingest.kanoon', 'ingest.lookup', 'ingest.judgment']);
 
 /** The `ingest` queue: stages 1–7, logged to jobs_log, progress as ingest.progress events, 10-minute limit. */
 export function ingestProcessor(deps: IngestProcessorDeps) {
   const { library, logger } = deps;
   return async (job: Job<IngestJobData>) => {
     if (!JOBS.has(job.name)) throw new Error(`unknown ingest job ${job.name}`);
-    const { sourceId, tid, gapId, force, requestedBy } = job.data;
+    const { sourceId, tid, gapId, force, requestedBy, uploadKey, replace, official } = job.data;
     const logId = (
       await library.query<{ id: string }>(
         `insert into jobs_log (owner_id, queue, job_id, kind, state, attempts, started_at)
@@ -56,6 +57,35 @@ export function ingestProcessor(deps: IngestProcessorDeps) {
         if (!gapId) throw new Error('ingest.lookup needs a gap id');
         const lookup = createGapLookup({ ...finishDeps, storage: deps.storage, kanoon: deps.kanoon, indiaCode: deps.indiaCode, web: deps.web, cacheDays: deps.cacheDays, budgetMs: INGEST_TIMEOUT_MS - 60_000 });
         return lookup.run(gapId, { force });
+      }
+      if (job.name === 'ingest.judgment') {
+        if (!sourceId || !uploadKey) throw new Error('ingest.judgment needs a source id and the uploaded file');
+        const src = (
+          await library.query<{ title: string; court: string | null; decided_on: string | null; url: string | null }>(
+            "select title, court, to_char(decided_on, 'YYYY-MM-DD') as decided_on, url from sources where id = $1",
+            [sourceId],
+          )
+        ).rows[0];
+        if (!src) throw new Error(`source ${sourceId} not found`);
+        const bytes = await deps.storage.get(uploadKey);
+        try {
+          return await loadJudgmentPdf(
+            {
+              bytes,
+              url: replace ? null : src.url,
+              origin: official ? 'court_site' : 'upload',
+              citation: null,
+              hint: { caseName: src.title, decidedOn: src.decided_on, court: src.court },
+            },
+            { ...finishDeps, storage: deps.storage },
+            replace ? { replace: sourceId } : { sourceId },
+          );
+        } catch (err) {
+          // A new upload that could not be read leaves nothing behind; a replacement leaves the judgment as it was.
+          if (!replace) await library.query("delete from sources where id = $1 and status = 'processing'", [sourceId]);
+          await progress('failed');
+          throw err;
+        }
       }
       if (job.name === 'ingest.kanoon') {
         if (!deps.kanoon || !tid) throw new Error('Indian Kanoon is not configured, or the job has no document id');

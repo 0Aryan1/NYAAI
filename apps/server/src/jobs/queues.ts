@@ -18,6 +18,12 @@ export interface IngestJobData {
   force?: boolean;
   /** Who asked (for progress events); an id, never content. */
   requestedBy?: string;
+  /** ingest.judgment: storage key of the uploaded PDF (a content hash, never content). */
+  uploadKey?: string;
+  /** ingest.judgment: the upload replaces the text of judgment `sourceId` (only if it is the same judgment). */
+  replace?: boolean;
+  /** ingest.judgment: the editor says the copy is from an official court website. */
+  official?: boolean;
 }
 
 /** build.lecture: ids only; the teacher's identity is set with SET LOCAL from these (LLD §5.1). */

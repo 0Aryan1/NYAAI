@@ -9,6 +9,8 @@
  * - Spaces are normalised everywhere; quotes and odd dashes are normalised only outside quotation
  *   marks, so the original characters inside a quotation survive for the quote check (C4).
  * - Zero-width and soft-hyphen characters are removed (they can hide text; LLD §17.6 rule 5).
+ * - A line whose words came out letter-spaced ("Tru stee ca n not r en ou nce") is rejoined, but only into words
+ *   the same document uses elsewhere; anything else is left as it was.
  */
 
 export interface Page {
@@ -75,7 +77,71 @@ export function cleanPages(pages: Page[]): Line[] {
       if (text.trim()) out.push({ pageNo: p.pageNo, text });
     });
   }
-  return normaliseOutsideQuotes(joinHyphenated(out));
+  return normaliseOutsideQuotes(repairSpacedWords(joinHyphenated(out)));
+}
+
+/** Real one- and two-letter words; any other short letter run in a line is a piece of a broken word. */
+const SHORT_WORDS = new Set(['a', 'i', 'an', 'as', 'at', 'be', 'by', 'do', 'he', 'if', 'in', 'is', 'it', 'me', 'my', 'no', 'of', 'on', 'or', 'so', 'to', 'up', 'us', 'we']);
+const MAX_PIECES = 12;
+const lettersOf = (t: string) => t.toLowerCase().replace(/[^a-z]/g, '');
+const isFragment = (t: string, vocab: Set<string>) => /^[A-Za-z]{1,3}$/.test(t) && !SHORT_WORDS.has(t.toLowerCase()) && !(t.length === 3 && vocab.has(t.toLowerCase()));
+
+/**
+ * Some PDFs space out the letters of a paragraph (wide tracking), and the text comes out as "4 6. Tru stee ca n not
+ * r en ou nce af ter acc ep ta nce . —". Such a line (many pieces that are not words) is rebuilt greedily: the
+ * longest run of up to 6 pieces that spells a word used elsewhere in the document becomes that word. Pieces that
+ * spell nothing stay as they were, so the repair can only join, never invent.
+ */
+export function repairSpacedWords(lines: Line[]): Line[] {
+  const tokenised = lines.map((l) => l.text.split(' ').filter(Boolean));
+  const broken = (tokens: string[], vocab: Set<string>) =>
+    tokens.length >= 2 &&
+    ((n) => (tokens.length >= 5 && n >= tokens.length * 0.3) || n === tokens.length)(
+      tokens.filter((t) => isFragment(t.replace(/[.,;:()\u2014\u2013-]+$/, ''), vocab)).length,
+    );
+  const vocab = new Set<string>();
+  const empty = new Set<string>();
+  tokenised.forEach((tokens) => {
+    if (broken(tokens, empty)) return;
+    for (const t of tokens) {
+      const w = lettersOf(t);
+      if (w.length >= 2 && /^[A-Za-z(["“‘']*[A-Za-z]+[A-Za-z.,;:)\]"”’'\u2014\u2013-]*$/.test(t)) vocab.add(w);
+    }
+  });
+  return lines.map((line, n) => {
+    const tokens = tokenised[n]!;
+    if (!broken(tokens, vocab)) return line;
+    const out: string[] = [];
+    for (let i = 0; i < tokens.length; ) {
+      const t = tokens[i]!;
+      // "4 6." → "46."
+      if (/^\d$/.test(t) && /^\d+[A-Z]?\.?$/.test(tokens[i + 1] ?? '')) {
+        out.push(t + tokens[i + 1]);
+        i += 2;
+        continue;
+      }
+      let taken = 1;
+      for (let j = Math.min(tokens.length, i + MAX_PIECES); j > i + 1; j--) {
+        const span = tokens.slice(i, j);
+        // Only the last piece may carry punctuation, and the run must contain a real fragment.
+        if (span.slice(0, -1).some((p) => !/^[A-Za-z]+$/.test(p)) || !/^[A-Za-z]+[.,;:)]*$/.test(span[span.length - 1]!)) continue;
+        if (!span.some((p) => isFragment(p.replace(/[.,;:)]+$/, ''), vocab))) continue;
+        if (vocab.has(lettersOf(span.join('')))) {
+          taken = j - i;
+          break;
+        }
+      }
+      out.push(tokens.slice(i, i + taken).join(''));
+      i += taken;
+    }
+    // Punctuation left on its own ("acceptance . —", "( a)") rejoins its word.
+    const text = out
+      .join(' ')
+      .replace(/\s+([.,;:)\u2014\u2013])/g, '$1')
+      .replace(/([.]) ?([\u2014\u2013]) /g, '$1$2')
+      .replace(/\( /g, '(');
+    return { ...line, text };
+  });
 }
 
 /**

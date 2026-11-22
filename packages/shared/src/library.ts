@@ -95,6 +95,9 @@ export const ReviewJudgmentList = z.object({
       status: z.enum(['processing', 'provisional', 'live', 'needs_review', 'retired']),
       rolesChecked: z.boolean(),
       paragraphs: z.number().int(),
+      /** Where the text in use came from: official report or court site, an upload, or Indian Kanoon. */
+      origin: z.string(),
+      scanned: z.boolean(),
     }),
   ),
 });
@@ -109,6 +112,12 @@ export const ReviewJudgment = z.object({
   url: z.string().nullable(),
   status: z.enum(['processing', 'provisional', 'live', 'needs_review', 'retired']),
   rolesChecked: z.boolean(),
+  origin: z.string(),
+  citation: z.string().nullable(),
+  scanned: z.boolean(),
+  expiresAt: z.string().nullable(),
+  /** Every copy held: the official report's, uploads, and how far each agrees with the text in use. */
+  copies: z.array(z.object({ origin: z.string(), url: z.string().nullable(), citation: z.string().nullable(), scanned: z.boolean(), agreement: z.number().nullable(), inUse: z.boolean() })),
   paragraphs: z.array(
     z.object({
       chunkId: z.uuid(),
@@ -122,6 +131,42 @@ export const ReviewJudgment = z.object({
   ),
 });
 export type ReviewJudgment = z.infer<typeof ReviewJudgment>;
+
+/**
+ * POST /library/uploads/judgment?… with the PDF as the body (application/pdf, up to 50 MB). The editor names the
+ * case; `official` says the copy came from an official court website (live once read; otherwise "not yet
+ * reviewed"); `replaces` swaps the text of a judgment already in the library (only if it is the same judgment).
+ */
+export const UploadJudgmentQuery = z
+  .object({
+    caseName: z.string().trim().min(5).max(300),
+    court: z.string().trim().min(3).max(120),
+    decidedOn: z.iso.date().optional(),
+    official: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+    sourceUrl: z.url({ protocol: /^https$/ }).max(2000).optional(),
+    replaces: z.uuid().optional(),
+  })
+  .refine((q) => q.replaces || q.decidedOn, { message: 'Give the date of the judgment.', path: ['decidedOn'] });
+export type UploadJudgmentQuery = z.input<typeof UploadJudgmentQuery>;
+export const UploadJudgmentResponse = z.object({ jobId: z.string(), sourceId: z.uuid() });
+export type UploadJudgmentResponse = z.infer<typeof UploadJudgmentResponse>;
+
+/** GET /library/uploads/:jobId: how reading an uploaded judgment went. */
+export const UploadJudgmentStatus = z.object({
+  state: z.enum(['waiting', 'reading', 'done', 'failed']),
+  outcome: z
+    .object({
+      kind: z.enum(['loaded', 'kept_existing', 'mismatch', 'duplicate']),
+      sourceId: z.uuid(),
+      paragraphs: z.number().int().nullable(),
+      scanned: z.boolean().nullable(),
+      agreement: z.number().nullable(),
+      status: z.string().nullable(),
+    })
+    .nullable(),
+  message: z.string().nullable(),
+});
+export type UploadJudgmentStatus = z.infer<typeof UploadJudgmentStatus>;
 
 /** PATCH /library/paragraphs/:chunkId */
 export const SetParagraphLabel = z.object({ role: ParaRole, opinion: z.enum(['majority', 'concurring', 'dissent', 'separate_no_majority', 'unknown']).optional() });

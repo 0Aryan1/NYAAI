@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actKey, actMentions, caseMatches, classifyGap, libraryActName, onAllowlist, pickAct, questionKey, sameAct } from './gaps.ts';
+import { actKey, actMentions, caseMatches, classifyGap, libraryActName, onAllowlist, pickAct, pickCaseHit, questionKey, titleQuery, sameAct } from './gaps.ts';
 
 describe('actKey and sameAct', () => {
   it('compares Act names from India Code, the library and teachers', () => {
@@ -111,5 +111,45 @@ describe('onAllowlist', () => {
     expect(onAllowlist('https://notgov.in/x', allow)).toBe(false);
     expect(onAllowlist('https://gov.in.evil.com/x', allow)).toBe(false);
     expect(onAllowlist('not a url', allow)).toBe(false);
+  });
+});
+
+describe('pickCaseHit (the named case, not a case citing it)', () => {
+  const hit = (title: string, publishdate: string, docsource: string) => ({ title, publishdate, docsource });
+  const hits = [
+    hit('Bharat Aluminium Co vs Kaiser Aluminium Technical ... on 10 May, 2016', '2016-05-10', 'Delhi High Court'),
+    hit('Some Ltd vs Other Ltd on 1 June, 2014', '2014-06-01', 'Supreme Court of India'),
+    hit('Bharat Aluminium Co vs Kaiser Aluminium Technical ... on 6 September, 2012', '2012-09-06', 'Supreme Court of India'),
+  ];
+  it('matches parties, keeps the Supreme Court when asked, and prefers the decision year', () => {
+    expect(pickCaseHit('Bharat Aluminium Co. v. Kaiser Aluminium Technical Services', hits, { year: 2012, court: 'SC' })?.publishdate).toBe('2012-09-06');
+    expect(pickCaseHit('Bharat Aluminium Co. v. Kaiser Aluminium Technical Services', hits.slice(0, 2), { court: 'SC' })).toBeNull();
+    expect(pickCaseHit('Bharat Aluminium Co. v. Kaiser Aluminium Technical Services', hits)?.docsource).toBe('Supreme Court of India');
+  });
+  it('uses title words for a case with no "v."', () => {
+    const inRe = [hit('In Re: Interplay Between Arbitration Agreements Under The ... on 13 December, 2023', '2023-12-13', 'Supreme Court of India')];
+    expect(pickCaseHit('In Re: Interplay between Arbitration Agreements and the Stamp Act', inRe)).toBeNull();
+    expect(pickCaseHit('In Re: Interplay', inRe, { titleWords: ['interplay', 'arbitration agreements'] })?.publishdate).toBe('2023-12-13');
+  });
+});
+
+describe('titleQuery', () => {
+  it('takes two distinctive words per party', () => {
+    expect(titleQuery('Bharat Aluminium Co. v. Kaiser Aluminium Technical Services')).toBe('title: bharat aluminium kaiser aluminium');
+    expect(titleQuery('Hussainara Khatoon v. Home Secretary, State of Bihar')).toBe('title: hussainara khatoon home secretary');
+  });
+});
+
+describe('caseMatches and pickCaseHit: whole words and the longer document', () => {
+  it('needs whole party words', () => {
+    expect(caseMatches('Associate Builders v. Delhi Development Authority', 'Sunrise Associates v. Govt. Of Nct Of Delhi & Ors')).toBe(false);
+    expect(caseMatches('Booz Allen and Hamilton Inc. v. SBI Home Finance Ltd.', 'Booz-Allen & Hamilton Inc vs Sbi Home Finance Ltd. & Ors')).toBe(true);
+  });
+  it('prefers the judgment over a short order of the same year', () => {
+    const hits = [
+      { title: 'Chloro Controls India P.Ltd vs Severn Trent Water Purification on 28 September, 2012', publishdate: '2012-09-28', docsource: 'Supreme Court of India', docsize: 3000 },
+      { title: 'Chloro Controls India P.Ltd vs Severn Trent Water Purification on 28 September, 2012', publishdate: '2012-09-28', docsource: 'Supreme Court of India', docsize: 400000 },
+    ];
+    expect(pickCaseHit('Chloro Controls India (P) Ltd. v. Severn Trent Water Purification Inc.', hits, { year: 2012, court: 'SC' })?.docsize).toBe(400000);
   });
 });
