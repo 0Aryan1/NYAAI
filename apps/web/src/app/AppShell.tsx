@@ -20,7 +20,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: '/', label: 'Home', icon: Home, ready: true },
   { to: '/lectures', label: 'My lectures', icon: BookOpen, ready: false },
-  { to: '/courses', label: 'Courses', icon: GraduationCap, ready: false },
+  { to: '/courses', label: 'Courses', icon: GraduationCap, ready: true, roles: ['teacher'] },
   { to: '/explore', label: 'Explore', icon: Compass, ready: false },
   { to: '/research', label: 'Research', icon: Search, ready: false },
   { to: '/style', label: 'My Style', icon: Palette, ready: false },

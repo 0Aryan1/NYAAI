@@ -9,6 +9,7 @@ import { ingestProcessor } from './jobs/ingest.ts';
 import { gatewayFrom, indiaCodeFrom, kanoonFrom, storageFrom, voyageFrom, webSearchFrom } from './services/factory.ts';
 import { usageSink } from './services/usage.ts';
 import { buildProcessor } from './jobs/build.ts';
+import { learnProcessor } from './jobs/learn.ts';
 import { createGapLookup } from './services/lookup/index.ts';
 
 const config = { ...loadConfig(), APP_ROLE: 'worker' as const };
@@ -60,6 +61,7 @@ const workers = [
           buildProcessor({ worker, logPool: worker, gateway, voyageFor: (u) => voyageFrom(config, u), lookup, publisher: connection, minScore: config.RERANK_MIN_SCORE, logger }),
           { connection: createRedis(config.REDIS_URL), concurrency: 3, lockDuration: 120_000 },
         ),
+        new Worker('learn', learnProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), concurrency: 2 }),
       ]
     : []),
   new Worker('ops', opsProcessor(logger), { connection: createRedis(config.REDIS_URL), concurrency: 1 }),

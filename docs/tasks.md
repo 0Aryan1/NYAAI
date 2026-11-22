@@ -82,9 +82,20 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Retrieval items that expect specific judgment paragraphs (needs the expert's choice of passages)
 - [ ] Expert review: pack case lists, concept list, retrieval set; "Labels checked" on the leading cases
 
+## Added 2026-11-22: A2 course series (pulled forward from Day 4; see memory.md)
+- [x] Course memory, recap and bridge (COURSE-4, COURSE-5, HLD F8.2–F8.3): pure logic in `packages/legal/src/course.ts` (memory for a lecture, series checks, terms kept only if on the slides) + 9 tests
+- [x] `learn.summary` prompt and `learn` queue/worker; mark taught and undo (`POST/DELETE /lectures/:id/taught`, COURSE-7)
+- [x] Build reads course memory: planner v2 (recap first only when something was taught, bridge last to the next lecture), recap/bridge written even when the library has nothing; writer v3 sees the whole outline (flow between parts) and the course memory as data
+- [x] Courses API: `GET/POST /courses`, `GET/PATCH/DELETE /courses/:id`, `PATCH /courses/:id/units` (add, rename, delete, reorder, prerequisites, skip), `GET /courses/:id/series-checks` (COURSE-1, -3, -6); Prepare warns on untaught prerequisites (HOME-10)
+- [x] Web: Courses list (new course from a pasted list), course plan (status, taught date, memory, suggestions, reorder, rename, delete, skip, builds-on), Prepare from the plan, "Mark taught" in the Studio
+- [x] Integration test with a fake Claude (6): plan → lecture 1 → taught → memory → lecture 2 with a recap; prerequisite warning; series checks; undo
+- [ ] Measure on two real lectures in a row (ADR or Property Law): recap quality, repeats between parts, cost
+- [ ] Setup step 6 (courses) still a placeholder: point it at the Courses screen
+- [ ] "May need update" badge on later lectures when an earlier one is edited (F8.6), with Studio editing
+
 ## Day 4: PPT, edits, course series
 - [ ] PPT builder (pptx-automizer + pptxgenjs fallback), flags in notes, remove-unverified
-- [ ] Edit checks (C1–C8 inline; C9/C10 background); course memory, recap and bridge
+- [ ] Edit checks (C1–C8 inline; C9/C10 background); ~~course memory, recap and bridge~~ (done 2026-11-22, above)
 - [ ] Web: autosave and versions, Download dialog, course plan
 - [ ] DATA-3: syllabus upload → for each planned lecture, the same gap check + lookup in the background (`ingest.syllabus`); was missing from the plan
 - [ ] Done when: J1 end to end; .pptx output tests green

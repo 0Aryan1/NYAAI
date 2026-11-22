@@ -10,6 +10,7 @@ import { cn } from '@/shared/lib/utils';
 import { SlideCanvas } from './SlideCanvas';
 import { CoveragePanel } from './CoveragePanel';
 import { SourceDrawer } from './SourceDrawer';
+import { MarkTaught } from './MarkTaught';
 
 /** Every open (yellow) line in slide order, for N / Shift+N. */
 export function openPoints(slides: StudioSlide[]): { slide: number; lineKey: string }[] {
@@ -76,6 +77,7 @@ export function StudioPage() {
         <div className="min-w-0">
           <h1 className="truncate text-lg font-semibold">{lec.topic}</h1>
           <p className="text-xs text-muted">
+            {lec.course ? `${lec.course.name}${lec.course.position ? ` · L${String(lec.course.position).padStart(2, '0')}` : ''} · ` : ''}
             {lec.lengthMin} min · {lec.level} · {slides.length} slides{lec.status === 'building' ? ' · still preparing' : ''}
           </p>
         </div>
@@ -97,6 +99,7 @@ export function StudioPage() {
             <input type="checkbox" checked={showChecks} onChange={(e) => setShowChecks(e.target.checked)} className="accent-accent" />
             Show checks
           </label>
+          <MarkTaught lecture={lec} />
           <Button variant="primary" disabled title="Download arrives with the next update">
             <Download className="size-4" aria-hidden />
             Download

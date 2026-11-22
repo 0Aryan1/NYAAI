@@ -22,7 +22,8 @@ import { requireAuth } from './middleware/auth.ts';
 import { requireCsrf } from './auth/csrf.ts';
 import { teacherLimit } from './middleware/rate-limit.ts';
 import { GoogleSignIn } from './auth/google.ts';
-import type { BuildJobData, IngestJobData } from './jobs/queues.ts';
+import type { BuildJobData, IngestJobData, LearnJobData } from './jobs/queues.ts';
+import { coursesRouter } from './api/courses.ts';
 import type { Storage } from './services/storage/index.ts';
 import { lecturesRouter } from './api/lectures.ts';
 import { reviewRouter } from './api/review.ts';
@@ -30,14 +31,14 @@ import { reviewRouter } from './api/review.ts';
 const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/;
 
 /** Path prefixes that need a signed-in teacher (everything except health and sign-in). */
-const SIGNED_IN = ['/me', '/setup', '/consents', '/home', '/library', '/suggest', '/topics', '/events', '/lectures', '/citations', '/coverage'];
+const SIGNED_IN = ['/me', '/setup', '/consents', '/home', '/library', '/suggest', '/topics', '/events', '/lectures', '/citations', '/coverage', '/courses'];
 
 export interface AppDeps {
   config: Config;
   logger: Logger;
   pool: pg.Pool;
   redis: Redis;
-  queues?: { ingest?: Queue<IngestJobData>; build?: Queue<BuildJobData> };
+  queues?: { ingest?: Queue<IngestJobData>; build?: Queue<BuildJobData>; learn?: Queue<LearnJobData> };
   search?: Omit<SearchApiDeps, 'redis'>;
   /** File storage, for judgment uploads (library editor). */
   storage?: Storage;
@@ -88,7 +89,7 @@ export function createApp({ config, logger, pool, redis, queues, search, storage
   v1.use(healthRouter({ pool, redis }));
   v1.use(authRouter({ config, pool, redis, google }));
   v1.use(SIGNED_IN, requireAuth({ pool, sessionSecret: config.SESSION_SECRET, production }), teacherLimit(redis), requireCsrf(config.CSRF_SECRET));
-  v1.use(meRouter(config), setupRouter(), homeRouter(), libraryRouter(queues?.ingest, storage), lecturesRouter(queues?.build), reviewRouter());
+  v1.use(meRouter(config), setupRouter(), homeRouter(), libraryRouter(queues?.ingest, storage), lecturesRouter(queues?.build, queues?.learn), reviewRouter(), coursesRouter());
   v1.use(searchRouter({ redis, voyage: search?.voyage ?? null, gateway: search?.gateway ?? null, minScore: search?.minScore ?? config.RERANK_MIN_SCORE }));
   app.use('/api/v1', v1);
 

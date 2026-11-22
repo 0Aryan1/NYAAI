@@ -48,6 +48,10 @@ export interface PartContext {
   teacherBlock: string;
   mustIncludeText: string | null;
   mappings: MappingRow[];
+  /** Every part of the plan, so each part is written as one piece of a single class (FLOW). */
+  outline?: string;
+  /** Fenced course memory when the lecture is in a course (HLD F8.3). */
+  courseMemory?: string | null;
 }
 
 export interface PartDeps {
@@ -89,7 +93,10 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
     deps.searchDeps,
     deps.lookup,
   );
-  if (found.outcome === 'not_found' || found.sources.length === 0) {
+  // A recap or bridge the library has nothing for is still written, from the outline and course memory alone: its
+  // lines are questions and teaching lines, and any legal statement in them is flagged like any other.
+  const framing = part.kind === 'recap' || part.kind === 'bridge';
+  if ((found.outcome === 'not_found' || found.sources.length === 0) && !framing) {
     return {
       partIndex,
       slides: [
@@ -143,10 +150,12 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
     'TASK: WRITE',
     `TOPIC: ${ctx.topic}`,
     `LEVEL: ${ctx.level}`,
-    `PART ${partIndex + 1}: ${part.title} (${part.minutes} minutes, kind ${part.kind})`,
+    ctx.outline ? `OUTLINE (the whole class):\n${ctx.outline}` : '',
+    `PART ${partIndex + 1}: ${part.title} (${part.minutes} minutes, kind ${part.kind})${partIndex === 0 ? ', the first part' : ''}`,
     `QUESTIONS THIS PART MUST ANSWER:\n${part.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`,
     part.mustInclude && ctx.mustIncludeText ? fence('teacher example to use in this part', ctx.mustIncludeText, boundary) : '',
-    `Fill "written" (partIndex ${partIndex}) and set "repairs" to null. Tags available: ${[...sources.keys()].join(', ')}.`,
+    ctx.courseMemory ?? '',
+    `Fill "written" (partIndex ${partIndex}) and set "repairs" to null. Tags available: ${sources.size ? [...sources.keys()].join(', ') : 'none (the library holds nothing for this part: write questions and teaching lines only)'}.`,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -154,7 +163,8 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
 
   // 4. Stable line keys, then the ten checks.
   const slides: BuiltSlide[] = written.slides.map((s, si) => ({
-    layout: s.layout,
+    // The recap and bridge slides carry their own layouts (LLD §8.1) so the deck and the Studio mark them.
+    layout: framing && si === 0 && s.layout !== 'question' ? part.kind : s.layout,
     title: s.title,
     lines: s.lines.map((l, li) => toLine(`p${partIndex}-s${si + 1}-l${li + 1}`, l.text, l.kind, l.claims, ctx, part.mustInclude)),
     notes: s.notes.map((n, ni) => toLine(`p${partIndex}-s${si + 1}-n${ni + 1}`, n.text, n.claims.length ? 'claim' : 'teaching', n.claims, ctx, false)),

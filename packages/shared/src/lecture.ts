@@ -105,6 +105,8 @@ export const PrepareLecture = z.object({
   anythingSpecial: z.string().trim().max(500).optional(),
   filters: z.object({ jurisdiction: z.string().default('IN'), asOn: z.iso.date().optional(), comparative: z.boolean().default(false) }).default({ jurisdiction: 'IN', comparative: false }),
   ambiguityChoice: z.uuid().optional(),
+  /** HOME-10: she saw that earlier lectures this one builds on are not taught yet, and goes ahead. */
+  prereqAck: z.boolean().optional(),
 });
 export type PrepareLecture = z.infer<typeof PrepareLecture>;
 export const PrepareResponse = z.object({ lectureId: z.uuid(), jobId: z.string() });
@@ -125,6 +127,9 @@ export const LectureSummary = z.object({
   errorCode: z.string().nullable(),
   createdAt: z.string(),
   readyAt: z.string().nullable(),
+  taughtOn: z.string().nullable(),
+  /** The course and the lecture's place in its plan (null for a one-off). */
+  course: z.object({ id: z.uuid(), name: z.string(), unitId: z.uuid().nullable(), position: z.number().int().nullable() }).nullable(),
 });
 export type LectureSummary = z.infer<typeof LectureSummary>;
 

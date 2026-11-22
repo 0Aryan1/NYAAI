@@ -17,8 +17,11 @@ import {
   type StudioSlide,
 } from '@nyaai/shared';
 import { coverageScore, openGroups } from '@nyaai/checker-rules';
+import { courseContext, lectureNo } from '@nyaai/legal';
+import { MarkTaught, MarkTaughtResponse } from '@nyaai/shared';
 import { AppError } from '../errors.ts';
-import { BUILD_JOB_OPTIONS, type BuildJobData } from '../jobs/queues.ts';
+import { BUILD_JOB_OPTIONS, LEARN_JOB_OPTIONS, type BuildJobData, type LearnJobData } from '../jobs/queues.ts';
+import { loadUnits } from '../services/course/index.ts';
 import { chunkForDrawer } from '../services/search/index.ts';
 import { resolveConcept } from '../services/topics.ts';
 
@@ -63,7 +66,7 @@ function lineFrom(node: LineNode, cits: CitationRow[]): SlideLine {
   };
 }
 
-export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined) {
+export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, learnQueue?: Queue<LearnJobData>) {
   const r = express.Router();
 
   r.post('/lectures', async (req, res) => {
@@ -87,6 +90,16 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined) {
       if (body.course.kind === 'course') {
         const ok = (await c.query('select 1 from courses where id = $1 and archived_at is null', [body.course.courseId])).rowCount;
         if (!ok) throw new AppError('NOT_FOUND', 'We could not find that course.');
+        const unitId = body.course.unitId;
+        if (unitId) {
+          const units = await loadUnits(c, body.course.courseId);
+          if (!units.some((u) => u.id === unitId)) throw new AppError('NOT_FOUND', 'That lecture is not in the course plan.');
+          // HOME-10: lectures this one builds on, not taught yet. She may go ahead; the recap will not assume them.
+          const untaught = courseContext(units, unitId).untaughtPrerequisites;
+          if (untaught.length && !body.prereqAck) {
+            throw new AppError('PREREQ_WARNING_UNACKED', `This lecture builds on ${untaught.map((u) => `${lectureNo(u.position)} ${u.title}`).join(', ')}, not marked taught yet. You can still go ahead.`, { untaught });
+          }
+        }
       }
       const id = (
         await c.query<{ id: string }>(
@@ -100,6 +113,10 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined) {
          values ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [id, who.collegeId, who.userId, body.mustInclude?.text || null, body.mustInclude?.exampleId ?? null, body.anythingSpecial || null, body.filters, conceptId],
       );
+      // The plan points at the unit's latest lecture (a taught unit keeps the lecture it was taught from).
+      if (body.course.kind === 'course' && body.course.unitId) {
+        await c.query("update course_units set lecture_id = $2 where id = $1 and status <> 'taught'", [body.course.unitId, id]);
+      }
       return id;
     });
     const job = await buildQueue.add('build.lecture', { lectureId, ownerId: who.userId, collegeId: who.collegeId }, { ...BUILD_JOB_OPTIONS, jobId: `build.lecture-${lectureId}` });
@@ -123,7 +140,13 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined) {
         await c.query<{
           id: string; topic: string; status: LectureSummary['status']; length_min: number; level: string; plan: LectureSummary['plan'];
           yellow_open: number; grey_open: number; coverage_open: number; coverage_score: string | null; parts_done: number[]; error_code: string | null; created_at: Date; ready_at: Date | null;
-        }>('select * from lectures where id = $1', [id])
+          taught: string | null; course_id: string | null; course_name: string | null; unit_id: string | null; position: number | null;
+        }>(
+          `select l.*, to_char(l.taught_on, 'YYYY-MM-DD') taught, c.name course_name, u.position
+             from lectures l left join courses c on c.id = l.course_id left join course_units u on u.id = l.unit_id
+            where l.id = $1`,
+          [id],
+        )
       ).rows[0],
     );
     if (!row) throw new AppError('NOT_FOUND', 'We could not find that lecture.');
@@ -141,8 +164,57 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined) {
         errorCode: row.error_code,
         createdAt: row.created_at.toISOString(),
         readyAt: row.ready_at?.toISOString() ?? null,
+        taughtOn: row.taught,
+        course: row.course_id ? { id: row.course_id, name: row.course_name ?? '', unitId: row.unit_id, position: row.position } : null,
       }),
     );
+  });
+
+  /**
+   * COURSE-7: mark taught. Course memory is written only now, by `learn.summary` from her slides as they stand. A
+   * lecture in a course with no planned slot gets one at the end of the plan, so later lectures can recap it.
+   */
+  r.post('/lectures/:id/taught', async (req, res) => {
+    const id = Id.parse(req.params.id);
+    const body = MarkTaught.parse(req.body);
+    const who = req.identity!;
+    const unitId = await req.db!(async (c) => {
+      const l = (await c.query<{ status: string; course_id: string | null; unit_id: string | null; topic: string }>('select status, course_id, unit_id, topic from lectures where id = $1 for update', [id])).rows[0];
+      if (!l) throw new AppError('NOT_FOUND', 'We could not find that lecture.');
+      if (l.status !== 'ready' && l.status !== 'taught') throw new AppError('VALIDATION_FAILED', 'Only a finished lecture can be marked taught.');
+      let unit = l.unit_id;
+      if (l.course_id && unit) {
+        // Another lecture already taught in this slot keeps it; this one takes a new slot right after.
+        const other = (await c.query<{ lecture_id: string | null; status: string }>('select lecture_id, status from course_units where id = $1', [unit])).rows[0];
+        if (other?.status === 'taught' && other.lecture_id !== id) unit = null;
+      }
+      if (l.course_id && !unit) {
+        const pos = (await c.query<{ n: number }>('select coalesce(max(position), 0)::int + 1 n from course_units where course_id = $1', [l.course_id])).rows[0]!.n;
+        unit = (
+          await c.query<{ id: string }>('insert into course_units (college_id, owner_id, course_id, position, title) values ($1, $2, $3, $4, $5) returning id', [who.collegeId, who.userId, l.course_id, pos, l.topic])
+        ).rows[0]!.id;
+      }
+      await c.query("update lectures set status = 'taught', taught_on = $2, unit_id = coalesce($3, unit_id) where id = $1", [id, body.taughtOn, unit]);
+      if (unit) await c.query("update course_units set status = 'taught', taught_on = $2, lecture_id = $3 where id = $1", [unit, body.taughtOn, id]);
+      return unit;
+    });
+    let memoryJob: string | null = null;
+    if (unitId && learnQueue) {
+      const job = await learnQueue.add('learn.summary', { lectureId: id, ownerId: who.userId, collegeId: who.collegeId }, { ...LEARN_JOB_OPTIONS, jobId: `learn.summary-${id}-${Date.now()}` });
+      memoryJob = job.id ?? null;
+    }
+    res.json(MarkTaughtResponse.parse({ unitId, memoryJob }));
+  });
+
+  /** Undo "taught": the lecture is ready again and its course memory is cleared (COURSE-7: memory only for taught). */
+  r.delete('/lectures/:id/taught', async (req, res) => {
+    const id = Id.parse(req.params.id);
+    await req.db!(async (c) => {
+      const l = (await c.query<{ unit_id: string | null }>("update lectures set status = 'ready', taught_on = null where id = $1 and status = 'taught' returning unit_id", [id])).rows[0];
+      if (!l) throw new AppError('NOT_FOUND', 'This lecture is not marked taught.');
+      if (l.unit_id) await c.query("update course_units set status = 'planned', taught_on = null, memory = '{}' where id = $1 and lecture_id = $2", [l.unit_id, id]);
+    });
+    res.status(204).end();
   });
 
   r.get('/lectures/:id/slides', async (req, res) => {

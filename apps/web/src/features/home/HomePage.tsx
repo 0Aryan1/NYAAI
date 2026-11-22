@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LENGTH_CHOICES, LEVEL_CHOICES, ResolveChoice, STYLE_CHOICES, type PrepareLecture } from '@nyaai/shared';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { z } from 'zod';
 import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
@@ -18,9 +18,13 @@ export const ONE_OFF = 'one_off';
  */
 export function HomePage() {
   const navigate = useNavigate();
+  // "Prepare" on a lecture in her course plan opens Home with that course and lecture chosen by her, not by the app.
+  const [params] = useSearchParams();
+  const fromPlan = { course: params.get('course'), unit: params.get('unit') };
   const home = useQuery({ queryKey: queryKeys.home, queryFn: api.home });
-  const [topic, setTopic] = useState('');
-  const [course, setCourse] = useState<string | null>(null);
+  const [topic, setTopic] = useState(params.get('topic') ?? '');
+  const [course, setCourse] = useState<string | null>(fromPlan.course);
+  const [prereq, setPrereq] = useState<string | null>(null);
   const [length, setLength] = useState<string | null>(null);
   const [level, setLevel] = useState<string | null>(null);
   const [style, setStyle] = useState<string | null>(null);
@@ -31,15 +35,19 @@ export function HomePage() {
   const [concept, setConcept] = useState<ResolveChoice | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function prepare(choice?: ResolveChoice) {
+  async function prepare(choice?: ResolveChoice, prereqAck = false) {
     if (!course || !length || !level || !style) return;
     setBusy(true);
     setNotice(null);
+    setPrereq(null);
     try {
       const picked = choice ?? concept;
       const r = await api.prepare({
         topic: topic.trim(),
-        course: course === ONE_OFF ? { kind: 'one_off' } : { kind: 'course', courseId: course, unitId: home.data?.courses.find((c) => c.id === course)?.nextUnit?.id },
+        course:
+          course === ONE_OFF
+            ? { kind: 'one_off' }
+            : { kind: 'course', courseId: course, unitId: (course === fromPlan.course ? fromPlan.unit : null) ?? home.data?.courses.find((c) => c.id === course)?.nextUnit?.id },
         lengthMin: Number(length) as PrepareLecture['lengthMin'],
         level: level as PrepareLecture['level'],
         styleKey: style as PrepareLecture['styleKey'],
@@ -47,12 +55,14 @@ export function HomePage() {
         anythingSpecial: special.trim() || undefined,
         filters: { jurisdiction: 'IN', comparative: false },
         ambiguityChoice: picked?.conceptId,
+        prereqAck: prereqAck || undefined,
       });
       if (choice) setConcept(choice);
       void navigate(`/build/${r.lectureId}`);
     } catch (err) {
       const parsed = err instanceof ApiRequestError && err.body?.error.code === 'TOPIC_AMBIGUOUS' ? z.array(ResolveChoice).safeParse(err.body.error.details?.choices) : null;
       if (parsed?.success) setChoices(parsed.data);
+      else if (err instanceof ApiRequestError && err.body?.error.code === 'PREREQ_WARNING_UNACKED') setPrereq(err.body.error.message);
       else setNotice(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setBusy(false);
@@ -63,7 +73,12 @@ export function HomePage() {
     ...(home.data?.courses ?? []).map((c) => ({
       value: c.id,
       label: c.name,
-      hint: c.nextUnit ? `next: L${String(c.nextUnit.position).padStart(2, '0')} ${c.nextUnit.title}` : undefined,
+      hint:
+        c.id === fromPlan.course && fromPlan.unit
+          ? `for: ${params.get('topic') ?? 'the lecture you chose'}`
+          : c.nextUnit
+            ? `next: L${String(c.nextUnit.position).padStart(2, '0')} ${c.nextUnit.title}`
+            : undefined,
     })),
     { value: ONE_OFF, label: 'No course, one-off' },
   ];
@@ -141,6 +156,14 @@ export function HomePage() {
           {ready ? (notice ?? 'Ready when you are.') : `Still needed: ${missing.join(', ')}.`}
         </p>
       </div>
+      {prereq && (
+        <div role="alert" className="mt-4 rounded-card border border-border bg-surface p-4 text-sm">
+          <p className="mb-3">{prereq} The recap will not assume the class has had it.</p>
+          <Button variant="primary" size="sm" disabled={busy} onClick={() => void prepare(concept ?? undefined, true)}>
+            Prepare anyway
+          </Button>
+        </div>
+      )}
       {choices && (
         <AmbiguityDialog
           topic={topic.trim()}

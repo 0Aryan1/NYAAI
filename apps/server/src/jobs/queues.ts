@@ -33,6 +33,18 @@ export interface BuildJobData {
   collegeId: string;
 }
 
+/** learn.summary: course memory for one taught lecture (ids only). */
+export type LearnJobData = BuildJobData;
+
+/** LLD §5: learn queue, 2 retries, 3 minutes. */
+export const LEARN_JOB_OPTIONS: JobsOptions = {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 15_000 },
+  removeOnComplete: 500,
+  removeOnFail: 500,
+};
+export const LEARN_TIMEOUT_MS = 3 * 60 * 1000;
+
 /** LLD §5: 2 retries; a retry resumes after the plan and finished parts. 8 minutes per lecture. */
 export const BUILD_JOB_OPTIONS: JobsOptions = {
   attempts: 3,

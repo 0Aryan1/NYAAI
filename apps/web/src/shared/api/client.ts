@@ -16,6 +16,11 @@ import {
   ReviewJudgmentList,
   UploadJudgmentResponse,
   UploadJudgmentStatus,
+  CourseDetail,
+  CourseList,
+  MarkTaughtResponse,
+  type CreateCourse,
+  type UpdateUnits,
   type ParaRole,
   type UploadJudgmentQuery,
   type PrepareLecture,
@@ -119,6 +124,12 @@ export const api = {
   approveJudgment: (id: string) => call<void>('POST', `/library/judgments/${id}/approve`),
   uploadJudgment: uploadPdf,
   uploadStatus: (jobId: string) => call('GET', `/library/uploads/${encodeURIComponent(jobId)}`, { parse: (v) => UploadJudgmentStatus.parse(v) }),
+  courses: () => call('GET', '/courses', { parse: (v) => CourseList.parse(v) }),
+  course: (id: string) => call('GET', `/courses/${id}`, { parse: (v) => CourseDetail.parse(v) }),
+  createCourse: (body: CreateCourse) => call('POST', '/courses', { body, parse: (v) => CourseDetail.parse(v) }),
+  updateUnits: (id: string, body: UpdateUnits) => call('PATCH', `/courses/${id}/units`, { body, parse: (v) => CourseDetail.parse(v) }),
+  markTaught: (lectureId: string, taughtOn: string) => call('POST', `/lectures/${lectureId}/taught`, { body: { taughtOn }, parse: (v) => MarkTaughtResponse.parse(v) }),
+  undoTaught: (lectureId: string) => call<void>('DELETE', `/lectures/${lectureId}/taught`),
 };
 
 export const queryKeys = {
@@ -134,4 +145,6 @@ export const queryKeys = {
   reviewJudgments: ['review', 'judgments'] as const,
   reviewJudgment: (id: string) => ['review', 'judgment', id] as const,
   uploadStatus: (jobId: string) => ['review', 'upload', jobId] as const,
+  courses: ['courses'] as const,
+  course: (id: string) => ['courses', id] as const,
 };
