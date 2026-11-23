@@ -23,7 +23,6 @@ export function CoveragePanel({ lectureId }: { lectureId: string }) {
   return (
     <section aria-label="Coverage" className="space-y-6 text-sm">
       <div>
-        <h2 className="text-base font-semibold">Coverage</h2>
         <p className="text-muted">
           {d.score === null ? 'Nothing in the cited sections needs a separate mention.' : `${Math.round(d.score * 100)}% of the provisos, exceptions and clauses of the sections you teach are covered.`}
         </p>
@@ -40,11 +39,19 @@ export function CoveragePanel({ lectureId }: { lectureId: string }) {
                 {g.items
                   .filter((i) => i.state === 'missing')
                   .map((i) => (
-                    <li key={i.id} className="flex items-center justify-between gap-2">
-                      <span>Missing: {i.label}</span>
-                      <Button size="sm" variant="ghost" disabled={leave.isPending} onClick={() => leave.mutate(i.id)}>
-                        Leave out
-                      </Button>
+                    <li key={i.id}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">Missing: {i.label}</span>
+                        <Button size="sm" variant="ghost" disabled={leave.isPending} onClick={() => leave.mutate(i.id)} title="Confirm you are leaving this out on purpose">
+                          Leave out
+                        </Button>
+                      </div>
+                      {i.text && (
+                        <blockquote className="mt-2 whitespace-pre-line border-l-2 border-flag-coverage/50 pl-3 text-[13px] leading-relaxed">
+                          <span className="mb-1 block text-xs text-muted">What the Act says:</span>
+                          {i.text.trim()}
+                        </blockquote>
+                      )}
                     </li>
                   ))}
               </ul>

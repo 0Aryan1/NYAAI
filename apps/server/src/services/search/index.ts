@@ -13,7 +13,7 @@
 import type pg from 'pg';
 import { z } from 'zod';
 import { PROMPTS } from '@nyaai/prompts';
-import { reciprocalRankFusion, understandQuery } from '@nyaai/legal';
+import { reciprocalRankFusion, standing, understandQuery, type Standing } from '@nyaai/legal';
 import type { Gateway } from '../llm-gateway/index.ts';
 import type { UsageSink } from '../usage.ts';
 import { toVector, type Voyage } from '../voyage/index.ts';
@@ -64,6 +64,8 @@ export interface RetrievedSource {
   status: { law?: string; case?: string };
   provisional: boolean;
   rerankScore: number | null;
+  /** Relevance plus authority (court, bench, official copy, the court's own reasoning): what sources are ordered by. */
+  standing: Standing;
 }
 
 export interface SearchTrace {
@@ -113,6 +115,8 @@ interface Row {
   roles_sampled: boolean;
   source_status: string;
   case_status: string | null;
+  court_level: string | null;
+  bench_size: number | null;
 }
 
 const Expanded = z.object({ query: z.string().min(1).max(600) });
@@ -130,7 +134,7 @@ const FILTERS = `
 
 const ROW_COLUMNS = `c.id, c.source_id, c.parent_id, c.seq, c.kind, c.header, c.text, c.act_name, c.section, c.article, c.para_no,
   c.opinion, c.para_role, c.court, c.decided_on, c.law_status, c.source_type, c.status, s.origin, s.roles_sampled,
-  s.status as source_status, cs.status as case_status`;
+  s.status as source_status, cs.status as case_status, s.court_level, s.bench_size`;
 const ROW_JOINS = `join sources s on s.id = c.source_id left join case_status_v cs on cs.source_id = c.source_id`;
 
 export async function search(db: pg.PoolClient, req: SearchRequest, deps: SearchDeps): Promise<SearchResult> {
@@ -253,12 +257,32 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
   // A section or Article the question names is always among the sources, first: a part asking what s. 20 says must
   // see s. 20, however much longer the judgments discussing it are.
   const pinnedSet = new Set(named);
-  const above = [...ranked.filter((r) => pinnedSet.has(r.row.id)), ...ranked.filter((r) => !pinnedSet.has(r.row.id) && (r.score === null || r.score >= deps.minScore))];
+  // The relevance floor applies to relevance alone; above it, sources are ordered by standing (relevance first, then
+  // authority), so a Supreme Court ruling is not pushed out by a weaker source that matches the words a little better.
+  const relevant = ranked.filter((r) => !pinnedSet.has(r.row.id) && (r.score === null || r.score >= deps.minScore));
+  if (!fallback) relevant.sort((a, b) => standingOfRow(b.row, b.score).score - standingOfRow(a.row, a.score).score);
+  const above = [...ranked.filter((r) => pinnedSet.has(r.row.id)), ...relevant];
   const outcome: SearchResult['outcome'] = fallback ? (above.length ? 'ok' : 'not_found') : above.length >= 3 ? 'ok' : above.length > 0 ? 'thin' : 'not_found';
 
   // 4. Parent expansion and S-tags.
   const sources = await expand(db, above, max);
   return { sources, outcome, trace: { understood, expandedQuery, pinned, vector, words, reranked, fallback, ms: Date.now() - t0 } };
+}
+
+function standingOfRow(row: Row, relevance: number | null): Standing {
+  return standing(
+    {
+      sourceType: row.source_type,
+      courtLevel: row.court_level,
+      benchSize: row.bench_size,
+      origin: row.origin,
+      provisional: row.status === 'provisional' || row.source_status === 'provisional',
+      caseStatus: row.source_type === 'judgment' ? (row.case_status ?? 'not_verified') : null,
+      paraRole: row.para_role,
+      kind: row.kind,
+    },
+    relevance,
+  );
 }
 
 async function loadRows(db: pg.PoolClient, ids: string[]): Promise<Map<string, Row>> {
@@ -330,6 +354,7 @@ async function expand(db: pg.PoolClient, ranked: { row: Row; score: number | nul
       },
       provisional: row.status === 'provisional' || row.source_status === 'provisional',
       rerankScore: score,
+      standing: standingOfRow(row, score),
     };
     seen.set(key, src);
     out.push(src);
@@ -403,6 +428,31 @@ export async function statuteUnits(db: pg.PoolClient, chunkIds: string[]): Promi
   return r.rows
     .filter((x) => x.section ?? x.article)
     .map((x) => ({ chunkId: x.id, sourceId: x.source_id, sourceType: x.source_type, actName: x.act_name ?? '', number: (x.section ?? x.article)!, header: x.header ?? '', text: x.text }));
+}
+
+/**
+ * A whole section or Article (its top-level chunk) as a retrieved source, for the research stage: a key section of the
+ * topic that no part's search found is added to the notes directly. Null when it is not visible or not live.
+ */
+export async function statuteSource(db: pg.PoolClient, chunkId: string): Promise<RetrievedSource | null> {
+  const rows = await loadRows(db, [chunkId]);
+  const row = rows.get(chunkId);
+  if (!row || !['live', 'provisional'].includes(row.status) || !['act', 'constitution'].includes(row.source_type)) return null;
+  return (await expand(db, [{ row, score: null }], 1))[0] ?? null;
+}
+
+/** The topic's key sections (chunk ids) and its confirmed leading cases (source ids and titles), for the must-cover list. */
+export async function conceptMustCover(db: pg.PoolClient, conceptId: string): Promise<{ sectionChunkIds: string[]; cases: { sourceId: string; title: string }[] }> {
+  const r = await db.query<{ kind: string; chunk_id: string | null; source_id: string; title: string }>(
+    `select cl.kind, cl.chunk_id, cl.source_id, s.title from concept_links cl join sources s on s.id = cl.source_id
+      where cl.concept_id = $1 and s.status in ('live', 'provisional')
+        and ((cl.kind = 'key_section' and cl.chunk_id is not null) or (cl.kind = 'leading_case' and cl.confirmed_at is not null))`,
+    [conceptId],
+  );
+  return {
+    sectionChunkIds: [...new Set(r.rows.filter((x) => x.kind === 'key_section').map((x) => x.chunk_id!))],
+    cases: r.rows.filter((x) => x.kind === 'leading_case').map((x) => ({ sourceId: x.source_id, title: x.title })),
+  };
 }
 
 /** A concept's key sections (their headers) and leading cases (titles), as hints for the planner. */

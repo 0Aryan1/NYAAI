@@ -39,7 +39,18 @@ export function MarkTaught({ lecture }: { lecture: LectureSummary }) {
             {lecture.course.name}
           </Link>
         )}
-        <Button size="sm" variant="ghost" disabled={undo.isPending} onClick={() => undo.mutate()}>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={undo.isPending}
+          onClick={() =>
+            window.confirm(
+              lecture.course
+                ? 'Mark this lecture as not taught? The course will forget what this class learnt, and the next lecture will not recap it.'
+                : 'Mark this lecture as not taught?',
+            ) && undo.mutate()
+          }
+        >
           Undo
         </Button>
       </span>

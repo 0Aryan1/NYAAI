@@ -8,7 +8,7 @@ describe('Build screen state (LLD §4.4)', () => {
     let s = reduceBuild(initialBuild, { type: 'build.step', lectureId: L, step: 'sources' }, L);
     expect(s.current).toBe('sources');
     s = reduceBuild(s, { type: 'build.step', lectureId: L, step: 'writing', partsTotal: 4 }, L);
-    expect([...s.done]).toEqual(['sources', 'planning']);
+    expect([...s.done]).toEqual(['sources', 'planning', 'research']);
     s = reduceBuild(s, { type: 'build.part_ready', lectureId: L, partIndex: 0 }, L);
     expect(s.parts).toEqual({ ready: 1, total: 4 });
     s = reduceBuild(s, { type: 'build.done', lectureId: L }, L);

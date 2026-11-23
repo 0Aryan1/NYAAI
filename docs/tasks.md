@@ -96,10 +96,30 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Setup step 6 (courses) still a placeholder: point it at the Courses screen
 - [ ] "May need update" badge on later lectures when an earlier one is edited (F8.6), with Studio editing
 
+## Added 2026-11-22: expert screens, editing, download, UI cleanup (in the suggested order)
+- [x] Expert confirms case status (LIB-2, D28): migration 0008, `POST /library/judgments/:id/status`, "Is it still good law?" panel; the Studio reads case status live
+- [x] UI cleanup: shell (working screens only, account menu), Studio (header, status bar, 16:9 slide, notes, Source/Coverage tabs), library (to-do filter, plain status line, folded citations), course plan (row menu)
+- [x] Slide editing (STUDIO-2, -4, -6, -7): edit, remove, add a line or note, your example (+ example bank), mark verified, undo/restore with sources; code checks at once, `check.lines` job for C9/C10; migration 0009
+- [x] PowerPoint download (PPT-1 to PPT-4): base design, footnotes, notes with sources and flags, hidden "Points to verify" slide, "(cont.)" splitting, Download dialog with "I have seen them" or "Remove unverified lines"
+- [ ] Coverage re-run after edits and after "Remove unverified lines" (COVERAGE_CHANGED stop)
+- [ ] An edited line with no source: search the lecture's sources and the library for a match (LLD §8.6)
+- [ ] Her own template (ACC-6) with `pptx-automizer` once CNLU's templates arrive
+- [ ] "Rewrite this part" (needs credits), coach, wrong-fact report button (ADM-2)
+- [ ] Expert: confirm the status of the demo topics' cases (about 25) in the new panel
+
+## Added 2026-11-24: research stage before writing (gap fill)
+- [x] Library review: fixed list order and the open judgment stays selected after a save; Coverage tab shows the Act's own words for a missing item
+- [x] Research stage in the build: every part searched at once, notes merged and de-duplicated, key sections and leading cases added, AI gap check (`research.gaps`, Sonnet, up to 2 rounds, library only), notes saved on the lecture (migration 0010); writers get MUST COVER and "taught in full in another part"; writer v6
+- [ ] Try the research stage on a real lecture (needs credits) and compare coverage and yellow counts with L02
+- [x] Source standing: sources ordered by relevance, then authority (court, bench, official copy, the court's own reasoning, expert status); relevance saved on each citation (migration 0011); "Why this source" in the Source tab
+- [ ] Library: check the bench size of the 5 judgments stored as 1, 4 or 6 judges (e.g. BALCO is stored as 4; it was a 5-judge Constitution Bench); bench size comes from automatic reading of the judges' names
+- [ ] Coverage tab: "X of Y covered" instead of a bare % (L01 showed 0% for 0 of 1)
+- [ ] Coverage note "Add this for me" (put the item's own words on a slide, linked to its source) and a coverage re-run after edits
+
 ## Day 4: PPT, edits, course series
-- [ ] PPT builder (pptx-automizer + pptxgenjs fallback), flags in notes, remove-unverified
+- [x] PPT builder: pptxgenjs base design now (automizer with her template later), flags in notes, remove-unverified (2026-11-22)
 - [ ] Edit checks (C1–C8 inline; C9/C10 background); ~~course memory, recap and bridge~~ (done 2026-11-22, above)
-- [ ] Web: autosave and versions, Download dialog, course plan
+- [x] Web: save on every change, versions with undo, Download dialog, course plan (2026-11-22)
 - [ ] DATA-3: syllabus upload → for each planned lecture, the same gap check + lookup in the background (`ingest.syllabus`); was missing from the plan
 - [ ] Done when: J1 end to end; .pptx output tests green
 

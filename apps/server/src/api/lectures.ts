@@ -13,58 +13,18 @@ import {
   PrepareLecture,
   PrepareResponse,
   StudioSlides,
-  type SlideLine,
-  type StudioSlide,
 } from '@nyaai/shared';
 import { coverageScore, openGroups } from '@nyaai/checker-rules';
-import { courseContext, lectureNo } from '@nyaai/legal';
+import { courseContext, lectureNo, standingOf } from '@nyaai/legal';
 import { MarkTaught, MarkTaughtResponse } from '@nyaai/shared';
 import { AppError } from '../errors.ts';
 import { BUILD_JOB_OPTIONS, LEARN_JOB_OPTIONS, type BuildJobData, type LearnJobData } from '../jobs/queues.ts';
 import { loadUnits } from '../services/course/index.ts';
+import { loadStudioSlides } from '../services/studio/index.ts';
 import { chunkForDrawer } from '../services/search/index.ts';
 import { resolveConcept } from '../services/topics.ts';
 
 const Id = z.uuid();
-
-interface LineNode {
-  attrs?: { lineKey?: string; kind?: SlideLine['kind']; yourExample?: boolean };
-  content?: { text?: string }[];
-}
-interface CitationRow {
-  id: string;
-  slide_id: string;
-  line_key: string;
-  tag: string | null;
-  source_label: string | null;
-  check_status: SlideLine['status'];
-  flag_kind: 'yellow' | 'grey' | 'coverage' | null;
-  flag_reason: string | null;
-  risk: 'normal' | 'high';
-  source_status: string | null;
-  case_status: string | null;
-}
-
-/** One line's status from its claims (LLD §8.4): any open claim → yellow; else any grey → grey; else supported. */
-function lineFrom(node: LineNode, cits: CitationRow[]): SlideLine {
-  const text = (node.content ?? []).map((t) => t.text ?? '').join('');
-  const open = cits.find((c) => c.check_status === 'open');
-  const grey = cits.find((c) => c.flag_kind === 'grey');
-  const verified = cits.length > 0 && cits.every((c) => c.check_status === 'verified_by_you');
-  const status: SlideLine['status'] = open ? 'open' : verified ? 'verified_by_you' : !cits.length && node.attrs?.yourExample ? 'your_example' : 'supported';
-  return {
-    lineKey: node.attrs?.lineKey ?? '',
-    text,
-    kind: node.attrs?.kind ?? 'teaching',
-    status,
-    flag: open ? 'yellow' : grey ? 'grey' : null,
-    flagReason: open?.flag_reason ?? grey?.flag_reason ?? null,
-    sources: cits
-      .filter((c) => c.tag)
-      .map((c) => ({ tag: c.tag!, citationId: c.id, label: c.source_label ?? c.tag!, provisional: c.source_status === 'provisional', caseStatus: c.case_status })),
-    risk: cits.some((c) => c.risk === 'high') ? 'high' : 'normal',
-  };
-}
 
 export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, learnQueue?: Queue<LearnJobData>) {
   const r = express.Router();
@@ -141,8 +101,19 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
           id: string; topic: string; status: LectureSummary['status']; length_min: number; level: string; plan: LectureSummary['plan'];
           yellow_open: number; grey_open: number; coverage_open: number; coverage_score: string | null; parts_done: number[]; error_code: string | null; created_at: Date; ready_at: Date | null;
           taught: string | null; course_id: string | null; course_name: string | null; unit_id: string | null; position: number | null;
+          live_yellow: number; live_grey: number;
         }>(
-          `select l.*, to_char(l.taught_on, 'YYYY-MM-DD') taught, c.name course_name, u.position
+          // Yellow and grey per line, with case status read live (see lineFrom).
+          `with lines as (
+             select ci.slide_id, ci.line_key,
+                    bool_or(ci.check_status = 'open' or cs.status in ('overruled', 'reversed')) as yellow,
+                    bool_or(ci.flag_kind = 'grey' and coalesce(cs.status, 'not_verified') = 'not_verified') as grey
+               from citations ci left join case_status_v cs on cs.source_id = ci.source_id
+              where ci.lecture_id = $1 and ci.check_status <> 'removed'
+              group by ci.slide_id, ci.line_key)
+           select l.*, to_char(l.taught_on, 'YYYY-MM-DD') taught, c.name course_name, u.position,
+                  (select count(*)::int from lines where yellow) live_yellow,
+                  (select count(*)::int from lines where grey and not yellow) live_grey
              from lectures l left join courses c on c.id = l.course_id left join course_units u on u.id = l.unit_id
             where l.id = $1`,
           [id],
@@ -158,7 +129,7 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
         lengthMin: row.length_min,
         level: row.level,
         plan: row.plan ? { parts: row.plan.parts, leftOut: row.plan.leftOut } : null,
-        counts: { yellow: row.yellow_open, grey: row.grey_open, coverage: row.coverage_open },
+        counts: { yellow: row.status === 'building' ? row.yellow_open : row.live_yellow, grey: row.status === 'building' ? row.grey_open : row.live_grey, coverage: row.coverage_open },
         coverageScore: row.coverage_score === null ? null : Number(row.coverage_score),
         partsDone: row.parts_done,
         errorCode: row.error_code,
@@ -219,35 +190,7 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
 
   r.get('/lectures/:id/slides', async (req, res) => {
     const id = Id.parse(req.params.id);
-    const { slides, cits } = await req.db!(async (c) => ({
-      slides: (
-        await c.query<{ id: string; position: number; part_index: number; layout: string; title: string; body: { content?: LineNode[] }; notes: { content?: LineNode[] } }>(
-          'select id, position, part_index, layout, title, body, notes from slides where lecture_id = $1 order by position',
-          [id],
-        )
-      ).rows,
-      cits: (
-        await c.query<CitationRow>(
-          `select c.id, c.slide_id, c.line_key, c.tag, c.source_label, c.check_status, c.flag_kind, c.flag_reason, c.risk,
-                  s.status::text as source_status, cs.status as case_status
-             from citations c left join sources s on s.id = c.source_id left join case_status_v cs on cs.source_id = c.source_id
-            where c.lecture_id = $1 order by c.created_at`,
-          [id],
-        )
-      ).rows,
-    }));
-    const byLine = new Map<string, CitationRow[]>();
-    for (const c of cits) byLine.set(`${c.slide_id}|${c.line_key}`, [...(byLine.get(`${c.slide_id}|${c.line_key}`) ?? []), c]);
-    const out: StudioSlide[] = slides.map((s) => ({
-      id: s.id,
-      position: s.position,
-      partIndex: s.part_index,
-      layout: s.layout,
-      title: s.title,
-      lines: (s.body.content ?? []).map((n) => lineFrom(n, byLine.get(`${s.id}|${n.attrs?.lineKey}`) ?? [])),
-      notes: (s.notes.content ?? []).map((n) => lineFrom(n, byLine.get(`${s.id}|${n.attrs?.lineKey}`) ?? [])),
-    }));
-    res.json(StudioSlides.parse({ slides: out }));
+    res.json(StudioSlides.parse({ slides: await req.db!((c) => loadStudioSlides(c, id)) }));
   });
 
   // Click-to-source (STUDIO-3): the stored span always; the paragraph or section while the library still holds it.
@@ -255,9 +198,11 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
     const id = Id.parse(req.params.id);
     const out = await req.db!(async (c) => {
       const row = (
-        await c.query<{ id: string; claim_text: string; span_text: string; source_label: string | null; chunk_id: string | null; checks: { name: string; result: string; detail: string | null }[]; title: string | null; url: string | null; source_type: string | null; source_status: string | null; case_status: string | null }>(
-          `select c.id, c.claim_text, c.span_text, c.source_label, c.chunk_id, c.checks, s.title, s.url, s.type::text source_type, s.status::text source_status, cs.status case_status
-             from citations c left join sources s on s.id = c.source_id left join case_status_v cs on cs.source_id = c.source_id where c.id = $1`,
+        await c.query<{ id: string; claim_text: string; span_text: string; source_label: string | null; chunk_id: string | null; checks: { name: string; result: string; detail: string | null }[]; title: string | null; url: string | null; source_type: string | null; source_status: string | null; case_status: string | null; court_level: string | null; bench_size: number | null; origin: string | null; para_role: string | null; kind: string | null; source_relevance: string | null }>(
+          `select c.id, c.claim_text, c.span_text, c.source_label, c.chunk_id, c.checks, s.title, s.url, s.type::text source_type, s.status::text source_status, cs.status case_status,
+                  s.court_level, s.bench_size, s.origin::text origin, k.para_role, k.kind::text kind, c.source_relevance
+             from citations c left join sources s on s.id = c.source_id left join case_status_v cs on cs.source_id = c.source_id
+             left join chunks k on k.id = c.chunk_id where c.id = $1`,
           [id],
         )
       ).rows[0];
@@ -281,6 +226,14 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
         provisional: row.source_status === 'provisional',
         caseStatus: row.case_status,
         checks: row.checks.map((k) => ({ name: k.name, result: k.result as 'pass', detail: k.detail ?? null })),
+        // Relevance was the question's (saved at build time); the authority reasons are read fresh from the source.
+        whyChosen:
+          row.source_type && row.origin
+            ? {
+                relevance: row.source_relevance === null ? null : Number(row.source_relevance),
+                reasons: standingOf({ sourceType: row.source_type, courtLevel: row.court_level, benchSize: row.bench_size, origin: row.origin, provisional: row.source_status === 'provisional', caseStatus: null, paraRole: row.para_role, kind: row.kind }).reasons,
+              }
+            : null,
       }),
     );
   });
@@ -289,15 +242,15 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
     const id = Id.parse(req.params.id);
     const { items, plan } = await req.db!(async (c) => ({
       items: (
-        await c.query<{ id: string; section_key: string; item_kind: string; item_label: string | null; state: 'covered' | 'missing' | 'left_out_by_teacher'; reason: string | null }>(
-          'select id, section_key, item_kind, item_label, state, reason from coverage_items where lecture_id = $1 order by section_key, item_label',
+        await c.query<{ id: string; section_key: string; item_kind: string; item_label: string | null; state: 'covered' | 'missing' | 'left_out_by_teacher'; reason: string | null; item_text: string | null }>(
+          'select id, section_key, item_kind, item_label, state, reason, item_text from coverage_items where lecture_id = $1 order by section_key, item_label',
           [id],
         )
       ).rows,
       plan: (await c.query<{ plan: { notFound?: { partIndex: number; question: string }[] } | null; coverage_score: string | null }>('select plan, coverage_score from lectures where id = $1', [id])).rows[0],
     }));
     if (!plan) throw new AppError('NOT_FOUND', 'We could not find that lecture.');
-    const toItem = (i: (typeof items)[number]) => ({ id: i.id, sectionKey: i.section_key, kind: i.item_kind as 'clause', label: i.item_label ?? i.section_key, state: i.state, reason: i.reason });
+    const toItem = (i: (typeof items)[number]) => ({ id: i.id, sectionKey: i.section_key, kind: i.item_kind as 'clause', label: i.item_label ?? i.section_key, state: i.state, reason: i.reason, text: i.item_text });
     const groups = new Map<string, typeof items>();
     for (const i of items.filter((x) => x.item_kind !== 'left_out')) groups.set(i.section_key, [...(groups.get(i.section_key) ?? []), i]);
     res.json(

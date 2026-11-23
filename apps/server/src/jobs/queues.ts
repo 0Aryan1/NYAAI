@@ -33,6 +33,21 @@ export interface BuildJobData {
   collegeId: string;
 }
 
+/** check.lines: the background check of lines she changed (ids only: the words stay in Postgres). */
+export interface CheckJobData {
+  lectureId: string;
+  ownerId: string;
+  collegeId: string;
+  citationIds: string[];
+}
+/** LLD §5: check queue, 3 retries, 2 minutes. A check that cannot run leaves the line yellow. */
+export const CHECK_JOB_OPTIONS: JobsOptions = {
+  attempts: 4,
+  backoff: { type: 'exponential', delay: 15_000 },
+  removeOnComplete: 500,
+  removeOnFail: 500,
+};
+
 /** learn.summary: course memory for one taught lecture (ids only). */
 export type LearnJobData = BuildJobData;
 

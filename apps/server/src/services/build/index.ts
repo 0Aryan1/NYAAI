@@ -1,9 +1,11 @@
 /**
- * `build.lecture` (LLD §5.2): load inputs → budget gate → plan (Sonnet) → parts in parallel (retrieve, write, ten
- * checks, repair, save) → finalise (coverage, counts, cost) → ready. Progress goes out as live events.
+ * `build.lecture` (LLD §5.2): load inputs → budget gate → plan (Sonnet) → research (every part searched at once,
+ * notes merged, key sections and leading cases added, gaps filled: `research.ts`) → parts in parallel (write from the
+ * notes, ten checks, repair, save) → finalise (coverage, counts, cost) → ready. Progress goes out as live events.
  *
- * Resumable instead of a BullMQ flow (decision 2026-11-20, docs/memory.md): the plan and every finished part are
- * saved as they complete (`lectures.plan`, `parts_done`), so a retried job skips them and a failed part reruns alone.
+ * Resumable instead of a BullMQ flow (decision 2026-11-20, docs/memory.md): the plan, the research notes and every
+ * finished part are saved as they complete (`lectures.plan`, `research`, `parts_done`), so a retried job skips them
+ * and a failed part reruns alone.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
 import type pg from 'pg';
@@ -21,6 +23,8 @@ import { loadUnits } from '../course/index.ts';
 import { usageSink, type UsageSink } from '../usage.ts';
 import type { Voyage } from '../voyage/index.ts';
 import { runPart, type PartContext, type PartOutput } from './part.ts';
+import { pool } from './pool.ts';
+import { researchLecture, type LectureResearch } from './research.ts';
 import { finaliseLecture, savePart, type FinalCounts } from './save.ts';
 
 export interface BuildDeps {
@@ -60,6 +64,7 @@ interface LectureRow {
   unit_id: string | null;
   plan: (LecturePlan & { notFound?: { partIndex: number; question: string }[]; partLeftOut?: Record<string, { item: string; reason: string }[]> }) | null;
   parts_done: number[];
+  research: LectureResearch | null;
   must_include_text: string | null;
   anything_special: string | null;
   filters: { jurisdiction?: string; asOn?: string };
@@ -99,24 +104,6 @@ export function teacherBlock(row: Pick<LectureRow, 'style' | 'writing_guide' | '
     .join('\n');
 }
 
-/** Runs `fn` for each item with at most `limit` at once; the first failure rejects after the others settle. */
-async function pool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
-  const queue = [...items];
-  const errors: unknown[] = [];
-  await Promise.all(
-    Array.from({ length: Math.min(limit, queue.length) }, async () => {
-      for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
-        try {
-          await fn(next);
-        } catch (err) {
-          errors.push(err);
-        }
-      }
-    }),
-  );
-  if (errors.length) throw errors[0];
-}
-
 export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<FinalCounts> {
   const who = { userId: job.ownerId, collegeId: job.collegeId, role: 'teacher' as const };
   const tenant: TenantRunner = (fn) => withTenant(deps.worker, who, fn);
@@ -130,7 +117,7 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
   const row = await tenant(async (c) => {
     const r = (
       await c.query<LectureRow>(
-        `select l.topic, l.length_min, l.level, l.style_key, l.course_id, l.unit_id, l.plan, l.parts_done,
+        `select l.topic, l.length_min, l.level, l.style_key, l.course_id, l.unit_id, l.plan, l.parts_done, l.research,
                 i.must_include_text, i.anything_special, i.filters, i.ambiguity_choice as concept_id,
                 p.style, p.writing_guide, p.teaching_language, p.monthly_budget_micro_usd::text as budget,
                 (select sum(cost_micro_usd)::text from usage u where u.owner_id = l.owner_id and u.created_at >= date_trunc('month', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata') as spent
@@ -209,11 +196,36 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
     const tagged: UsageSink = (r) => u({ ...r, lectureId: job.lectureId, traceId });
     return { voyage: deps.voyageFor(tagged), gateway: deps.gateway, usage: tagged, minScore: deps.minScore };
   };
+  // Research (kept across retries): one set of notes for the whole class, gaps filled before anyone writes.
+  await emit({ type: 'build.step', lectureId: job.lectureId, step: 'research' });
+  let research = row.research;
+  if (!research) {
+    research = await researchLecture(
+      { plan, topic: row.topic, level: row.level, filters: row.filters ?? {}, contextAct: ctx.contextAct, conceptId: row.concept_id },
+      { tenant, searchDeps, lookup: deps.lookup, gateway: deps.gateway, usage, traceId, concurrency: deps.partConcurrency ?? 3 },
+    );
+    const notes = research;
+    await tenant((c) =>
+      c.query(
+        `update lectures set research = $2,
+                plan = jsonb_set(coalesce(plan, '{}'), '{notFound}', coalesce(plan->'notFound', '[]') || $3::jsonb) where id = $1`,
+        [job.lectureId, notes, JSON.stringify(notes.notFound)],
+      ),
+    );
+  }
+  const notes = research;
+
   const todo = plan.parts.map((p, i) => ({ p, i })).filter(({ i }) => !row.parts_done.includes(i));
   await emit({ type: 'build.step', lectureId: job.lectureId, step: 'writing', partsTotal: plan.parts.length });
   const outputs: PartOutput[] = [];
   await pool(todo, deps.partConcurrency ?? 3, async ({ p, i }) => {
-    const out = await runPart(i, p, ctx, { tenant, searchDeps, lookup: deps.lookup, gateway: deps.gateway, usage, traceId });
+    const brief = {
+      sources: notes.parts[i]?.sources ?? [],
+      outcome: notes.parts[i]?.outcome ?? ('not_found' as const),
+      mustCover: notes.mustCover.filter((m) => m.partIndex === i && m.act && m.number).map((m) => ({ label: m.label, act: m.act!, number: m.number! })),
+      elsewhere: notes.elsewhere[String(i)] ?? [],
+    };
+    const out = await runPart(i, p, ctx, { tenant, gateway: deps.gateway, usage, traceId }, brief);
     await tenant(async (c) => {
       await savePart(c, job.lectureId, { ownerId: job.ownerId, collegeId: job.collegeId }, out);
       await c.query(

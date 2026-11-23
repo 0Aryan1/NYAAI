@@ -84,6 +84,33 @@ export type IngestStage = z.infer<typeof IngestStage>;
 export const ParaRole = z.enum(['facts', 'arguments', 'lower_court_summary', 'discussion', 'holding', 'unknown']);
 export type ParaRole = z.infer<typeof ParaRole>;
 
+/**
+ * A case's current status as the app shows it (HLD 5.2 a, LIB-2): the latest treatment a law expert confirmed, else
+ * not verified. The app never decides "good law" itself.
+ */
+export const CaseStatus = z.enum(['not_verified', 'good_law', 'followed', 'distinguished', 'doubted', 'overruled', 'reversed']);
+export type CaseStatus = z.infer<typeof CaseStatus>;
+
+/** POST /library/judgments/:id/status: the expert's finding, with what it rests on. */
+export const SetCaseStatus = z
+  .object({
+    status: z.enum(['good_law', 'doubted', 'overruled', 'reversed']),
+    /** What she checked: "Citator to Nov 2026; followed in X (2019), no adverse treatment." */
+    note: z.string().trim().min(10, 'Say briefly what you checked.').max(1000),
+    /** The later judgment, for doubted, overruled or reversed. */
+    byCase: z.string().trim().max(300).optional(),
+  })
+  .refine((v) => v.status === 'good_law' || (v.byCase?.length ?? 0) >= 5, { message: 'Name the later judgment.', path: ['byCase'] });
+export type SetCaseStatus = z.infer<typeof SetCaseStatus>;
+
+export const CaseStatusEntry = z.object({
+  status: CaseStatus,
+  note: z.string().nullable(),
+  byCase: z.string().nullable(),
+  confirmedBy: z.string().nullable(),
+  confirmedAt: z.string(),
+});
+
 /** GET /library/judgments */
 export const ReviewJudgmentList = z.object({
   judgments: z.array(
@@ -98,6 +125,7 @@ export const ReviewJudgmentList = z.object({
       /** Where the text in use came from: official report or court site, an upload, or Indian Kanoon. */
       origin: z.string(),
       scanned: z.boolean(),
+      caseStatus: CaseStatus,
     }),
   ),
 });
@@ -118,6 +146,9 @@ export const ReviewJudgment = z.object({
   expiresAt: z.string().nullable(),
   /** Every copy held: the official report's, uploads, and how far each agrees with the text in use. */
   copies: z.array(z.object({ origin: z.string(), url: z.string().nullable(), citation: z.string().nullable(), scanned: z.boolean(), agreement: z.number().nullable(), inUse: z.boolean() })),
+  caseStatus: CaseStatus,
+  /** Every confirmed status, newest first. */
+  statusHistory: z.array(CaseStatusEntry),
   paragraphs: z.array(
     z.object({
       chunkId: z.uuid(),

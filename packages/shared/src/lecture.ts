@@ -75,6 +75,14 @@ export const SupportVerdicts = z.object({
 export const SecondVerdicts = z.object({
   verdicts: z.array(z.object({ id: z.string(), reason: z.string().max(400), verdict: SupportVerdict, correctedClaim: z.string().max(400).nullable() })),
 });
+/**
+ * research.gaps: what the research for a lecture still misses, as library search questions (at most 5; empty when
+ * the research is enough). The reason comes first so the question follows from it.
+ */
+export const GapQuestions = z.object({
+  questions: z.array(z.object({ why: z.string().max(300), part: z.number().int().min(1).max(8), question: z.string().min(5).max(300) })).max(5),
+});
+export type GapQuestions = z.infer<typeof GapQuestions>;
 /** checker.unsourced: does a line with no source state law? */
 export const UnsourcedVerdicts = z.object({
   verdicts: z.array(z.object({ id: z.string(), reason: z.string().max(400), statesLaw: z.boolean() })),
@@ -150,6 +158,8 @@ export const SlideLine = z.object({
   /** e.g. { tag: 'S3', label: 's. 56 ICA' } */
   sources: z.array(z.object({ tag: z.string(), citationId: z.uuid(), label: z.string(), provisional: z.boolean(), caseStatus: z.string().nullable() })),
   risk: z.enum(['normal', 'high']),
+  /** She changed or added this line in the Studio ("edited by you"). */
+  edited: z.boolean().default(false),
 });
 export type SlideLine = z.infer<typeof SlideLine>;
 
@@ -159,6 +169,8 @@ export const StudioSlide = z.object({
   partIndex: z.number().int(),
   layout: z.string(),
   title: z.string(),
+  /** For If-Match on saves (LLD §4: a stale version gets 409 with the newer copy). */
+  version: z.number().int().default(1),
   lines: z.array(SlideLine),
   notes: z.array(SlideLine),
 });
@@ -181,6 +193,8 @@ export const CitationSource = z.object({
   provisional: z.boolean(),
   caseStatus: z.string().nullable(),
   checks: z.array(z.object({ name: z.string(), result: z.enum(['pass', 'fail', 'grey', 'skipped']), detail: z.string().nullable() })),
+  /** Why this source was chosen: its relevance to the question (0–1) and the plain-words authority reasons. */
+  whyChosen: z.object({ relevance: z.number().nullable(), reasons: z.array(z.string()) }).nullable(),
 });
 export type CitationSource = z.infer<typeof CitationSource>;
 
@@ -192,6 +206,8 @@ export const CoverageItem = z.object({
   label: z.string(),
   state: z.enum(['covered', 'missing', 'left_out_by_teacher']),
   reason: z.string().nullable(),
+  /** The Act's own words for a missing proviso, exception, explanation or clause, so she sees exactly what is left out. */
+  text: z.string().nullable(),
 });
 export const CoverageResponse = z.object({
   score: z.number().nullable(),
@@ -209,3 +225,53 @@ export type CoverageResponse = z.infer<typeof CoverageResponse>;
 export const WriterReply = z.object({ written: WrittenPart.nullable(), repairs: Repairs.shape.repairs.nullable() });
 export const WriterReplyWrite = WriterReply.refine((r) => r.written !== null, 'written is required');
 export const WriterReplyRepair = WriterReply.refine((r) => r.repairs !== null, 'repairs is required');
+
+/* ---------------------------------------------------------------------------------------------------------------
+ * Studio editing (F7; STUDIO-2, -4, -6, -7; LLD §8.6). Saves send the slide's version (If-Match).
+ * ------------------------------------------------------------------------------------------------------------- */
+
+export const EditLine = z.object({
+  /** null for a line she added. */
+  lineKey: z.string().max(40).nullable(),
+  text: z.string().trim().min(1).max(600),
+  kind: LineKind,
+  yourExample: z.boolean().optional(),
+});
+export type EditLine = z.infer<typeof EditLine>;
+
+/** PATCH /slides/:id: the slide as she left it, lines in order. */
+export const EditSlide = z.object({
+  version: z.number().int(),
+  title: z.string().trim().min(1).max(120),
+  lines: z.array(EditLine).max(12),
+  notes: z.array(EditLine).max(10),
+});
+export type EditSlide = z.infer<typeof EditSlide>;
+
+/** Every write to a slide answers with the slide as the Studio shows it, and how many lines are being checked. */
+export const SlideWriteResponse = z.object({ slide: StudioSlide, checking: z.number().int() });
+export type SlideWriteResponse = z.infer<typeof SlideWriteResponse>;
+
+/** POST /slides/:id/verify: she has checked this line herself (STUDIO-4). */
+export const VerifyLine = z.object({ lineKey: z.string().max(40) });
+
+/** POST /slides/:id/examples: her own example on this slide (STUDIO-6); optionally kept in her example bank. */
+export const AddExample = z.object({ text: z.string().trim().min(3).max(600), save: z.boolean().default(false) });
+
+/** POST /slides/:id/restore (STUDIO-7). */
+export const RestoreSlide = z.object({ version: z.number().int().min(1) });
+
+/** GET /slides/:id/versions */
+export const SlideVersions = z.object({
+  versions: z.array(z.object({ version: z.number().int(), reason: z.string(), createdAt: z.string() })),
+});
+
+/**
+ * POST /lectures/:id/download (PPT-1 to PPT-4). With open points she must say she has seen them; or she removes every
+ * unverified line first (saved as a new version of each slide).
+ */
+export const DownloadRequest = z.object({
+  mode: z.enum(['with_flags', 'remove_unverified']),
+  acknowledgeOpen: z.boolean().default(false),
+});
+export type DownloadRequest = z.infer<typeof DownloadRequest>;

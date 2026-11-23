@@ -1,15 +1,15 @@
 /**
- * One lecture part (LLD §5.2 step 3, §8): retrieve → write closed-book → ten checks → one repair round → checks
- * again. Returns the checked slides; saving is the caller's (one transaction per part).
+ * One lecture part (LLD §5.2 step 3, §8): write closed-book from the part's research notes → ten checks → one repair
+ * round → checks again. Returns the checked slides; saving is the caller's (one transaction per part). The notes come
+ * from the research stage (`research.ts`), which searched every part at once and filled the gaps before writing.
  */
 import { randomBytes } from 'node:crypto';
-import type pg from 'pg';
 import { REPAIRABLE, looksLegal, type CheckSource, type ClaimInput, type MappingRow } from '@nyaai/checker-rules';
 import { PROMPTS, fence } from '@nyaai/prompts';
 import { UnsourcedVerdicts, WriterReplyRepair, WriterReplyWrite, type LecturePlan, type WrittenLine } from '@nyaai/shared';
 import type { Gateway } from '../llm-gateway/index.ts';
-import { searchWithLookup, type GapLookup, type TenantRunner } from '../lookup/index.ts';
-import { loadPieces, sourceDetails, type RetrievedSource, type SearchDeps } from '../search/index.ts';
+import type { TenantRunner } from '../lookup/index.ts';
+import { loadPieces, sourceDetails, type RetrievedSource } from '../search/index.ts';
 import type { UsageSink } from '../usage.ts';
 import { checkClaims, sourcesBlock, type CheckedClaim } from './checking.ts';
 
@@ -38,6 +38,8 @@ export interface PartOutput {
   leftOut: { item: string; reason: string }[];
   /** Label per tag, for the source chips ("s. 56 ICA", "Satyabrata Ghose ¶12"). */
   labels: Map<string, string>;
+  /** Relevance per tag (the reranker's score), saved with each citation: part of why the source was chosen. */
+  relevance: Map<string, number | null>;
   searchOutcome: 'ok' | 'thin' | 'not_found';
 }
 
@@ -58,8 +60,6 @@ export interface PartContext {
 
 export interface PartDeps {
   tenant: TenantRunner;
-  searchDeps: (c: pg.PoolClient) => SearchDeps;
-  lookup: GapLookup | null;
   gateway: Gateway;
   usage: UsageSink;
   traceId?: string;
@@ -83,18 +83,23 @@ export function sourceLabel(s: RetrievedSource, title: string | null): string {
   return s.meta.paraNo ? `${name} ¶${s.meta.paraNo}` : name;
 }
 
-function partQuery(topic: string, part: LecturePlan['parts'][number]): string {
+export function partQuery(topic: string, part: LecturePlan['parts'][number]): string {
   return `${topic}: ${part.title}. ${part.questions.join(' ')}`.slice(0, 500);
 }
 
-export async function runPart(partIndex: number, part: LecturePlan['parts'][number], ctx: PartContext, deps: PartDeps): Promise<PartOutput> {
-  // 1. Retrieve (with the gap lookup when the library is thin).
-  const found = await searchWithLookup(
-    deps.tenant,
-    { query: partQuery(ctx.topic, part), purpose: 'lecture_part', filters: { jurisdiction: ctx.filters.jurisdiction ? [ctx.filters.jurisdiction] : undefined, asOn: ctx.filters.asOn }, maxSources: 6, contextAct: ctx.contextAct },
-    deps.searchDeps,
-    deps.lookup,
-  );
+/** What the research stage hands one part's writer. */
+export interface PartBrief {
+  sources: RetrievedSource[];
+  outcome: 'ok' | 'thin' | 'not_found';
+  /** Provisos, exceptions and explanations this part must teach, with the section they sit in. */
+  mustCover: { label: string; act: string; number: string }[];
+  /** Cases another part teaches in full: mention them here only briefly. */
+  elsewhere: string[];
+}
+
+export async function runPart(partIndex: number, part: LecturePlan['parts'][number], ctx: PartContext, deps: PartDeps, brief: PartBrief): Promise<PartOutput> {
+  // 1. The part's research notes, tagged S1…S8 for this writer.
+  const found = { outcome: brief.outcome, sources: brief.sources.slice(0, 8).map((s, i) => ({ ...s, tag: `S${i + 1}` })) };
   // A recap or bridge the library has nothing for is still written, from the outline and course memory alone: its
   // lines are questions and teaching lines, and any legal statement in them is flagged like any other.
   const framing = part.kind === 'recap' || part.kind === 'bridge';
@@ -112,6 +117,7 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
       notFound: part.questions,
       leftOut: [],
       labels: new Map(),
+      relevance: new Map(),
       searchOutcome: 'not_found',
     };
   }
@@ -123,6 +129,7 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
   }));
   const sources = new Map<string, CheckSource>();
   const labels = new Map<string, string>();
+  const relevance = new Map<string, number | null>();
   for (const s of found.sources) {
     const d = details.get(s.sourceId);
     const mine = pieces.filter((p) => s.coveredChunkIds.includes(p.chunkId));
@@ -143,6 +150,7 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
       holdingNote: d?.holdingNote ?? null,
     });
     labels.set(s.tag, sourceLabel(s, d?.title ?? null));
+    relevance.set(s.tag, s.standing?.relevance ?? s.rerankScore);
   }
 
   // 3. Write, closed-book. Teacher block and sources block are the cacheable prefix (LLD §17.1).
@@ -155,6 +163,8 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
     ctx.outline ? `OUTLINE (the whole class):\n${ctx.outline}` : '',
     `PART ${partIndex + 1}: ${part.title} (${part.minutes} minutes, kind ${part.kind})${partIndex === 0 ? ', the first part' : ''}`,
     `QUESTIONS THIS PART MUST ANSWER:\n${part.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`,
+    mustCoverLines(brief.mustCover, found.sources),
+    brief.elsewhere.length ? `CASES TAUGHT IN FULL IN ANOTHER PART (mention them here only briefly, without retelling the facts):\n${brief.elsewhere.map((e) => `- ${e}`).join('\n')}` : '',
     part.mustInclude && ctx.mustIncludeText ? fence('teacher example to use in this part', ctx.mustIncludeText, boundary) : '',
     ctx.courseMemory ?? '',
     `Fill "written" (partIndex ${partIndex}) and set "repairs" to null. Tags available: ${sources.size ? [...sources.keys()].join(', ') : 'none (the library holds nothing for this part: write questions and teaching lines only)'}.`,
@@ -221,7 +231,18 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
     }
   }
 
-  return { partIndex, slides: slides.filter((s) => s.lines.length || s.notes.length), notFound: written.notFound, leftOut: written.leftOut, labels, searchOutcome: found.outcome };
+  return { partIndex, slides: slides.filter((s) => s.lines.length || s.notes.length), notFound: written.notFound, leftOut: written.leftOut, labels, relevance, searchOutcome: found.outcome };
+}
+
+/** "MUST COVER" for the writer: each item with the tag of the source that holds its section. */
+function mustCoverLines(items: PartBrief['mustCover'], sources: RetrievedSource[]): string {
+  const lines = items.flatMap((m) => {
+    const s = sources.find((x) => x.meta.act === m.act && (x.meta.section ?? x.meta.article) === m.number);
+    return s ? [`- ${m.label} (in ${s.tag})`] : [];
+  });
+  return lines.length
+    ? `MUST COVER IN THIS PART (provisos, exceptions and explanations of the sections in SOURCES; teach each one in plain words as a claim citing its source, or put it in leftOut with the reason):\n${lines.join('\n')}`
+    : '';
 }
 
 function toLine(lineKey: string, text: string, kind: WrittenLine['kind'], claims: ClaimInput[], ctx: PartContext, mustIncludePart: boolean): BuiltLine & { raw: ClaimInput[] } {

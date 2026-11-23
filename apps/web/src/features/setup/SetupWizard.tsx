@@ -38,7 +38,22 @@ export function SetupWizard() {
   if (!me.data) return null;
   return (
     <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-      <p className="mb-1 text-sm text-muted">Setting up NYAAI · about 5 minutes</p>
+      <div className="mb-1 flex items-center justify-between gap-3 text-sm text-muted">
+        <p>
+          Setting up NYAAI · about 5 minutes · signed in as {me.data.user.email}
+        </p>
+        <button
+          type="button"
+          className="shrink-0 rounded-control px-2 py-1 hover:bg-surface hover:text-text"
+          onClick={async () => {
+            await api.logout();
+            queryClient.clear();
+            void navigate('/login');
+          }}
+        >
+          Sign out
+        </button>
+      </div>
       <ol aria-label="Setup steps" className="mb-8 grid grid-cols-6 gap-1.5">
         {SETUP_STEPS.map((s, i) => (
           <li key={s} aria-current={i === index ? 'step' : undefined}>

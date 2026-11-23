@@ -1,7 +1,10 @@
-import { useState } from 'react';
-import { AlertTriangle, CircleHelp, User } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Check, CircleHelp, Pencil, Trash2, User } from 'lucide-react';
 import type { SlideLine } from '@nyaai/shared';
 import { cn } from '@/shared/lib/utils';
+
+/** The background check of an edited line is still running (server: services/edit CHANGED). */
+export const CHECKING = 'Changed by you: being checked against the source';
 
 interface ClaimLineProps {
   line: SlideLine;
@@ -11,26 +14,93 @@ interface ClaimLineProps {
   /** Check view: every source as a labelled chip, the grey status as a pill. */
   showChecks: boolean;
   onOpenSource: (citationId: string) => void;
+  /** Editing (STUDIO-2, -4): present when she may change the lecture. */
+  onEdit?: (text: string) => void;
+  onRemove?: () => void;
+  onVerify?: () => void;
+}
+
+/** A textarea that grows with its text, saved on Enter or when she leaves it; Escape puts the words back. */
+function LineEditor({ initial, onDone }: { initial: string; onDone: (text: string | null) => void }) {
+  const [text, setText] = useState(initial);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, []);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    }
+  }, [text]);
+  const finish = () => onDone(text.trim() === initial.trim() ? null : text.trim());
+  return (
+    <textarea
+      ref={ref}
+      value={text}
+      rows={1}
+      aria-label="Edit this line"
+      onChange={(e) => setText(e.target.value)}
+      onBlur={finish}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          finish();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          onDone(null);
+        }
+      }}
+      className="block w-full resize-none rounded-control border border-accent bg-bg px-2 py-1 leading-relaxed outline-none"
+    />
+  );
 }
 
 /**
  * One slide line (LLD §12.4). Slide view reads like a slide: plain text with small footnote numbers that open the
  * source. A yellow line always keeps its underline, margin dot and a labelled "verify" control, whatever the view:
- * an open point is never hidden. Colour is never the only signal (icon + text label everywhere).
+ * an open point is never hidden. Colour is never the only signal (icon + text label everywhere). Click the words to
+ * change them; the line is checked again (LLD §8.6).
  */
-export function ClaimLine({ line, active, numbers, showChecks, onOpenSource }: ClaimLineProps) {
+export function ClaimLine({ line, active, numbers, showChecks, onOpenSource, onEdit, onRemove, onVerify }: ClaimLineProps) {
   const [open, setOpen] = useState(false);
-  const yellow = line.flag === 'yellow';
+  const [editing, setEditing] = useState(false);
+  const checking = line.flagReason === CHECKING;
+  const yellow = line.flag === 'yellow' && !checking;
   const grey = line.flag === 'grey';
   const footnotes = [...new Map(line.sources.map((s) => [numbers.get(s.citationId) ?? 0, s])).entries()].sort((a, b) => a[0] - b[0]);
 
   return (
-    <li id={`line-${line.lineKey}`} className={cn('relative rounded-control px-2 py-1', active && 'ring-2 ring-accent')}>
-      {yellow && <span className="absolute -left-3 top-3 size-2 rounded-full bg-flag-yellow" aria-hidden />}
-      <span className={cn('leading-relaxed', yellow && 'underline decoration-flag-yellow-underline decoration-2 underline-offset-4', line.kind === 'question' && 'italic')}>
-        {line.text}
-      </span>
-      {!showChecks &&
+    <li id={`line-${line.lineKey}`} className={cn('group relative -mx-2 rounded-control px-2 py-1', active && 'ring-2 ring-accent', onEdit && !editing && 'hover:bg-bg/70')}>
+      {(yellow || checking) && <span className={cn('absolute -left-3 top-3 size-2 rounded-full', checking ? 'animate-pulse bg-muted' : 'bg-flag-yellow')} aria-hidden />}
+      {editing && onEdit ? (
+        <LineEditor
+          initial={line.text}
+          onDone={(t) => {
+            setEditing(false);
+            if (t === '') onRemove?.();
+            else if (t !== null) onEdit(t);
+          }}
+        />
+      ) : (
+        <span
+          className={cn(
+            'leading-relaxed',
+            yellow && 'underline decoration-flag-yellow-underline decoration-2 underline-offset-4',
+            line.kind === 'question' && 'italic',
+            onEdit && 'cursor-text',
+          )}
+          onClick={onEdit ? () => setEditing(true) : undefined}
+        >
+          {line.text}
+        </span>
+      )}
+      {!editing &&
+        !showChecks &&
         footnotes.map(([n, s]) => (
           <button
             key={s.citationId}
@@ -43,18 +113,25 @@ export function ClaimLine({ line, active, numbers, showChecks, onOpenSource }: C
             {n}
           </button>
         ))}
-      {line.status === 'your_example' && (
+      {!editing && line.status === 'your_example' && (
         <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-example-bg px-2 py-0.5 align-middle text-xs text-example">
           <User className="size-3" aria-hidden />
           Your example
         </span>
       )}
-      {yellow && (
+      {!editing && line.status === 'verified_by_you' && (
+        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 align-middle text-xs text-success">
+          <Check className="size-3" aria-hidden />
+          Verified by you
+        </span>
+      )}
+      {!editing && checking && <span className="ml-2 align-middle text-xs not-italic text-muted">Checking…</span>}
+      {!editing && yellow && (
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          className="ml-2 inline-flex items-center gap-1 rounded-full bg-flag-yellow-bg px-1.5 py-0.5 align-middle text-xs text-flag-yellow"
+          className="ml-2 inline-flex items-center gap-1 rounded-full bg-flag-yellow-bg px-1.5 py-0.5 align-middle text-xs not-italic text-flag-yellow"
           title="Please verify"
         >
           <AlertTriangle className="size-3" aria-hidden />
@@ -62,8 +139,22 @@ export function ClaimLine({ line, active, numbers, showChecks, onOpenSource }: C
         </button>
       )}
 
-      {showChecks && (line.sources.length > 0 || grey) && (
-        <div className="mt-1 flex flex-wrap gap-1.5">
+      {/* Line actions: shown on hover or keyboard focus, never covering the words. */}
+      {onEdit && !editing && (
+        <span className="absolute -right-2 top-0.5 hidden translate-x-full items-center gap-0.5 pl-1 group-focus-within:flex group-hover:flex">
+          <button type="button" onClick={() => setEditing(true)} className="rounded-control p-1 text-muted hover:bg-bg hover:text-text" aria-label="Edit this line" title="Edit">
+            <Pencil className="size-3.5" aria-hidden />
+          </button>
+          {onRemove && (
+            <button type="button" onClick={onRemove} className="rounded-control p-1 text-muted hover:bg-bg hover:text-danger" aria-label="Remove this line" title="Remove">
+              <Trash2 className="size-3.5" aria-hidden />
+            </button>
+          )}
+        </span>
+      )}
+
+      {!editing && showChecks && (line.sources.length > 0 || grey || line.edited) && (
+        <div className="mt-1 flex flex-wrap gap-1.5 text-[0.8rem] not-italic">
           {line.sources.map((s) => (
             <button
               key={s.citationId}
@@ -80,19 +171,50 @@ export function ClaimLine({ line, active, numbers, showChecks, onOpenSource }: C
               Status not verified
             </span>
           )}
+          {line.edited && <span className="rounded-full px-2 py-0.5 text-xs text-muted">Edited by you</span>}
         </div>
       )}
 
-      {yellow && open && (
-        <div role="note" className="mt-2 rounded-card border border-border bg-surface p-3 text-sm not-italic">
-          <p className="mb-1 font-medium">Not confirmed by NYAAI</p>
+      {!editing && yellow && open && (
+        <div role="note" className="mt-2 rounded-card border border-border bg-surface p-3 text-sm not-italic shadow-popover">
+          <p className="mb-1 font-medium">Please verify this line</p>
           <p className="text-muted">{line.flagReason ?? 'Please verify this line before teaching it.'}</p>
-          {line.sources[0] && (
-            <button type="button" className="mt-2 text-sm text-accent underline" onClick={() => onOpenSource(line.sources[0]!.citationId)}>
-              Open the source
-            </button>
-          )}
-          <p className="mt-2 text-xs text-muted">Edit, Mark verified and Remove arrive with slide editing.</p>
+          <div className="mt-3 flex flex-wrap gap-3 text-sm">
+            {line.sources[0] && (
+              <button type="button" className="text-accent hover:underline" onClick={() => onOpenSource(line.sources[0]!.citationId)}>
+                Open the source
+              </button>
+            )}
+            {onVerify && (
+              <button
+                type="button"
+                className="text-accent hover:underline"
+                onClick={() => {
+                  setOpen(false);
+                  onVerify();
+                }}
+              >
+                I have checked it: mark verified
+              </button>
+            )}
+            {onEdit && (
+              <button
+                type="button"
+                className="text-accent hover:underline"
+                onClick={() => {
+                  setOpen(false);
+                  setEditing(true);
+                }}
+              >
+                Edit
+              </button>
+            )}
+            {onRemove && (
+              <button type="button" className="text-danger hover:underline" onClick={onRemove}>
+                Remove
+              </button>
+            )}
+          </div>
         </div>
       )}
     </li>

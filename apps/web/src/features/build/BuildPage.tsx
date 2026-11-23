@@ -8,10 +8,11 @@ import { useEventStream } from '@/shared/hooks/useEventStream';
 import { Button } from '@/shared/ui/button';
 import { cn } from '@/shared/lib/utils';
 
-/** The four real steps (BUILD-1, LLD §12.3): no fake progress bar, only what the build reports. */
+/** The real steps (BUILD-1, LLD §12.3): no fake progress bar, only what the build reports. */
 export const BUILD_STEPS = [
-  { key: 'sources', label: 'Finding sources' },
+  { key: 'sources', label: 'Reading the topic' },
   { key: 'planning', label: 'Planning the lecture' },
+  { key: 'research', label: 'Researching: sources for every part, then the gaps' },
   { key: 'writing', label: 'Writing slides' },
   { key: 'checking', label: 'Checking every statement' },
 ] as const;

@@ -18,6 +18,7 @@ const line = (over: Partial<SlideLine>): SlideLine => ({
   flagReason: null,
   sources: [{ tag: 'S1', citationId: C, label: 's. 56 ICA', provisional: false, caseStatus: null }],
   risk: 'normal',
+  edited: false,
   ...over,
 });
 
@@ -58,7 +59,7 @@ describe('Source drawer highlight', () => {
 
 describe('next point to verify (N)', () => {
   it('lists yellow lines and notes in slide order', () => {
-    const slide = (lines: SlideLine[], notes: SlideLine[] = []): StudioSlide => ({ id: C, position: 0, partIndex: 0, layout: 'bullets', title: 't', lines, notes });
+    const slide = (lines: SlideLine[], notes: SlideLine[] = []): StudioSlide => ({ id: C, position: 0, partIndex: 0, layout: 'bullets', title: 't', version: 1, lines, notes });
     const pts = openPoints([
       slide([line({ lineKey: 'a' }), line({ lineKey: 'b', flag: 'yellow', status: 'open' })]),
       slide([line({ lineKey: 'c', flag: 'grey' })], [line({ lineKey: 'n', flag: 'yellow', status: 'open' })]),
@@ -84,12 +85,42 @@ describe('slide view (footnotes) vs check view', () => {
   it('numbers each source once per slide, in reading order', () => {
     const s = (cid: string, label: string) => ({ tag: 'S1', citationId: cid, label, provisional: false, caseStatus: null });
     const slide: StudioSlide = {
-      id: C, position: 0, partIndex: 0, layout: 'bullets', title: 't',
+      id: C, position: 0, partIndex: 0, layout: 'bullets', title: 't', version: 1,
       lines: [line({ sources: [s('a', 's. 56 ICA')] }), line({ lineKey: 'k2', sources: [s('b', 'Satyabrata Ghose ¶9'), s('c', 's. 56 ICA')] })],
       notes: [],
     };
     const { byCitation, notes } = footnoteNumbers(slide);
     expect(notes.map((n) => `${n.n} ${n.label}`)).toEqual(['1 s. 56 ICA', '2 Satyabrata Ghose ¶9']);
     expect(byCitation.get('c')).toBe(1);
+  });
+});
+
+describe('editing a line (STUDIO-2, -4)', () => {
+  it('saves new words on Enter, and puts the old ones back on Escape', () => {
+    const edit = vi.fn();
+    render(<ul><ClaimLine line={line({})} active={false} numbers={new Map([[C, 1]])} showChecks={false} onOpenSource={() => {}} onEdit={edit} /></ul>);
+    fireEvent.click(screen.getByText('An agreement to do an impossible act is void.'));
+    const box = screen.getByRole('textbox', { name: 'Edit this line' });
+    fireEvent.change(box, { target: { value: 'An agreement to do an impossible act is void (s. 56).' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    expect(edit).toHaveBeenCalledWith('An agreement to do an impossible act is void (s. 56).');
+    fireEvent.click(screen.getByText('An agreement to do an impossible act is void.'));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Edit this line' }), { target: { value: 'something else' } });
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Edit this line' }), { key: 'Escape' });
+    expect(edit).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets her mark a yellow line verified from its note, and shows a changed line as being checked', () => {
+    const verify = vi.fn();
+    render(
+      <ul>
+        <ClaimLine line={line({ status: 'open', flag: 'yellow', flagReason: 'These words are not in the source' })} active={false} numbers={new Map([[C, 1]])} showChecks={false} onOpenSource={() => {}} onEdit={() => {}} onVerify={verify} />
+        <ClaimLine line={line({ lineKey: 'k2', status: 'open', flag: 'yellow', flagReason: 'Changed by you: being checked against the source', edited: true })} active={false} numbers={new Map([[C, 1]])} showChecks={false} onOpenSource={() => {}} />
+      </ul>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Please verify/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'I have checked it: mark verified' }));
+    expect(verify).toHaveBeenCalled();
+    expect(screen.getByText('Checking…')).toBeTruthy();
   });
 });

@@ -19,7 +19,12 @@ import {
   CourseDetail,
   CourseList,
   MarkTaughtResponse,
+  SlideVersions,
+  SlideWriteResponse,
+  type EditSlide,
+  type DownloadRequest,
   type CreateCourse,
+  type SetCaseStatus,
   type UpdateUnits,
   type ParaRole,
   type UploadJudgmentQuery,
@@ -64,6 +69,22 @@ async function call<T>(
     throw new ApiRequestError(res.status, err.success ? err.data : null);
   }
   return parse ? parse(data) : (data as T);
+}
+
+/** POST /lectures/:id/download: the .pptx as a file to save, named by the server (PPT-3). */
+async function downloadDeck(lectureId: string, body: DownloadRequest): Promise<{ blob: Blob; fileName: string; removed: number }> {
+  const res = await fetch(`/api/v1/lectures/${lectureId}/download`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken() },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = ApiError.safeParse(await res.json().catch(() => null));
+    throw new ApiRequestError(res.status, err.success ? err.data : null);
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'lecture.pptx';
+  return { blob: await res.blob(), fileName: name, removed: Number(res.headers.get('x-removed-lines') ?? 0) };
 }
 
 /** Upload a judgment PDF as the request body; its details travel in the query string (POST /library/uploads/judgment). */
@@ -122,6 +143,7 @@ export const api = {
   setParagraphRole: (chunkId: string, role: ParaRole) => call<void>('PATCH', `/library/paragraphs/${chunkId}`, { body: { role } }),
   rolesChecked: (id: string) => call<void>('POST', `/library/judgments/${id}/roles-checked`),
   approveJudgment: (id: string) => call<void>('POST', `/library/judgments/${id}/approve`),
+  setCaseStatus: (id: string, body: SetCaseStatus) => call<void>('POST', `/library/judgments/${id}/status`, { body }),
   uploadJudgment: uploadPdf,
   uploadStatus: (jobId: string) => call('GET', `/library/uploads/${encodeURIComponent(jobId)}`, { parse: (v) => UploadJudgmentStatus.parse(v) }),
   courses: () => call('GET', '/courses', { parse: (v) => CourseList.parse(v) }),
@@ -130,6 +152,12 @@ export const api = {
   updateUnits: (id: string, body: UpdateUnits) => call('PATCH', `/courses/${id}/units`, { body, parse: (v) => CourseDetail.parse(v) }),
   markTaught: (lectureId: string, taughtOn: string) => call('POST', `/lectures/${lectureId}/taught`, { body: { taughtOn }, parse: (v) => MarkTaughtResponse.parse(v) }),
   undoTaught: (lectureId: string) => call<void>('DELETE', `/lectures/${lectureId}/taught`),
+  downloadDeck,
+  saveSlide: (id: string, body: EditSlide) => call('PATCH', `/slides/${id}`, { body, parse: (v) => SlideWriteResponse.parse(v) }),
+  verifyLine: (id: string, lineKey: string) => call('POST', `/slides/${id}/verify`, { body: { lineKey }, parse: (v) => SlideWriteResponse.parse(v) }),
+  addExample: (id: string, text: string, save: boolean) => call('POST', `/slides/${id}/examples`, { body: { text, save }, parse: (v) => SlideWriteResponse.parse(v) }),
+  slideVersions: (id: string) => call('GET', `/slides/${id}/versions`, { parse: (v) => SlideVersions.parse(v) }),
+  restoreSlide: (id: string, version: number) => call('POST', `/slides/${id}/restore`, { body: { version }, parse: (v) => SlideWriteResponse.parse(v) }),
 };
 
 export const queryKeys = {

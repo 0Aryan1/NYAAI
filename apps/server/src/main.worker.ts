@@ -10,6 +10,7 @@ import { gatewayFrom, indiaCodeFrom, kanoonFrom, storageFrom, voyageFrom, webSea
 import { usageSink } from './services/usage.ts';
 import { buildProcessor } from './jobs/build.ts';
 import { learnProcessor } from './jobs/learn.ts';
+import { checkProcessor } from './jobs/check.ts';
 import { createGapLookup } from './services/lookup/index.ts';
 
 const config = { ...loadConfig(), APP_ROLE: 'worker' as const };
@@ -62,6 +63,7 @@ const workers = [
           { connection: createRedis(config.REDIS_URL), concurrency: 3, lockDuration: 120_000 },
         ),
         new Worker('learn', learnProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), concurrency: 2 }),
+        new Worker('check', checkProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), concurrency: 8 }),
       ]
     : []),
   new Worker('ops', opsProcessor(logger), { connection: createRedis(config.REDIS_URL), concurrency: 1 }),

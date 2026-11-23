@@ -19,8 +19,10 @@
     "@anthropic-ai/sdk": "^1.10.0",
     "@aws-sdk/client-s3": "^3.1171.0",
     "@mozilla/readability": "^0.6.0",
+    "@nyaai/checker-rules": "workspace:*",
     "@nyaai/db": "workspace:*",
     "@nyaai/legal": "workspace:*",
+    "@nyaai/prompts": "workspace:*",
     "@nyaai/shared": "workspace:*",
     "bullmq": "^6.0.0",
     "cookie-parser": "^1.4.7",
@@ -34,12 +36,11 @@
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
+    "pptxgenjs": "4.0.1",
     "rate-limiter-flexible": "^11.5.0",
     "tsx": "^4.23.15",
     "unpdf": "^1.9.1",
-    "zod": "^4.6.7",
-    "@nyaai/prompts": "workspace:*",
-    "@nyaai/checker-rules": "workspace:*"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

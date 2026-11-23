@@ -26,7 +26,7 @@ export const LibrarySearchRequest = z.object({
 
 /** Live events (LLD §4.4), one stream per tab. */
 export const LiveEvent = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('build.step'), lectureId: z.uuid(), step: z.enum(['sources', 'planning', 'writing', 'checking', 'saving']), part: z.number().int().optional(), partsTotal: z.number().int().optional() }),
+  z.object({ type: z.literal('build.step'), lectureId: z.uuid(), step: z.enum(['sources', 'planning', 'research', 'writing', 'checking', 'saving']), part: z.number().int().optional(), partsTotal: z.number().int().optional() }),
   z.object({ type: z.literal('build.outline'), lectureId: z.uuid() }),
   z.object({ type: z.literal('build.part_ready'), lectureId: z.uuid(), partIndex: z.number().int() }),
   z.object({ type: z.literal('build.done'), lectureId: z.uuid() }),

@@ -24,6 +24,8 @@ import type { PromptId } from '@nyaai/prompts';
 import { createApp } from '../../src/app.ts';
 import { parseConfig } from '../../src/config.ts';
 import { buildLecture } from '../../src/services/build/index.ts';
+import { checkEditedLines } from '../../src/services/edit/index.ts';
+import { withTenant } from '@nyaai/db';
 import type { Gateway, GatewayRequest } from '../../src/services/llm-gateway/index.ts';
 import { EMBED_DIMS, toVector, type Voyage } from '../../src/services/voyage/index.ts';
 
@@ -74,6 +76,8 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
   const act = `Zebra ${w} Act`;
   const calls: PromptId[] = [];
   const secondChecked: string[] = [];
+  const writerTasks: string[] = [];
+  const gapTasks: string[] = [];
   let lectureId = '';
 
   const S = {
@@ -98,7 +102,13 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
             leftOut: [{ item: 'Grazing tolls', reason: 'Outside this class' }],
           };
           break;
+        case 'research.gaps':
+          // Round 1 asks one question the library cannot answer; nothing new turns up, so there is no round 2.
+          gapTasks.push(req.task);
+          data = { questions: gapTasks.length === 1 ? [{ why: 'Part 2 found nothing.', part: 2, question: 'What holds quarks together inside a neutron star?' }] : [] };
+          break;
         case 'writer.part':
+          writerTasks.push(req.task);
           data = {
             partIndex: 0,
             slides: [
@@ -187,7 +197,7 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
     await owner.query('delete from sources where id = $1', [sourceId]);
     await owner.query('delete from review_queue where college_id = $1', [college]);
     await owner.query('delete from library_gaps where college_id = $1', [college]);
-    for (const t of ['usage', 'teacher_profiles', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
+    for (const t of ['usage', 'edit_events', 'examples', 'teacher_profiles', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
     await owner.query('delete from colleges where id = $1', [college]);
     await redis.del('rl_signin:::ffff:127.0.0.1', 'rl_signin:127.0.0.1', 'rl_signin:::1');
     await Promise.all([owner.end(), app.end(), worker.end(), redis.quit()]);
@@ -221,6 +231,14 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
   it('builds: catches every planted error, repairs once, and saves slides, citations and coverage', async () => {
     const counts = await buildLecture(queued[0]!.data, { worker, gateway: fakeGateway, voyageFor: () => fakeVoyage, lookup: null, publisher: null, minScore: 0.5 });
     expect(calls.filter((c) => c === 'writer.part')).toHaveLength(1); // part 2 had no sources: nothing written
+    // Research ran before writing: one gap round (nothing new found, so no second round).
+    expect(calls.indexOf('research.gaps')).toBeLessThan(calls.indexOf('writer.part'));
+    expect(calls.filter((c) => c === 'research.gaps')).toHaveLength(1);
+    expect(gapTasks[0]).toContain('Part 2: nothing found');
+    expect(gapTasks[0]).toContain('Explanation to s. 901: in Part 1');
+    expect(gapTasks[0]).not.toContain(S.mayMeadow); // labels only, never source text
+    // The writer of part 1 is told to teach the Explanation of s. 901.
+    expect(writerTasks[0]).toMatch(/MUST COVER IN THIS PART[^\n]*\n- Explanation to s\. 901 \(in S1\)/);
     expect(calls).toContain('writer.repair');
     expect(secondChecked.length).toBeGreaterThan(0);
     // Yellow: the "held" line, the two unsourced teaching lines, the unanswerable question. Coverage: the Explanation.
@@ -248,6 +266,9 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
 
     const src = await agent.get(`/api/v1/citations/${by('A zebra may graze in the meadow')!.sources[0]!.citationId}/source`).expect(200);
     expect(src.body.span).toBe(S.mayMeadow);
+    // Why this source: the relevance saved at build time, and the authority reasons read from the source.
+    expect(src.body.whyChosen).toMatchObject({ reasons: ['the Act itself', 'official copy (India Code)'] });
+    expect(src.body.whyChosen.relevance).toEqual(expect.any(Number));
     expect(src.body.text).toContain(S.mayMeadow);
     expect(src.body.checks.map((c: { name: string; result: string }) => `${c.name}:${c.result}`)).toEqual(['C1:pass', 'C2:pass', 'C3:pass', 'C4:pass', 'C5:skipped', 'C6:pass', 'C7:skipped', 'C8:skipped', 'C9:pass', 'C10:skipped']);
   });
@@ -257,7 +278,10 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
     expect(cov.groups).toEqual([expect.objectContaining({ sectionKey: `${act}:s901`, title: `s. 901 ${act}`, missing: 1, total: 1 })]);
     expect(cov.groups[0].items[0]).toMatchObject({ kind: 'explanation', label: 'Explanation to s. 901', state: 'missing' });
     expect(cov.leftOut).toEqual([expect.objectContaining({ label: 'Grazing tolls', reason: 'Outside this class' })]);
-    expect(cov.notFound).toEqual([{ partIndex: 1, question: 'How do gluons bind quarks in neutron stars?' }]);
+    expect(cov.notFound).toEqual([
+      { partIndex: 1, question: 'What holds quarks together inside a neutron star?' }, // the gap check's question
+      { partIndex: 1, question: 'How do gluons bind quarks in neutron stars?' },
+    ]);
 
     await agent.post(`/api/v1/coverage/${cov.groups[0].items[0].id}/leave-out`).set('x-csrf-token', csrf).expect(204);
     const lec = (await agent.get(`/api/v1/lectures/${lectureId}`).expect(200)).body;
@@ -287,5 +311,109 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
       }
     })();
     expect(seen).toBe(0);
+  });
+
+  it('edits in the Studio: code checks at once, background check, verify, remove, add, undo (F7)', async () => {
+    const checks: { name: string; data: { citationIds: string[] } }[] = [];
+    const ed = request.agent(
+      createApp({
+        config: config(), logger: pino({ level: 'silent' }), pool: app, redis,
+        queues: { check: { add: async (name: string, data: never) => (checks.push({ name, data }), { id: 'c' }) } as never },
+      }),
+    );
+    const login = await ed.post('/api/v1/auth/dev-login').set('x-forwarded-for', `10.93.${tag.charCodeAt(0)}.1`).send({ email: `b-${tag}@bt.test` }).expect(204);
+    const tok = decodeURIComponent(([] as string[]).concat(login.headers['set-cookie'] ?? []).find((c) => c.startsWith('nyaai_csrf='))!.split(';')[0]!.slice(11));
+    type Line = { lineKey: string; text: string; kind: string; status: string; flag: string | null; flagReason: string | null; edited: boolean; sources: { label: string }[] };
+    type Slide = { id: string; version: number; title: string; lines: Line[]; notes: Line[] };
+    const first = async () => ((await ed.get(`/api/v1/lectures/${lectureId}/slides`).expect(200)).body.slides as Slide[])[0]!;
+    const asEdit = (s: Slide, lines: { lineKey: string | null; text: string; kind: string; yourExample?: boolean }[]) => ({
+      version: s.version,
+      title: s.title,
+      lines,
+      notes: s.notes.map((n) => ({ lineKey: n.lineKey, text: n.text, kind: n.kind })),
+    });
+    const keep = (s: Slide) => s.lines.map((l) => ({ lineKey: l.lineKey, text: l.text, kind: l.kind }));
+    const yellowCount = async () => (await ed.get(`/api/v1/lectures/${lectureId}`).expect(200)).body.counts.yellow as number;
+
+    // 1. A small change to a sourced line: C1–C8 pass at once; it stays yellow until the background check.
+    let s = await first();
+    const meadow = s.lines.find((l) => l.text.startsWith('A zebra may graze in the meadow'))!;
+    let r = await ed
+      .patch(`/api/v1/slides/${s.id}`)
+      .set('x-csrf-token', tok)
+      .send(asEdit(s, keep(s).map((l) => (l.lineKey === meadow.lineKey ? { ...l, text: 'A zebra may graze in the meadow, says the Act.' } : l))))
+      .expect(200);
+    expect(r.body.checking).toBe(1);
+    expect(r.body.slide.lines.find((l: Line) => l.lineKey === meadow.lineKey)).toMatchObject({ status: 'open', flag: 'yellow', flagReason: 'Changed by you: being checked against the source', edited: true, sources: [{ label: `s. 901 ${act}` }] });
+    expect(checks).toHaveLength(1);
+    const tenant = <T,>(fn: (c: pg.PoolClient) => Promise<T>) => withTenant(worker, { userId: teacher, collegeId: college, role: 'teacher' }, fn);
+    expect(await checkEditedLines(tenant, checks[0]!.data.citationIds, { gateway: fakeGateway, usage: async () => {} })).toBe(1);
+    s = await first();
+    expect(s.lines.find((l) => l.lineKey === meadow.lineKey)).toMatchObject({ status: 'supported', flag: null });
+
+    // 2. A change that names a section the source does not: C3 fails at once, no background check.
+    r = await ed
+      .patch(`/api/v1/slides/${s.id}`)
+      .set('x-csrf-token', tok)
+      .send(asEdit(s, keep(s).map((l) => (l.lineKey === meadow.lineKey ? { ...l, text: 'Section 77 lets a zebra graze in the meadow.' } : l))))
+      .expect(200);
+    expect(r.body.checking).toBe(0);
+    expect(r.body.slide.lines.find((l: Line) => l.lineKey === meadow.lineKey)).toMatchObject({ flag: 'yellow' });
+    expect(r.body.slide.lines.find((l: Line) => l.lineKey === meadow.lineKey).flagReason).not.toContain('Changed by you');
+
+    // 3. A stale save is refused with the newer version.
+    const stale = await ed.patch(`/api/v1/slides/${s.id}`).set('x-csrf-token', tok).send(asEdit(s, keep(s))).expect(409);
+    expect(stale.body.error).toMatchObject({ code: 'VERSION_CONFLICT', details: { version: s.version + 1 } });
+
+    // 4. Undo: the slide as it was, with the line's checked source back.
+    r = await ed.post(`/api/v1/slides/${s.id}/restore`).set('x-csrf-token', tok).send({ version: s.version }).expect(200);
+    expect(r.body.slide.lines.find((l: Line) => l.lineKey === meadow.lineKey)).toMatchObject({ text: 'A zebra may graze in the meadow, says the Act.', status: 'supported', flag: null });
+
+    // 5. Remove a yellow line, add a line that states law with no source, and verify another yellow line.
+    s = await first();
+    const before = await yellowCount();
+    const held = s.lines.find((l) => l.text.startsWith('The court held'))!;
+    r = await ed
+      .patch(`/api/v1/slides/${s.id}`)
+      .set('x-csrf-token', tok)
+      .send(asEdit(s, [...keep(s).filter((l) => l.lineKey !== held.lineKey), { lineKey: null, text: 'A zebra must leave within 9 days.', kind: 'teaching' }]))
+      .expect(200);
+    const added = (r.body.slide.lines as Line[]).at(-1)!;
+    expect(added).toMatchObject({ text: 'A zebra must leave within 9 days.', flag: 'yellow', flagReason: 'Not found in the library, please verify', edited: true });
+    expect(r.body.slide.lines.some((l: Line) => l.lineKey === held.lineKey)).toBe(false);
+    expect(await yellowCount()).toBe(before); // one removed, one added
+    r = await ed.post(`/api/v1/slides/${s.id}/verify`).set('x-csrf-token', tok).send({ lineKey: added.lineKey }).expect(200);
+    expect(r.body.slide.lines.find((l: Line) => l.lineKey === added.lineKey)).toMatchObject({ status: 'verified_by_you', flag: null });
+    expect(await yellowCount()).toBe(before - 1);
+
+    // 6. Her example: fine as it is; naming a section the library lacks makes it yellow.
+    r = await ed.post(`/api/v1/slides/${s.id}/examples`).set('x-csrf-token', tok).send({ text: 'Think of Raju, whose zebra wanders into a neighbour’s meadow.', save: true }).expect(200);
+    expect((r.body.slide.lines as Line[]).at(-1)).toMatchObject({ status: 'your_example', flag: null });
+    r = await ed.post(`/api/v1/slides/${s.id}/examples`).set('x-csrf-token', tok).send({ text: `Under section 4471 of the ${act}, Raju's zebra may stay.` }).expect(200);
+    expect((r.body.slide.lines as Line[]).at(-1)).toMatchObject({ flag: 'yellow' });
+    expect((await owner.query('select count(*)::int n from examples where owner_id = $1', [teacher])).rows[0].n).toBe(1);
+
+    const versions = (await ed.get(`/api/v1/slides/${s.id}/versions`).expect(200)).body.versions.map((v: { reason: string }) => v.reason);
+    expect(versions.slice(0, 3)).toEqual(['add_example', 'add_example', 'edit']);
+  });
+
+  it('downloads the .pptx: open points need her go-ahead, or are removed from the lecture first (PPT-1 to PPT-4)', async () => {
+    const dl = request.agent(createApp({ config: config(), logger: pino({ level: 'silent' }), pool: app, redis }));
+    const login = await dl.post('/api/v1/auth/dev-login').set('x-forwarded-for', `10.94.${tag.charCodeAt(0)}.1`).send({ email: `b-${tag}@bt.test` }).expect(204);
+    const tok = decodeURIComponent(([] as string[]).concat(login.headers['set-cookie'] ?? []).find((c) => c.startsWith('nyaai_csrf='))!.split(';')[0]!.slice(11));
+    const yellow = async () => (await dl.get(`/api/v1/lectures/${lectureId}`).expect(200)).body.counts.yellow as number;
+    expect(await yellow()).toBeGreaterThan(0);
+    await dl.post(`/api/v1/lectures/${lectureId}/download`).set('x-csrf-token', tok).send({ mode: 'with_flags' }).expect(400);
+    const binary = (res: request.Response, cb: (err: Error | null, body: Buffer) => void) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (d: Buffer) => chunks.push(d));
+      res.on('end', () => cb(null, Buffer.concat(chunks)));
+    };
+    const file = await dl.post(`/api/v1/lectures/${lectureId}/download`).set('x-csrf-token', tok).send({ mode: 'with_flags', acknowledgeOpen: true }).buffer(true).parse(binary).expect(200);
+    expect(file.headers['content-disposition']).toMatch(/attachment; filename="OneOff_Zebra_\w+_Grazing_\d{4}-\d{2}-\d{2}\.pptx"/);
+    expect((file.body as Buffer).subarray(0, 2).toString()).toBe('PK');
+    const clean = await dl.post(`/api/v1/lectures/${lectureId}/download`).set('x-csrf-token', tok).send({ mode: 'remove_unverified' }).buffer(true).parse(binary).expect(200);
+    expect(Number(clean.headers['x-removed-lines'])).toBeGreaterThan(0);
+    expect(await yellow()).toBe(0);
   });
 });

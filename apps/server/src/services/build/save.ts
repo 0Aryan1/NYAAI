@@ -60,12 +60,12 @@ async function saveLine(c: pg.PoolClient, lectureId: string, slideId: string, wh
     const d = decide(cl.results);
     await c.query(
       `insert into citations (college_id, owner_id, lecture_id, slide_id, line_key, claim_text, claim_type, risk, source_id, chunk_id,
-                              span_text, span_start, span_end, check_status, checks, flag_kind, flag_reason, tag, source_label, part_index)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+                              span_text, span_start, span_end, check_status, checks, flag_kind, flag_reason, tag, source_label, part_index, source_relevance)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
       [
         who.collegeId, who.ownerId, lectureId, slideId, line.lineKey, cl.claim.text, cl.claim.type, cl.risk, cl.sourceId, cl.chunkId,
         cl.claim.span, cl.spanStart, cl.spanEnd, d.status, JSON.stringify(cl.results.map((r) => ({ ...r, ...(r.name === 'C10' && cl.correctedClaim ? { corrected: cl.correctedClaim } : {}) }))),
-        d.flag, d.reason, cl.claim.tag, out.labels.get(cl.claim.tag) ?? cl.claim.tag, out.partIndex,
+        d.flag, d.reason, cl.claim.tag, out.labels.get(cl.claim.tag) ?? cl.claim.tag, out.partIndex, out.relevance.get(cl.claim.tag) ?? null,
       ],
     );
   }
