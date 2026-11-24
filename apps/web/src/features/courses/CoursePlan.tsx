@@ -10,6 +10,7 @@ import { Button } from '@/shared/ui/button';
 import { Menu } from '@/shared/ui/menu';
 import { Page, PageHeader } from '@/shared/ui/page';
 import { Pill } from '@/shared/ui/pill';
+import { ListSkeleton, LoadError, Skeleton } from '@/shared/ui/states';
 
 /**
  * Course plan (LLD §12: ordered lectures with status, taught date and series suggestions; COURSE-3 to COURSE-7).
@@ -39,9 +40,15 @@ export function CoursePlanPage() {
     },
   });
 
-  if (course.isError) return <p role="alert" className="text-danger">This course could not be opened.</p>;
+  if (course.isError) return <LoadError what="This course" onRetry={() => void course.refetch()} className="mx-auto max-w-3xl" />;
   const c: CourseDetail | undefined = course.data;
-  if (!c) return <p className="text-muted">Opening the course…</p>;
+  if (!c)
+    return (
+      <div className="mx-auto max-w-3xl">
+        <Skeleton className="mb-6 h-7 w-72" />
+        <ListSkeleton rows={5} label="Opening the course" />
+      </div>
+    );
   const units = c.units;
   const move = (i: number, dir: -1 | 1) => {
     const order = units.map((u) => u.id);

@@ -16,6 +16,7 @@ import { INGEST_JOB_OPTIONS, type IngestJobData } from '../jobs/queues.ts';
 import { docxBlocks, NoteReadError } from '../services/ingest/note.ts';
 import { NoTextLayerError, pdfLines } from '../services/ingest/extract.ts';
 import { AppError } from '../errors.ts';
+import { consentMessage, hasConsent } from '../middleware/consent.ts';
 import { loadUnits, seriesUnits } from '../services/course/index.ts';
 import type pg from 'pg';
 
@@ -129,8 +130,9 @@ export function coursesRouter(ingestQueue?: Queue<IngestJobData>) {
           body.classCount ?? null,
         ])
       ).rows[0]!.id;
-      // DATA-3: each lecture waits for the background source check.
+      // DATA-3: each lecture waits for the background source check (its searches use outside services: consent first).
       const waiting = body.findSources && !!ingestQueue && body.topics.length > 0;
+      if (waiting && who.role === 'teacher' && !(await hasConsent(c))) throw new AppError('CONSENT_REQUIRED', consentMessage);
       for (const [i, title] of body.topics.entries()) {
         await c.query('insert into course_units (college_id, owner_id, course_id, position, title, sources) values ($1, $2, $3, $4, $5, $6)', [
           who.collegeId,

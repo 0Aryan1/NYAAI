@@ -30,7 +30,8 @@ export function SetupWizard() {
   async function advance(save: () => Promise<void>) {
     await save();
     await queryClient.invalidateQueries({ queryKey: queryKeys.me });
-    const next = SETUP_STEPS[index + 1];
+    // Agreeing again after a withdrawal: back to work, not through setup again.
+    const next = me.data?.setupDone ? undefined : SETUP_STEPS[index + 1];
     navigate(next ? `/setup/${next}` : '/');
   }
   const back = index > 0 ? () => navigate(`/setup/${SETUP_STEPS[index - 1]}`) : undefined;

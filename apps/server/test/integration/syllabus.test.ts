@@ -13,6 +13,7 @@ import pino from 'pino';
 import request from 'supertest';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { CONSENT_VERSION } from '@nyaai/shared';
 import { createApp } from '../../src/app.ts';
 import { parseConfig } from '../../src/config.ts';
 import { findCourseSources } from '../../src/services/course/sources.ts';
@@ -86,6 +87,7 @@ describe.skipIf(!up)('a course from her syllabus, with sources found in the back
     await owner.query("insert into colleges (id, name, slug) values ($1, 'Syllabus Test College', $2)", [college, `sy-${college}`]);
     await owner.query("insert into users (id, college_id, email, name) values ($1, $2, $3, 'T')", [teacher, college, `t-${tag}@sy.test`]);
     await owner.query('insert into teacher_profiles (owner_id, college_id) values ($1, $2)', [teacher, college]);
+    await owner.query("insert into consents (college_id, owner_id, version, processors) values ($1, $2, $3, '[]')", [college, teacher, CONSENT_VERSION]);
     await owner.query('insert into invite_allowlist (college_id, email) values ($1, $2)', [college, `t-${tag}@sy.test`]);
     // One shared section the library holds for the first lecture; nothing for the second.
     const g = (await owner.query('select id from colleges where is_global')).rows[0].id;
@@ -114,7 +116,7 @@ describe.skipIf(!up)('a course from her syllabus, with sources found in the back
     const gaps = (await owner.query<{ id: string }>('select id from library_gaps where question ilike $1', [`%${w}%`])).rows.map((r) => r.id);
     await owner.query('delete from review_queue where ref_id = any($1)', [gaps]);
     await owner.query('delete from library_gaps where id = any($1)', [gaps]);
-    for (const t of ['course_units', 'courses', 'usage', 'teacher_profiles', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
+    for (const t of ['course_units', 'courses', 'usage', 'teacher_profiles', 'consents', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
     await owner.query('delete from colleges where id = $1', [college]);
     await Promise.all([owner.end(), app.end(), worker.end(), redis.quit()]);
   });

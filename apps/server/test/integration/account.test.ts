@@ -14,6 +14,7 @@ import pino from 'pino';
 import request from 'supertest';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { CONSENT_VERSION } from '@nyaai/shared';
 import { classifyGap } from '@nyaai/legal';
 import { withTenant } from '@nyaai/db';
 import { createApp } from '../../src/app.ts';
@@ -123,6 +124,7 @@ describe.skipIf(!up)('export and delete my data (integration)', () => {
     for (const [id, email] of [[her, herEmail], [other, `o-${tag}@acc.test`]] as const) {
       await owner.query("insert into users (id, college_id, email, name) values ($1, $2, $3, 'Teacher')", [id, college, email]);
       await owner.query('insert into teacher_profiles (owner_id, college_id) values ($1, $2)', [id, college]);
+      await owner.query("insert into consents (college_id, owner_id, version, processors) values ($1, $2, $3, '[]')", [college, id, CONSENT_VERSION]);
       await owner.query('insert into invite_allowlist (college_id, email) values ($1, $2)', [college, email]);
     }
     // Both teachers have a course, a note, a lecture, an example, AI usage; she also asked the library a question.
@@ -158,7 +160,7 @@ describe.skipIf(!up)('export and delete my data (integration)', () => {
     await owner.query('delete from review_queue where ref_id = $1', [gapId]);
     await owner.query('delete from library_gaps where id = $1', [gapId]);
     await owner.query('delete from deletion_log where college_id = $1', [college]);
-    for (const t of ['course_units', 'courses', 'examples', 'usage', 'teacher_profiles', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
+    for (const t of ['course_units', 'courses', 'examples', 'usage', 'teacher_profiles', 'consents', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
     await owner.query('delete from colleges where id = $1', [college]);
     await Promise.all([owner.end(), app.end(), worker.end(), redis.quit()]);
   });
@@ -220,5 +222,25 @@ describe.skipIf(!up)('export and delete my data (integration)', () => {
 
   it('nobody can delete another teacher’s data: the function refuses anyone but her', async () => {
     await expect(withTenant(worker, herId, (c) => c.query('select forget_teacher($1)', [other]))).rejects.toThrow(/only the teacher herself/);
+  });
+
+  it('withdrawing consent pauses everything that sends her work out; her data stays and she can still take it', async () => {
+    const o = await signIn(`o-${tag}@acc.test`, `10.99.${tag.charCodeAt(0)}.4`);
+    expect((await o.agent.get('/api/v1/me').expect(200)).body.consented).toBe(true);
+    await o.agent.post('/api/v1/consents/withdraw').set('x-csrf-token', o.csrf).expect(204);
+    expect((await o.agent.get('/api/v1/me').expect(200)).body.consented).toBe(false);
+
+    const lecture = { topic: 'seat of arbitration', course: { kind: 'one_off' }, lengthMin: 40, level: 'standard', styleKey: 'usual' };
+    const refused = await o.agent.post('/api/v1/lectures').set('x-csrf-token', o.csrf).send(lecture).expect(403);
+    expect(refused.body.error.code).toBe('CONSENT_REQUIRED');
+    await o.agent.post('/api/v1/notes?title=x&fileName=x.md').set('x-csrf-token', o.csrf).set('content-type', 'text/markdown').send(Buffer.from('# A\nb')).expect(403);
+    await o.agent.post('/api/v1/courses').set('x-csrf-token', o.csrf).send({ name: 'Course C', topics: ['One'], findSources: true }).expect(403);
+    // Nothing is deleted, and she can still download it.
+    await o.agent.get('/api/v1/me/export-data').expect(200);
+    expect((await owner.query('select count(*)::int n from lectures where owner_id = $1', [other])).rows[0].n).toBe(1);
+
+    // She agrees again: work resumes.
+    await o.agent.post('/api/v1/consents').set('x-csrf-token', o.csrf).send({ version: CONSENT_VERSION, accept: true }).expect(204);
+    await o.agent.post('/api/v1/lectures').set('x-csrf-token', o.csrf).send(lecture).expect(202);
   });
 });

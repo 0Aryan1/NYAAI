@@ -6,7 +6,7 @@
 import PptxGenJS from 'pptxgenjs';
 import type { Deck, DeckSlide } from './deck.ts';
 
-const C = { accent: '2E3A8C', text: '1E2430', muted: '5B6475', rule: 'E3E5EA', tintCase: 'EEF0FA', tintExample: 'F1EBFE', example: '5B21B6', yellow: 'B45309' };
+const C = { accent: '2E3A8C', text: '1E2430', muted: '5B6475', rule: 'E3E5EA', tintCase: 'EEF0FA', tintExample: 'F1EBFE', example: '5B21B6', yellow: 'A34A07' };
 const FONT = 'Calibri';
 const KIND: Record<string, string> = { case_box: 'CASE', example: 'EXAMPLE', recap: 'RECAP', bridge: 'NEXT CLASS', question: 'QUESTION' };
 

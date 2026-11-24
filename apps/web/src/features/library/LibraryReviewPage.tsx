@@ -8,6 +8,7 @@ import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
 import { Pill } from '@/shared/ui/pill';
 import { Tabs } from '@/shared/ui/tabs';
+import { LoadError, Skeleton, SlowNote } from '@/shared/ui/states';
 import { CaseStatusCard } from './CaseStatusCard';
 import { UploadJudgment } from './UploadJudgment';
 
@@ -157,8 +158,19 @@ export function LibraryReviewPage() {
           ]}
         />
         <ul className="min-h-0 flex-1 relative overflow-y-auto p-2">
-          {list.isLoading && <li className="p-3 text-sm text-muted">Loading…</li>}
-          {!list.isLoading && shown.length === 0 && <li className="p-3 text-sm text-muted">{filter === 'todo' ? 'Nothing left to check.' : 'No judgments here.'}</li>}
+          {list.isLoading &&
+            Array.from({ length: 6 }, (_, i) => (
+              <li key={i} aria-hidden className="px-3 py-2.5">
+                <Skeleton className="h-4 w-5/6" />
+                <Skeleton className="mt-2 h-3 w-1/2" />
+              </li>
+            ))}
+          {list.isError && (
+            <li>
+              <LoadError what="The judgments" onRetry={() => void list.refetch()} className="m-1" />
+            </li>
+          )}
+          {list.isSuccess && shown.length === 0 && <li className="p-3 text-sm text-muted">{filter === 'todo' ? 'Nothing left to check.' : 'No judgments here.'}</li>}
           {shown.map((x) => (
             <li key={x.id}>
               <button
@@ -202,7 +214,18 @@ export function LibraryReviewPage() {
             }}
           />
         ) : !j ? (
-          <p className="text-muted">{detail.isLoading ? 'Opening…' : all.length === 0 ? 'No judgments in the library yet.' : 'Choose a judgment.'}</p>
+          detail.isLoading ? (
+            <div role="status" aria-label="Opening the judgment" className="mx-auto max-w-3xl space-y-4">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-40 w-full" />
+              <SlowNote />
+            </div>
+          ) : detail.isError ? (
+            <LoadError what="This judgment" onRetry={() => void detail.refetch()} className="mx-auto max-w-3xl" />
+          ) : (
+            <p className="text-muted">{all.length === 0 && list.isSuccess ? 'No judgments in the library yet.' : 'Choose a judgment.'}</p>
+          )
         ) : (
           <article className="mx-auto max-w-3xl space-y-6">
             <header>

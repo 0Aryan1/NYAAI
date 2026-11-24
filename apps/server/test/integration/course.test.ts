@@ -16,6 +16,7 @@ import pino from 'pino';
 import request from 'supertest';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { CONSENT_VERSION } from '@nyaai/shared';
 import type { z } from 'zod';
 import type { PromptId } from '@nyaai/prompts';
 import { withTenant } from '@nyaai/db';
@@ -151,6 +152,7 @@ describe.skipIf(!up)('course series (integration, fake Claude)', () => {
     await owner.query("insert into colleges (id, name, slug) values ($1, 'Course Test College', $2)", [college, `ct-${college}`]);
     await owner.query("insert into users (id, college_id, email, name) values ($1, $2, $3, 'Planner')", [teacher, college, `c-${tag}@ct.test`]);
     await owner.query('insert into teacher_profiles (owner_id, college_id, style) values ($1, $2, $3)', [teacher, college, { density: 'balanced' }]);
+    await owner.query("insert into consents (college_id, owner_id, version, processors) values ($1, $2, $3, '[]')", [college, teacher, CONSENT_VERSION]);
     await owner.query('insert into invite_allowlist (college_id, email) values ($1, $2)', [college, `c-${tag}@ct.test`]);
     const g = (await owner.query('select id from colleges where is_global')).rows[0].id;
     await owner.query(`insert into sources (id, college_id, visibility, type, origin, title, act_name, content_hash, status) values ($1, $2, 'shared', 'act', 'india_code', $3, $3, $4, 'live')`, [sourceId, g, act, `ok-${tag}`]);
@@ -166,7 +168,7 @@ describe.skipIf(!up)('course series (integration, fake Claude)', () => {
     await owner.query('delete from lectures where college_id = $1', [college]);
     await owner.query('delete from courses where college_id = $1', [college]);
     await owner.query('delete from sources where id = $1', [sourceId]);
-    for (const t of ['review_queue', 'library_gaps', 'usage', 'teacher_profiles', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
+    for (const t of ['review_queue', 'library_gaps', 'usage', 'teacher_profiles', 'consents', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
     await owner.query('delete from colleges where id = $1', [college]);
     await redis.del('rl_signin:::ffff:127.0.0.1', 'rl_signin:127.0.0.1', 'rl_signin:::1');
     await Promise.all([owner.end(), app.end(), worker.end(), redis.quit()]);

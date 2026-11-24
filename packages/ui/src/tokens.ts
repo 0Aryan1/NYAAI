@@ -3,9 +3,9 @@ export const TOKENS = {
   light: {
     bg: '#F7F7F5', surface: '#FFFFFF', text: '#1E2430', textMuted: '#5B6475', border: '#E3E5EA',
     accent: '#2E3A8C', accentContrast: '#FFFFFF',
-    flagYellow: '#B45309', flagYellowBg: '#FEF3C7', flagGrey: '#475569', flagGreyBg: '#EEF1F5',
+    flagYellow: '#A34A07', flagYellowBg: '#FEF3C7', flagGrey: '#475569', flagGreyBg: '#EEF1F5',
     flagCoverage: '#1E4E6E', flagCoverageBg: '#E6F0F7', example: '#5B21B6', exampleBg: '#F1EBFE',
-    success: '#15803D', danger: '#B91C1C',
+    success: '#147236', danger: '#B91C1C',
   },
   dark: {
     bg: '#111318', surface: '#1A1D24', text: '#E8EAF0', textMuted: '#A3AABA', border: '#2C313C',

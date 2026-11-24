@@ -19,6 +19,7 @@ import pino from 'pino';
 import request from 'supertest';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { CONSENT_VERSION } from '@nyaai/shared';
 import type { z } from 'zod';
 import type { PromptId } from '@nyaai/prompts';
 import { createApp } from '../../src/app.ts';
@@ -174,6 +175,7 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
     await owner.query("insert into colleges (id, name, slug) values ($1, 'Build Test College', $2)", [college, `bt-${college}`]);
     await owner.query("insert into users (id, college_id, email, name) values ($1, $2, $3, 'Builder')", [teacher, college, `b-${tag}@bt.test`]);
     await owner.query('insert into teacher_profiles (owner_id, college_id, style) values ($1, $2, $3)', [teacher, college, { density: 'balanced', case_first: 'rule_first' }]);
+    await owner.query("insert into consents (college_id, owner_id, version, processors) values ($1, $2, $3, '[]')", [college, teacher, CONSENT_VERSION]);
     await owner.query('insert into invite_allowlist (college_id, email) values ($1, $2)', [college, `b-${tag}@bt.test`]);
 
     const g = (await owner.query('select id from colleges where is_global')).rows[0].id;
@@ -197,7 +199,7 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
     await owner.query('delete from sources where id = $1', [sourceId]);
     await owner.query('delete from review_queue where college_id = $1', [college]);
     await owner.query('delete from library_gaps where college_id = $1', [college]);
-    for (const t of ['usage', 'edit_events', 'examples', 'teacher_profiles', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
+    for (const t of ['usage', 'edit_events', 'examples', 'teacher_profiles', 'consents', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
     await owner.query('delete from colleges where id = $1', [college]);
     await redis.del('rl_signin:::ffff:127.0.0.1', 'rl_signin:127.0.0.1', 'rl_signin:::1');
     await Promise.all([owner.end(), app.end(), worker.end(), redis.quit()]);

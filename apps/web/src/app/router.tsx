@@ -26,13 +26,21 @@ async function signedInLoader({ request }: { request: Request }) {
   // Setup (style, template, courses) is for teachers. Library editors and admins go straight in; an editor lands on
   // her queue rather than the Prepare screen.
   if (me.user.role === 'teacher' && !me.setupDone) throw redirect(stepPath(me.setupStep));
+  // Consent withdrawn: nothing works that sends her work out, so she agrees again first. "Your data" stays open, so
+  // she can still download or delete everything without agreeing.
+  if (me.user.role === 'teacher' && !me.consented && !new URL(request.url).pathname.startsWith('/account')) throw redirect('/setup/consent');
   if (me.user.role === 'library_editor' && new URL(request.url).pathname === '/') throw redirect('/library');
   return null;
 }
 
 async function setupLoader({ params }: { params: { step?: string } }) {
   const me = await loadMe();
-  if (me.setupDone || me.user.role !== 'teacher') throw redirect('/');
+  // After setup, only the consent step opens again, and only when she has withdrawn it.
+  if (me.user.role !== 'teacher') throw redirect('/');
+  if (me.setupDone) {
+    if (params.step === 'consent' && !me.consented) return null;
+    throw redirect('/');
+  }
   const requested = SETUP_STEPS.indexOf(params.step as SetupStepName) + 1;
   // She may revisit earlier steps but not jump past where she is.
   if (requested < 1 || requested > me.setupStep) throw redirect(stepPath(me.setupStep));

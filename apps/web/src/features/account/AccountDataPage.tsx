@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Download, Trash2 } from 'lucide-react';
+import { Link } from 'react-router';
+import { Download, ShieldOff, Trash2 } from 'lucide-react';
 import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { queryClient } from '@/app/queryClient';
 import { Button } from '@/shared/ui/button';
@@ -16,6 +17,17 @@ export function AccountDataPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const matches = !!email && typed.trim().toLowerCase() === email.toLowerCase();
+  const [withdrawing, setWithdrawing] = useState(false);
+
+  async function withdraw() {
+    setWithdrawing(true);
+    try {
+      await api.withdrawConsent();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.me });
+    } finally {
+      setWithdrawing(false);
+    }
+  }
 
   async function deleteAll() {
     setBusy(true);
@@ -47,6 +59,32 @@ export function AccountDataPage() {
           <Download className="size-4" aria-hidden />
           Download my data
         </a>
+      </section>
+
+      <section aria-labelledby="consent" className="rounded-card border border-border bg-surface p-5">
+        <h2 id="consent" className="font-semibold">Your consent</h2>
+        {me.data?.consented === false ? (
+          <>
+            <p className="mt-1 max-w-prose text-sm">
+              You have withdrawn your consent. NYAAI sends nothing of yours to the services it uses, so preparing lectures, reading your notes and checking edits
+              are paused. Your data is still here: you can download or delete it.
+            </p>
+            <Link to="/setup/consent" className="mt-4 inline-flex h-10 items-center rounded-control bg-accent px-4 text-sm text-accent-contrast hover:opacity-90">
+              Read and agree again
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 max-w-prose text-sm text-muted">
+              You agreed that NYAAI may send your work to the services it uses (writing and checking, search, storage). You can withdraw this at any time. Your
+              data is kept, but nothing new is sent: preparing lectures, reading your notes and checking edits pause until you agree again.
+            </p>
+            <Button className="mt-4" disabled={withdrawing || !me.data} onClick={() => void withdraw()}>
+              <ShieldOff className="size-4" aria-hidden />
+              {withdrawing ? 'Withdrawing…' : 'Withdraw my consent'}
+            </Button>
+          </>
+        )}
       </section>
 
       <section aria-labelledby="delete" className="rounded-card border border-danger/40 bg-surface p-5">

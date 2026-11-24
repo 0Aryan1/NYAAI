@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { MAX_NOTE_BYTES, NOTE_MIME_TYPES, TeacherNote, TeacherNoteList, UploadNoteQuery } from '@nyaai/shared';
 import { AppError } from '../errors.ts';
+import { requireConsent } from '../middleware/consent.ts';
 import { INGEST_JOB_OPTIONS, type IngestJobData } from '../jobs/queues.ts';
 import type { Storage } from '../services/storage/index.ts';
 
@@ -53,7 +54,7 @@ export function notesRouter(ingestQueue: Queue<IngestJobData> | undefined, stora
     res.json(TeacherNoteList.parse({ notes: rows.map(toNote) }));
   });
 
-  r.post('/notes', express.raw({ type: Object.keys(NOTE_MIME_TYPES), limit: MAX_NOTE_BYTES }), async (req, res) => {
+  r.post('/notes', requireConsent, express.raw({ type: Object.keys(NOTE_MIME_TYPES), limit: MAX_NOTE_BYTES }), async (req, res) => {
     if (!ingestQueue || !storage) throw new AppError('SERVICE_UNAVAILABLE', 'Uploading is not available right now.');
     const q = UploadNoteQuery.parse(req.query);
     const mime = (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();

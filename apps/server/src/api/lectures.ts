@@ -18,6 +18,7 @@ import { coverageScore, openGroups } from '@nyaai/checker-rules';
 import { courseContext, lectureNo, standingOf } from '@nyaai/legal';
 import { MarkTaught, MarkTaughtResponse } from '@nyaai/shared';
 import { AppError } from '../errors.ts';
+import { requireConsent } from '../middleware/consent.ts';
 import { BUILD_JOB_OPTIONS, LEARN_JOB_OPTIONS, type BuildJobData, type LearnJobData } from '../jobs/queues.ts';
 import { loadUnits } from '../services/course/index.ts';
 import { loadStudioSlides } from '../services/studio/index.ts';
@@ -29,7 +30,7 @@ const Id = z.uuid();
 export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, learnQueue?: Queue<LearnJobData>) {
   const r = express.Router();
 
-  r.post('/lectures', async (req, res) => {
+  r.post('/lectures', requireConsent, async (req, res) => {
     if (!buildQueue) throw new AppError('SERVICE_UNAVAILABLE', 'Preparing lectures is not available right now.');
     const body = PrepareLecture.parse(req.body);
     const who = req.identity!;
@@ -92,7 +93,7 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
     res.status(202).json(PrepareResponse.parse({ lectureId, jobId: job.id }));
   });
 
-  r.post('/lectures/:id/retry', async (req, res) => {
+  r.post('/lectures/:id/retry', requireConsent, async (req, res) => {
     if (!buildQueue) throw new AppError('SERVICE_UNAVAILABLE', 'Preparing lectures is not available right now.');
     const id = Id.parse(req.params.id);
     const status = await req.db!(async (c) => (await c.query<{ status: string }>("update lectures set status = 'building', error_code = null where id = $1 and status = 'failed' returning status", [id])).rows[0]);
@@ -154,7 +155,7 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
    * COURSE-7: mark taught. Course memory is written only now, by `learn.summary` from her slides as they stand. A
    * lecture in a course with no planned slot gets one at the end of the plan, so later lectures can recap it.
    */
-  r.post('/lectures/:id/taught', async (req, res) => {
+  r.post('/lectures/:id/taught', requireConsent, async (req, res) => {
     const id = Id.parse(req.params.id);
     const body = MarkTaught.parse(req.body);
     const who = req.identity!;

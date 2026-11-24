@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
+import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
 import { NoteStatus, UploadNoteButton, useNotes } from './notes-ui';
 
 /**
@@ -25,8 +26,13 @@ export function NotesPage() {
         examples and explanations; a point of law still comes from the Act or a judgment.
       </p>
 
-      {notes.isLoading && <p className="text-muted">Loading…</p>}
-      {!notes.isLoading && list.length === 0 && <p className="rounded-card border border-border bg-surface p-5 text-sm text-muted">No documents yet. Upload a Word file, a PDF or a text file.</p>}
+      {notes.isLoading && <ListSkeleton label="Loading your notes" />}
+      {notes.isError && <LoadError what="Your notes" onRetry={() => void notes.refetch()} />}
+      {notes.isSuccess && list.length === 0 && (
+        <EmptyState title="No documents yet" action={<UploadNoteButton size="md" />}>
+          Upload your own notes as a Word file, a PDF or a text file. When you prepare a lecture, you choose which of them it may use.
+        </EmptyState>
+      )}
       <ul className="space-y-3">
         {list.map((n) => (
           <li key={n.id} className="rounded-card border border-border bg-surface p-4">

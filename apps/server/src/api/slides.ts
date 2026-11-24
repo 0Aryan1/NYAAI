@@ -7,6 +7,7 @@ import type { Queue } from 'bullmq';
 import { z } from 'zod';
 import { AddExample, DownloadRequest, EditSlide, RestoreSlide, SlideVersions, SlideWriteResponse, VerifyLine } from '@nyaai/shared';
 import { AppError } from '../errors.ts';
+import { requireConsent } from '../middleware/consent.ts';
 import { CHECK_JOB_OPTIONS, type CheckJobData } from '../jobs/queues.ts';
 import { addExample, loadSlide, refreshCounts, restoreSlide, saveSlideEdit, verifyLine } from '../services/edit/index.ts';
 import { loadStudioSlides } from '../services/studio/index.ts';
@@ -27,7 +28,7 @@ export function slidesRouter(checkQueue?: Queue<CheckJobData>) {
     res.json(SlideWriteResponse.parse({ slide, checking: pending.length }));
   };
 
-  r.patch('/slides/:id', async (req, res) => {
+  r.patch('/slides/:id', requireConsent, async (req, res) => {
     const id = Id.parse(req.params.id);
     const body = EditSlide.parse(req.body);
     const who = req.identity!;
@@ -50,7 +51,7 @@ export function slidesRouter(checkQueue?: Queue<CheckJobData>) {
     await answer(req, res, id, lectureId);
   });
 
-  r.post('/slides/:id/examples', async (req, res) => {
+  r.post('/slides/:id/examples', requireConsent, async (req, res) => {
     const id = Id.parse(req.params.id);
     const body = AddExample.parse(req.body);
     const who = req.identity!;
@@ -71,7 +72,7 @@ export function slidesRouter(checkQueue?: Queue<CheckJobData>) {
     res.json(SlideVersions.parse({ versions: rows.map((v) => ({ version: v.version, reason: v.reason, createdAt: v.created_at.toISOString() })) }));
   });
 
-  r.post('/slides/:id/restore', async (req, res) => {
+  r.post('/slides/:id/restore', requireConsent, async (req, res) => {
     const id = Id.parse(req.params.id);
     const { version } = RestoreSlide.parse(req.body);
     const who = req.identity!;

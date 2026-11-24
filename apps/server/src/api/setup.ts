@@ -35,6 +35,12 @@ export function setupRouter() {
     res.status(204).end();
   });
 
+  /** She withdraws her consent: nothing more is sent to outside services until she agrees again. Her data stays. */
+  r.post('/consents/withdraw', async (req, res) => {
+    await req.db!((c) => c.query('update consents set withdrawn_at = now() where owner_id = app_user() and withdrawn_at is null'));
+    res.status(204).end();
+  });
+
   r.patch('/setup/profile', async (req, res) => {
     const body = ProfileRequest.parse(req.body);
     await req.db!(async (c) => {

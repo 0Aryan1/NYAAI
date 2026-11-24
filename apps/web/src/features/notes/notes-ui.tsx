@@ -5,6 +5,7 @@ import type { TeacherNote } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { Pill } from '@/shared/ui/pill';
+import { LoadError, Skeleton } from '@/shared/ui/states';
 
 export const NOTE_ACCEPT = '.docx,.pdf,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown';
 
@@ -76,6 +77,8 @@ export function NotesPicker({ selected, onChange }: { selected: string[]; onChan
   return (
     <div>
       <p className="mb-3 text-sm text-muted">Only the documents you tick are used for this lecture. Your other notes are not.</p>
+      {notes.isLoading && <Skeleton className="mb-3 h-12 w-full" />}
+      {notes.isError && <LoadError what="Your notes" onRetry={() => void notes.refetch()} className="mb-3" />}
       {list.length > 0 && (
         <ul className="mb-3 space-y-2">
           {list.map((n) => (

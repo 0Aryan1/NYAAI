@@ -9,6 +9,7 @@ import { ChipGroup } from '@/shared/ui/chip-group';
 import { AmbiguityDialog } from './AmbiguityDialog';
 import { TopicBox } from './TopicBox';
 import { NotesPicker, useNotes, waitingNotes } from '@/features/notes/notes-ui';
+import { LoadError, Skeleton } from '@/shared/ui/states';
 
 export const ONE_OFF = 'one_off';
 
@@ -107,7 +108,18 @@ export function HomePage() {
       </div>
 
       <div className="space-y-6">
-        <ChipGroup label="Course" options={courseOptions} value={course} onChange={setCourse} />
+        {home.isLoading ? (
+          <div role="status" aria-label="Loading your courses">
+            <Skeleton className="mb-2 h-4 w-16" />
+            <div className="flex gap-2">
+              <Skeleton className="h-9 w-56" />
+              <Skeleton className="h-9 w-40" />
+            </div>
+          </div>
+        ) : (
+          <ChipGroup label="Course" options={courseOptions} value={course} onChange={setCourse} />
+        )}
+        {home.isError && <LoadError what="Your courses" onRetry={() => void home.refetch()} />}
         <ChipGroup
           label="Class length"
           options={LENGTH_CHOICES.map((m) => ({ value: String(m), label: `${m} min` }))}

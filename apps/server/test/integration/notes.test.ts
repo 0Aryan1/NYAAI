@@ -14,6 +14,7 @@ import pino from 'pino';
 import request from 'supertest';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { CONSENT_VERSION } from '@nyaai/shared';
 import type { z } from 'zod';
 import { withTenant } from '@nyaai/db';
 import type { LecturePlan } from '@nyaai/shared';
@@ -137,6 +138,7 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
     for (const [id, email] of [[teacher, `t-${tag}@nt.test`], [other, `o-${tag}@nt.test`]] as const) {
       await owner.query("insert into users (id, college_id, email, name) values ($1, $2, $3, 'T')", [id, college, email]);
       await owner.query('insert into teacher_profiles (owner_id, college_id) values ($1, $2)', [id, college]);
+      await owner.query("insert into consents (college_id, owner_id, version, processors) values ($1, $2, $3, '[]')", [college, id, CONSENT_VERSION]);
       await owner.query('insert into invite_allowlist (college_id, email) values ($1, $2)', [college, email]);
     }
   });
@@ -152,7 +154,7 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
         await c.query("delete from sources where owner_id = $1 and visibility = 'private'", [who.userId]);
       }, who);
     }
-    for (const t of ['usage', 'teacher_profiles', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
+    for (const t of ['usage', 'teacher_profiles', 'consents', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
     await owner.query('delete from colleges where id = $1', [college]);
     await Promise.all([owner.end(), app.end(), worker.end(), redis.quit()]);
   });

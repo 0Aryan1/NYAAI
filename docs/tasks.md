@@ -134,8 +134,11 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 ## Day 6: Privacy, deletion, deploy
 - [x] Delete and export my data (2026-11-25): "Your data" in the account menu; export = one zip (my-data.json + her note files); delete = type her email → signed out → `ops.delete_user_data` → `forget_teacher` (migration 0015) removes every row about her, her private notes and search data, her files; account kept only as an anonymous removed shell; logged in deletion_log with counts
 - [x] Consent screen (setup step, lists every processor; its promise "withdraw and delete my data at any time" is now true)
-- [ ] Axe (accessibility) fixes; empty, error and slow states; landing page
-- [ ] Withdraw consent without deleting everything (today: delete all is the way to withdraw)
+- [x] Empty, error and slow states (2026-11-25): shared `Skeleton`, `ListSkeleton`, `LoadError` (plain words, "Try again", offline notice), `SlowNote` (after 8 s), `EmptyState`; used on Prepare, Build, Studio, Courses, course plan, My notes, the notes picker and the library review
+- [x] Accessibility (2026-11-25): axe-core 4.10 (WCAG 2.0/2.1/2.2 A and AA) on every screen in light and dark, plus the Studio's source panel, coverage tab and Download dialog: all clean after fixes (Studio slide numbers faded twice; light-theme yellow #B45309 → #A34A07 and green #15803D → #147236, also in the .pptx)
+- [x] Withdraw consent (2026-11-25): "Your consent" on Your data; withdrawn → building, notes, edit checks, class memory and syllabus source checks are refused (`CONSENT_REQUIRED`), the app sends her to the consent step (Your data stays open); agreeing again resumes everything
+- [ ] Landing page (`apps/site`, LLD §13.5): public, pre-rendered, React Bits; not a BRD requirement
+- [ ] axe-core inside the Playwright E2E (J1, J3) once that is set up
 - [ ] Done when: E2E J1 and J3 green; pilot live
 
 ## Day 7: With teachers

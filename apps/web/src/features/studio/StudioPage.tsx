@@ -9,6 +9,7 @@ import { lectureNo } from '@/shared/lib/labels';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
 import { Tabs } from '@/shared/ui/tabs';
+import { LoadError, Skeleton, SlowNote } from '@/shared/ui/states';
 import { SlideCanvas } from './SlideCanvas';
 import { CoveragePanel } from './CoveragePanel';
 import { SourceDrawer } from './SourceDrawer';
@@ -95,8 +96,13 @@ export function StudioPage() {
   const slide = slides[current];
   const parts = lec?.plan?.parts ?? [];
 
-  if (lecture.isError || slidesQ.isError) return <p role="alert" className="p-8 text-danger">This lecture could not be opened. Try again.</p>;
-  if (!lec || !slidesQ.data) return <p className="p-8 text-muted">Opening the lecture…</p>;
+  if (lecture.isError || slidesQ.isError)
+    return (
+      <div className="p-8">
+        <LoadError what="This lecture" onRetry={() => void Promise.all([lecture.refetch(), slidesQ.refetch()])} />
+      </div>
+    );
+  if (!lec || !slidesQ.data) return <StudioSkeleton />;
 
   return (
     <div className="flex h-full flex-col">
@@ -181,7 +187,7 @@ export function StudioPage() {
                           si === current ? 'bg-accent/10 text-text' : 'text-muted hover:bg-bg hover:text-text',
                         )}
                       >
-                        <span className="w-5 shrink-0 text-right text-xs tabular-nums leading-5 opacity-70">{si + 1}</span>
+                        <span className="w-5 shrink-0 text-right text-xs tabular-nums leading-5">{si + 1}</span>
                         <span className="line-clamp-2">{s.title}</span>
                         {[...s.lines, ...s.notes].some((l) => l.flag === 'yellow') && <span className="ml-auto mt-1.5 size-2 shrink-0 rounded-full bg-flag-yellow" aria-label="has points to verify" />}
                       </button>
@@ -268,6 +274,33 @@ export function StudioPage() {
             )}
           </div>
         </aside>
+      </div>
+    </div>
+  );
+}
+
+/** The Studio's own layout while the lecture opens: outline, slide, side panel. */
+function StudioSkeleton() {
+  return (
+    <div role="status" aria-label="Opening the lecture" className="flex h-full flex-col">
+      <div className="flex items-center gap-3 border-b border-border px-6 py-3">
+        <Skeleton className="h-5 w-64" />
+        <Skeleton className="ml-auto h-8 w-28" />
+      </div>
+      <div className="flex min-h-0 flex-1">
+        <div className="hidden w-64 shrink-0 space-y-3 border-r border-border p-4 lg:block">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} className="h-4 w-full" />
+          ))}
+        </div>
+        <div className="flex-1 space-y-4 p-8">
+          <Skeleton className="aspect-video w-full max-w-4xl" />
+          <SlowNote />
+        </div>
+        <div className="hidden w-80 shrink-0 space-y-3 border-l border-border p-4 xl:block">
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       </div>
     </div>
   );

@@ -34,6 +34,8 @@ export const Me = z.object({
   /** 1-based index into SETUP_STEPS; the wizard resumes here. */
   setupStep: z.number().int().min(1).max(SETUP_STEPS.length),
   setupDone: z.boolean(),
+  /** She has agreed to the current consent and not withdrawn it (teachers only; always true for others). */
+  consented: z.boolean(),
   budget: z.object({ monthlyMicroUsd: z.number().int(), usedMicroUsd: z.number().int(), leftMicroUsd: z.number().int() }),
   features: z.array(z.string()),
 });

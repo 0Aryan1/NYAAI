@@ -7,6 +7,7 @@ import { api, queryKeys } from '@/shared/api/client';
 import { useEventStream } from '@/shared/hooks/useEventStream';
 import { Button } from '@/shared/ui/button';
 import { cn } from '@/shared/lib/utils';
+import { LoadError } from '@/shared/ui/states';
 
 /** The real steps (BUILD-1, LLD §12.3): no fake progress bar, only what the build reports. */
 export const BUILD_STEPS = [
@@ -99,6 +100,7 @@ export function BuildPage() {
     <div className="mx-auto max-w-xl">
       <h1 className="mb-1 text-2xl font-semibold">Preparing your lecture</h1>
       <p className="mb-8 text-sm text-muted">{saved?.topic ? `${saved.topic}. ` : ''}You can leave this page; the lecture keeps building.</p>
+      {lecture.isError && !state.done.size && <LoadError what="This lecture's progress" onRetry={() => void lecture.refetch()} className="mb-6" />}
       <ol className="space-y-4" aria-live="polite">
         {BUILD_STEPS.map((s) => {
           const isDone = finished || state.done.has(s.key);

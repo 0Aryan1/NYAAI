@@ -6,6 +6,7 @@ import type { SyllabusPreview } from '@nyaai/shared';
 import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { NOTE_ACCEPT } from '@/features/notes/notes-ui';
+import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
 
 /** One topic per line; numbering and bullets from a pasted syllabus are dropped. */
 export function topicsFrom(text: string): string[] {
@@ -68,8 +69,14 @@ export function CourseListPage() {
             </li>
           ))}
         </ul>
+      ) : list.isLoading ? (
+        <ListSkeleton rows={2} label="Loading your courses" className="mb-10" />
+      ) : list.isError ? (
+        <LoadError what="Your courses" onRetry={() => void list.refetch()} className="mb-10" />
       ) : (
-        <p className="mb-10 text-sm text-muted">{list.isLoading ? 'Loading…' : 'No courses yet. Lectures in a course open with a recap of the last class and end with a link to the next.'}</p>
+        <div className="mb-10">
+          <EmptyState title="No courses yet">Lectures in a course open with a recap of the last class and end with a link to the next. Make your first course below.</EmptyState>
+        </div>
       )}
 
       <form onSubmit={submit} className="space-y-4 rounded-card border border-border bg-surface p-4 text-sm">
