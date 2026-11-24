@@ -84,6 +84,7 @@ const workers = [
       cacheDays: config.KANOON_CACHE_DAYS,
       worker,
       voyageFor: (u) => voyageFrom(config, u),
+      minScore: config.RERANK_MIN_SCORE,
     }),
     {
     connection: createRedis(config.REDIS_URL),

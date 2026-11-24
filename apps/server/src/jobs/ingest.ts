@@ -16,6 +16,7 @@ import type { IndiaCode } from '../services/india-code/index.ts';
 import type { WebSearch } from '../services/web-search/index.ts';
 import { createGapLookup } from '../services/lookup/index.ts';
 import { ingestUpload } from '../services/ingest/note.ts';
+import { findCourseSources } from '../services/course/sources.ts';
 import { INGEST_TIMEOUT_MS, type IngestJobData } from './queues.ts';
 
 export interface IngestProcessorDeps {
@@ -34,16 +35,18 @@ export interface IngestProcessorDeps {
   /** Jobs acting for a teacher (her own notes) run as nyaai_worker with her identity. */
   worker?: pg.Pool;
   voyageFor?: (usage: UsageSink) => Voyage;
+  /** Relevance floor for searches made for a teacher (the syllabus source check). */
+  minScore?: number;
 }
 
-const JOBS = new Set(['ingest.source', 'ingest.kanoon', 'ingest.lookup', 'ingest.judgment', 'ingest.upload']);
+const JOBS = new Set(['ingest.source', 'ingest.kanoon', 'ingest.lookup', 'ingest.judgment', 'ingest.upload', 'ingest.syllabus']);
 
 /** The `ingest` queue: stages 1–7, logged to jobs_log, progress as ingest.progress events, 10-minute limit. */
 export function ingestProcessor(deps: IngestProcessorDeps) {
   const { library, logger } = deps;
   return async (job: Job<IngestJobData>) => {
     if (!JOBS.has(job.name)) throw new Error(`unknown ingest job ${job.name}`);
-    const { sourceId, tid, gapId, force, requestedBy, uploadKey, replace, official, uploadId, ownerId, collegeId } = job.data;
+    const { sourceId, tid, gapId, force, requestedBy, uploadKey, replace, official, uploadId, ownerId, collegeId, courseId } = job.data;
     const logId = (
       await library.query<{ id: string }>(
         `insert into jobs_log (owner_id, queue, job_id, kind, state, attempts, started_at)
@@ -60,6 +63,12 @@ export function ingestProcessor(deps: IngestProcessorDeps) {
       if (job.name === 'ingest.upload') {
         if (!uploadId || !ownerId || !collegeId || !deps.worker || !deps.voyageFor) throw new Error('ingest.upload needs the upload, its owner and the worker pool');
         return ingestUpload(uploadId, { userId: ownerId, collegeId, role: 'teacher' }, { worker: deps.worker, storage: deps.storage, voyageFor: deps.voyageFor, embedModel: deps.embedModel });
+      }
+      if (job.name === 'ingest.syllabus') {
+        if (!courseId || !ownerId || !collegeId || !deps.worker || !deps.voyageFor) throw new Error('ingest.syllabus needs the course, its owner and the worker pool');
+        // No AI model: the lookup gets none (names as Kanoon prints them; paragraphs labelled by rule or left for the editor).
+        const lookup = createGapLookup({ ...finishDeps, gateway: null, storage: deps.storage, kanoon: deps.kanoon, indiaCode: deps.indiaCode, web: deps.web, cacheDays: deps.cacheDays, budgetMs: 60_000 });
+        return findCourseSources(courseId, { userId: ownerId, collegeId, role: 'teacher' }, { worker: deps.worker, voyageFor: deps.voyageFor, lookup, minScore: deps.minScore ?? 0.5, budgetMs: INGEST_TIMEOUT_MS - 120_000 });
       }
       if (job.name === 'ingest.lookup') {
         if (!gapId) throw new Error('ingest.lookup needs a gap id');

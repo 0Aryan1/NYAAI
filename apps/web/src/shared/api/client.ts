@@ -33,6 +33,7 @@ import {
   type StyleRequest,
   TeacherNote,
   TeacherNoteList,
+  SyllabusPreview,
 } from '@nyaai/shared';
 
 export class ApiRequestError extends Error {
@@ -126,6 +127,23 @@ async function uploadNote(file: File, title: string, replaces?: string): Promise
   return TeacherNote.parse(data);
 }
 
+/** Her syllabus file, read into units and topics (nothing is kept on the server). */
+async function readSyllabus(file: File, classCount?: number): Promise<SyllabusPreview> {
+  const type = file.type || (/\.md$/i.test(file.name) ? 'text/markdown' : /\.txt$/i.test(file.name) ? 'text/plain' : 'application/octet-stream');
+  const res = await fetch(`/api/v1/courses/syllabus${classCount ? `?classCount=${classCount}` : ''}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { accept: 'application/json', 'content-type': type, 'x-csrf-token': csrfToken() },
+    body: file,
+  });
+  const data: unknown = await res.json().catch(() => null);
+  if (!res.ok) {
+    const err = ApiError.safeParse(data);
+    throw new ApiRequestError(res.status, err.success ? err.data : null);
+  }
+  return SyllabusPreview.parse(data);
+}
+
 export interface Processor {
   name: string;
   purpose: string;
@@ -173,6 +191,7 @@ export const api = {
   uploadStatus: (jobId: string) => call('GET', `/library/uploads/${encodeURIComponent(jobId)}`, { parse: (v) => UploadJudgmentStatus.parse(v) }),
   courses: () => call('GET', '/courses', { parse: (v) => CourseList.parse(v) }),
   course: (id: string) => call('GET', `/courses/${id}`, { parse: (v) => CourseDetail.parse(v) }),
+  readSyllabus,
   createCourse: (body: CreateCourse) => call('POST', '/courses', { body, parse: (v) => CourseDetail.parse(v) }),
   updateUnits: (id: string, body: UpdateUnits) => call('PATCH', `/courses/${id}/units`, { body, parse: (v) => CourseDetail.parse(v) }),
   markTaught: (lectureId: string, taughtOn: string) => call('POST', `/lectures/${lectureId}/taught`, { body: { taughtOn }, parse: (v) => MarkTaughtResponse.parse(v) }),

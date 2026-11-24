@@ -61,7 +61,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Cost and false-flag fixes: shared writer/repair cache prefix, 512-token breakpoints, 6 sources per part, `looksLegal` narrowed, `checker.support` v2, writer v2 (lecture-style slides)
 - [x] Studio slide view (footnotes, layouts, "Show checks"); library editor review screen `/library` + migration 0006 (pulled forward from Day 5)
 - [ ] Bring a lecture to ≤ 5 yellow and ≤ US$0.59 — measure on the second real build; most remaining yellow needs the expert's "Labels checked"
-- [ ] Syllabus: create a course from the CNLU semester 1 syllabus (COURSE-2) and load its sources (DATA-1, DATA-3) — pilot courses are now ADR + Property Law; their sources are loaded through course packs (below), the upload screen is still to build
+- [x] Syllabus upload (COURSE-2, DATA-3, 2026-11-25): "Upload your syllabus" on Courses (Word, PDF or text; read by code, not kept; one lecture per unit or per topic; she edits the list); "Find the sources for every lecture now" runs `ingest.syllabus` (library search, then India Code / Indian Kanoon for gaps; no AI model); the course plan shows "Sources ready / Few sources / None found yet" per lecture
 
 ## Added 2026-11-21: pilot library for ADR and Property Law (quality first; see memory.md)
 - [x] Course packs `packages/db/seeds/packs/{adr,property}.json` + `pnpm library pack` (Acts from India Code, cases from Kanoon by party-word title match)
@@ -124,7 +124,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] PPT builder: pptxgenjs base design now (automizer with her template later), flags in notes, remove-unverified (2026-11-22)
 - [ ] Edit checks (C1–C8 inline; C9/C10 background); ~~course memory, recap and bridge~~ (done 2026-11-22, above)
 - [x] Web: save on every change, versions with undo, Download dialog, course plan (2026-11-22)
-- [ ] DATA-3: syllabus upload → for each planned lecture, the same gap check + lookup in the background (`ingest.syllabus`); was missing from the plan
+- [x] DATA-3: syllabus upload → for each planned lecture, the same gap check + lookup in the background (`ingest.syllabus`) (done 2026-11-25, see Day 3)
 - [ ] Done when: J1 end to end; .pptx output tests green
 
 ## Day 5: Explore, quick Research, reports queue

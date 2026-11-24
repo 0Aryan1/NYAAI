@@ -2,11 +2,19 @@
  * Courses and the series (BRD COURSE-1 to COURSE-7, HLD F8; LLD §4 /courses). A course is her plan of lectures
  * (`course_units`); each unit keeps the memory of its taught lecture. Series checks are suggestions only: nothing
  * here changes the plan unless she asks.
+ *
+ * Syllabus upload (COURSE-2, DATA-3): POST /courses/syllabus reads her file into units and topics and returns them;
+ * nothing is kept. She edits the list, then POST /courses makes the course; with `findSources`, the worker looks for
+ * the sources of every lecture in the background (`ingest.syllabus`) and the plan shows what it found.
  */
 import express from 'express';
+import type { Queue } from 'bullmq';
 import { z } from 'zod';
-import { seriesChecks } from '@nyaai/legal';
-import { CourseDetail, CourseList, CreateCourse, UpdateCourse, UpdateUnits, type CourseUnitView } from '@nyaai/shared';
+import { defaultPer, readSyllabus, seriesChecks, syllabusLectures, syllabusLines, syllabusPdfLines, type NoteBlock } from '@nyaai/legal';
+import { CourseDetail, CourseList, CreateCourse, MAX_NOTE_BYTES, NOTE_MIME_TYPES, SyllabusPreview, UnitSources, UpdateCourse, UpdateUnits, type CourseUnitView } from '@nyaai/shared';
+import { INGEST_JOB_OPTIONS, type IngestJobData } from '../jobs/queues.ts';
+import { docxBlocks, NoteReadError } from '../services/ingest/note.ts';
+import { NoTextLayerError, pdfLines } from '../services/ingest/extract.ts';
 import { AppError } from '../errors.ts';
 import { loadUnits, seriesUnits } from '../services/course/index.ts';
 import type pg from 'pg';
@@ -21,9 +29,26 @@ async function courseRow(c: pg.PoolClient, id: string) {
   return row;
 }
 
+/** Her syllabus file, line by line (Word paragraphs, PDF lines, text lines). */
+async function syllabusBlocks(bytes: Uint8Array, kind: string): Promise<NoteBlock[]> {
+  if (kind === 'docx') return docxBlocks(bytes);
+  if (kind === 'pdf') {
+    try {
+      return syllabusPdfLines(await pdfLines(bytes));
+    } catch (err) {
+      if (err instanceof NoTextLayerError) throw new NoteReadError('This PDF is a scan with no text in it. Upload a Word copy or a typed PDF, or paste the topics.');
+      throw err;
+    }
+  }
+  return syllabusLines(new TextDecoder().decode(bytes));
+}
+
 async function detail(c: pg.PoolClient, id: string) {
   const course = await courseRow(c, id);
   const units = await seriesUnits(c, id);
+  const sources = new Map(
+    (await c.query<{ id: string; sources: unknown }>('select id, sources from course_units where course_id = $1 and sources is not null', [id])).rows.map((r) => [r.id, UnitSources.safeParse(r.sources).data ?? null]),
+  );
   const lectures = new Map(
     (
       await c.query<{ id: string; status: string; topic: string }>(
@@ -43,6 +68,7 @@ async function detail(c: pg.PoolClient, id: string) {
       taughtOn: u.taughtOn,
       prerequisites: u.prerequisites,
       lecture: lectureId && lectures.get(lectureId) ? lectures.get(lectureId)! : null,
+      sources: sources.get(u.id) ?? null,
       memory:
         u.status === 'taught' && (m.summary || m.terms?.length || m.cases?.length)
           ? { summary: m.summary ?? null, terms: m.terms ?? [], cases: (m.cases ?? []).map((x) => x.name), runningExample: m.runningExample ?? null, openThreads: m.openThreads ?? [] }
@@ -52,8 +78,28 @@ async function detail(c: pg.PoolClient, id: string) {
   return CourseDetail.parse({ id: course.id, name: course.name, semester: course.semester, classCount: course.class_count, units: view, checks: seriesChecks(units, course.class_count) });
 }
 
-export function coursesRouter() {
+export function coursesRouter(ingestQueue?: Queue<IngestJobData>) {
   const r = express.Router();
+
+  /** Her syllabus, read into units and topics. Read in memory and not kept: she edits the result, then creates. */
+  r.post('/courses/syllabus', express.raw({ type: Object.keys(NOTE_MIME_TYPES), limit: MAX_NOTE_BYTES }), async (req, res) => {
+    const mime = (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
+    const kind = NOTE_MIME_TYPES[mime as keyof typeof NOTE_MIME_TYPES];
+    const bytes = Buffer.isBuffer(req.body) ? new Uint8Array(req.body) : new Uint8Array();
+    if (!kind) throw new AppError('UNSUPPORTED_FILE', 'Upload the syllabus as a Word document (.docx), a PDF or a text file.');
+    const classCount = z.coerce.number().int().min(1).max(80).optional().catch(undefined).parse(req.query.classCount);
+    let outline;
+    try {
+      outline = readSyllabus(await syllabusBlocks(bytes, kind));
+    } catch (err) {
+      if (err instanceof NoteReadError) throw new AppError('UNSUPPORTED_FILE', err.message);
+      throw err;
+    }
+    const perUnit = syllabusLectures(outline, 'unit');
+    const perTopic = syllabusLectures(outline, 'topic');
+    if (!perUnit.length) throw new AppError('VALIDATION_FAILED', 'We found no lecture topics in this file. Paste the topics instead, one per line.');
+    res.json(SyllabusPreview.parse({ courseName: outline.courseName, units: outline.units, perUnit, perTopic, suggested: defaultPer(outline, classCount ?? null) }));
+  });
 
   r.get('/courses', async (req, res) => {
     const rows = await req.db!(async (c) =>
@@ -83,12 +129,24 @@ export function coursesRouter() {
           body.classCount ?? null,
         ])
       ).rows[0]!.id;
+      // DATA-3: each lecture waits for the background source check.
+      const waiting = body.findSources && !!ingestQueue && body.topics.length > 0;
       for (const [i, title] of body.topics.entries()) {
-        await c.query('insert into course_units (college_id, owner_id, course_id, position, title) values ($1, $2, $3, $4, $5)', [who.collegeId, who.userId, id, i + 1, title]);
+        await c.query('insert into course_units (college_id, owner_id, course_id, position, title, sources) values ($1, $2, $3, $4, $5, $6)', [
+          who.collegeId,
+          who.userId,
+          id,
+          i + 1,
+          title,
+          waiting ? { state: 'waiting', found: null, loaded: null, checkedAt: null } : null,
+        ]);
       }
-      return detail(c, id);
+      return { course: await detail(c, id), waiting };
     });
-    res.status(201).json(out);
+    if (out.waiting) {
+      await ingestQueue!.add('ingest.syllabus', { courseId: out.course.id, ownerId: who.userId, collegeId: who.collegeId, requestedBy: who.userId }, { ...INGEST_JOB_OPTIONS, attempts: 2, jobId: `ingest.syllabus-${out.course.id}` });
+    }
+    res.status(201).json(out.course);
   });
 
   r.get('/courses/:id', async (req, res) => {

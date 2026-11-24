@@ -26,6 +26,8 @@ export interface IngestJobData {
   official?: boolean;
   /** ingest.upload: a teacher's own document (read as her: `ownerId`, `collegeId`). */
   uploadId?: string;
+  /** ingest.syllabus: find sources for every planned lecture of this course (as her). */
+  courseId?: string;
   ownerId?: string;
   collegeId?: string;
 }

@@ -1,8 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FileUp } from 'lucide-react';
+import type { SyllabusPreview } from '@nyaai/shared';
 import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
+import { NOTE_ACCEPT } from '@/features/notes/notes-ui';
 
 /** One topic per line; numbering and bullets from a pasted syllabus are dropped. */
 export function topicsFrom(text: string): string[] {
@@ -13,7 +16,7 @@ export function topicsFrom(text: string): string[] {
     .slice(0, 80);
 }
 
-/** Courses (COURSE-1, COURSE-2): her courses, and a new one from a pasted list of topics. */
+/** Courses (COURSE-1, COURSE-2): her courses, and a new one from her syllabus file, a pasted list of topics, or empty. */
 export function CourseListPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -22,8 +25,20 @@ export function CourseListPage() {
   const [semester, setSemester] = useState('');
   const [classCount, setClassCount] = useState('');
   const [topics, setTopics] = useState('');
+  // Her syllabus, read by the server (not kept): she picks one lecture per unit or per topic, then edits the list.
+  const [syllabus, setSyllabus] = useState<SyllabusPreview | null>(null);
+  const [per, setPer] = useState<'unit' | 'topic'>('topic');
+  const [findSources, setFindSources] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [readError, setReadError] = useState<string | null>(null);
+  const file = useRef<HTMLInputElement>(null);
+  const applyPlan = (s: SyllabusPreview, p: 'unit' | 'topic') => {
+    setPer(p);
+    setTopics((p === 'unit' ? s.perUnit : s.perTopic).join('\n'));
+  };
   const create = useMutation({
-    mutationFn: () => api.createCourse({ name, semester: semester || undefined, classCount: classCount ? Number(classCount) : undefined, topics: topicsFrom(topics) }),
+    mutationFn: () =>
+      api.createCourse({ name, semester: semester || undefined, classCount: classCount ? Number(classCount) : undefined, topics: topicsFrom(topics), findSources: findSources && topicsFrom(topics).length > 0 }),
     onSuccess: (c) => {
       void qc.invalidateQueries({ queryKey: queryKeys.courses });
       void qc.invalidateQueries({ queryKey: queryKeys.home });
@@ -73,11 +88,71 @@ export function CourseListPage() {
             <input type="number" min={1} max={80} value={classCount} onChange={(e) => setClassCount(e.target.value)} className="w-full rounded-control border border-border bg-bg px-2 py-2" />
           </label>
         </div>
+        <div className="rounded-control border border-dashed border-border bg-bg p-3">
+          <input
+            ref={file}
+            type="file"
+            accept={NOTE_ACCEPT}
+            className="sr-only"
+            aria-label="Upload your syllabus"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f) return;
+              setReadError(null);
+              setReading(true);
+              try {
+                const s = await api.readSyllabus(f, classCount ? Number(classCount) : undefined);
+                setSyllabus(s);
+                if (!name.trim() && s.courseName) setName(s.courseName.slice(0, 120));
+                applyPlan(s, s.suggested);
+                setFindSources(true);
+              } catch (err) {
+                setReadError(err instanceof Error ? err.message : 'We could not read that file. Paste the topics instead.');
+              } finally {
+                setReading(false);
+              }
+            }}
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <Button size="sm" disabled={reading} onClick={() => file.current?.click()}>
+              <FileUp className="size-4" aria-hidden />
+              {reading ? 'Reading…' : 'Upload your syllabus'}
+            </Button>
+            <span className="text-xs text-muted">Word, PDF or text. We list its lectures below for you to check; the file is not kept.</span>
+          </div>
+          {readError && <p className="mt-2 text-xs text-danger">{readError}</p>}
+          {syllabus && syllabus.perUnit.length !== syllabus.perTopic.length && (
+            <fieldset className="mt-3 flex flex-wrap gap-4 text-sm">
+              <legend className="mb-1 text-xs text-muted">We found {syllabus.units.length} units. Plan it as:</legend>
+              <label className="flex items-center gap-2">
+                <input type="radio" name="per" checked={per === 'unit'} onChange={() => applyPlan(syllabus, 'unit')} />
+                one lecture per unit ({syllabus.perUnit.length})
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" name="per" checked={per === 'topic'} onChange={() => applyPlan(syllabus, 'topic')} />
+                one lecture per topic ({syllabus.perTopic.length})
+              </label>
+            </fieldset>
+          )}
+        </div>
         <label className="block">
           <span className="mb-1 block font-medium">Lectures, one per line (optional)</span>
           <textarea value={topics} onChange={(e) => setTopics(e.target.value)} rows={8} placeholder={'Arbitration agreement\nComposition of the tribunal\nInterim measures'} className="w-full rounded-control border border-border bg-bg px-2 py-2" />
-          <span className="mt-1 block text-xs text-muted">Paste the topics from your syllabus. You can reorder, rename and add lectures later.{planned ? ` ${planned} lectures.` : ''}</span>
+          <span className="mt-1 block text-xs text-muted">
+            {syllabus ? 'Check the list: fix any line we read wrongly, delete what is not a lecture.' : 'Or paste the topics from your syllabus.'} You can reorder, rename and add lectures later.
+            {planned ? ` ${planned} lectures.` : ''}
+          </span>
         </label>
+        {planned > 0 && (
+          <label className="flex items-start gap-2">
+            <input type="checkbox" className="mt-0.5" checked={findSources} onChange={(e) => setFindSources(e.target.checked)} />
+            <span>
+              Find the sources for every lecture now
+              <span className="block text-xs text-muted">The library looks up the Acts and judgments for each lecture in the background, so they are ready when you prepare it.</span>
+            </span>
+          </label>
+        )}
         {create.error && <p className="text-flag-yellow">{create.error instanceof ApiRequestError ? create.error.message : 'The course was not saved. Try again.'}</p>}
         <Button type="submit" variant="primary" disabled={create.isPending || name.trim().length < 2}>
           {create.isPending ? 'Saving…' : 'Create course'}

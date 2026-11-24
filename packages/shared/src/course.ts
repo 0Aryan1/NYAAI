@@ -25,8 +25,30 @@ export const CreateCourse = z.object({
   semester: z.string().trim().max(40).optional(),
   classCount: z.number().int().min(1).max(80).optional(),
   topics: z.array(Title).max(80).default([]),
+  /** DATA-3: find sources for every lecture in the background (a course planned from her syllabus). */
+  findSources: z.boolean().default(false),
 });
 export type CreateCourse = z.infer<typeof CreateCourse>;
+
+/** POST /courses/syllabus (COURSE-2): her syllabus read into units and topics. Nothing is saved; she edits, then creates. */
+export const SyllabusPreview = z.object({
+  courseName: z.string().nullable(),
+  units: z.array(z.object({ title: z.string(), topics: z.array(z.string()) })),
+  /** The two ways to plan it, and the likelier one. */
+  perUnit: z.array(z.string()),
+  perTopic: z.array(z.string()),
+  suggested: z.enum(['unit', 'topic']),
+});
+export type SyllabusPreview = z.infer<typeof SyllabusPreview>;
+
+/** What the background check found for one planned lecture (DATA-3). */
+export const UnitSources = z.object({
+  state: z.enum(['waiting', 'ok', 'thin', 'not_found', 'not_checked']),
+  found: z.number().int().nullable(),
+  loaded: z.number().int().nullable(),
+  checkedAt: z.string().nullable(),
+});
+export type UnitSources = z.infer<typeof UnitSources>;
 
 /** PATCH /courses/:id */
 export const UpdateCourse = z.object({
@@ -66,6 +88,8 @@ export const CourseUnitView = z.object({
   prerequisites: z.array(z.uuid()),
   /** The unit's latest lecture. */
   lecture: z.object({ id: z.uuid(), status: z.string(), topic: z.string() }).nullable(),
+  /** Sources found for it in the background (DATA-3); null when never checked. */
+  sources: UnitSources.nullable(),
   /** What the class learnt, once taught (COURSE-4). */
   memory: z
     .object({

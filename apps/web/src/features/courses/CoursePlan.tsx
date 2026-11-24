@@ -20,7 +20,12 @@ export function CoursePlanPage() {
   const { id = '' } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const course = useQuery({ queryKey: queryKeys.course(id), queryFn: () => api.course(id) });
+  // While the background check is finding sources (DATA-3), the plan refreshes itself.
+  const course = useQuery({
+    queryKey: queryKeys.course(id),
+    queryFn: () => api.course(id),
+    refetchInterval: (q) => (q.state.data?.units.some((u) => u.sources?.state === 'waiting') ? 5000 : false),
+  });
   const [editing, setEditing] = useState<string | null>(null);
   const [prereqFor, setPrereqFor] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -122,6 +127,7 @@ export function CoursePlanPage() {
                       Open lecture
                     </Link>
                   )}
+                  {!u.lecture && u.status === 'planned' && u.sources && <SourcesNote s={u.sources} />}
                   {u.prerequisites.length > 0 && (
                     <span className="inline-flex items-center gap-1">
                       <Link2 className="size-3.5" aria-hidden />
@@ -229,4 +235,13 @@ export function CoursePlanPage() {
       </form>
     </Page>
   );
+}
+
+/** What the background check found for a planned lecture (DATA-3), in plain words. */
+export function SourcesNote({ s }: { s: NonNullable<CourseUnitView['sources']> }) {
+  if (s.state === 'waiting') return <span>Finding sources…</span>;
+  if (s.state === 'not_checked') return <span>Sources: checked when you prepare it</span>;
+  if (s.state === 'ok') return <span className="text-success">Sources ready ({s.found}){s.loaded ? `, ${s.loaded} newly added` : ''}</span>;
+  if (s.state === 'thin') return <span className="text-flag-yellow">Few sources ({s.found}); the library team is told</span>;
+  return <span className="text-flag-yellow">No sources found yet; the library team is told</span>;
 }
