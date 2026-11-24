@@ -250,6 +250,9 @@ importers:
       jsdom:
         specifier: ^29.1.1
         version: 29.1.1(@noble/hashes@1.8.0)
+      jszip:
+        specifier: 3.10.2
+        version: 3.10.2
       openid-client:
         specifier: ^6.9.0
         version: 6.9.0

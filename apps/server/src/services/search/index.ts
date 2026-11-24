@@ -33,6 +33,8 @@ export interface SearchRequest {
   noRerank?: boolean;
   /** Skip the Haiku rewrite (tests, eval A/B). */
   noExpand?: boolean;
+  /** Her notes attached to the lecture: the only private sources this search may return. None by default. */
+  notes?: string[];
   /**
    * The Act a bare "s. 20" means when the question names none (a lecture part: the Act of its topic's key sections).
    * Without it a bare section number matches that section of every Act.
@@ -60,6 +62,8 @@ export interface RetrievedSource {
     rolesSampled: boolean;
     sourceType: string;
     origin: string;
+    /** A teacher's own note (private): usable only in a lecture she attached it to. */
+    private?: boolean;
   };
   status: { law?: string; case?: string };
   provisional: boolean;
@@ -117,13 +121,19 @@ interface Row {
   case_status: string | null;
   court_level: string | null;
   bench_size: number | null;
+  visibility: string;
 }
 
 const Expanded = z.object({ query: z.string().min(1).max(600) });
 
-/** The filters both candidate queries share (LLD §7.3). $1 jurisdictions, $2 as-on date, $3 historical, $4 court levels, $5 acts. */
+/**
+ * The filters every candidate query shares (LLD §7.3). $1 jurisdictions, $2 as-on date, $3 historical, $4 court
+ * levels, $5 acts, $6 private sources allowed. Row security lets a teacher read all her own notes; a search reads only
+ * the notes the caller names (those attached to the lecture), so an old note never slips into a new lecture.
+ */
 const FILTERS = `
   c.status in ('live', 'provisional')
+  and (c.visibility = 'shared' or c.source_id = any($6::uuid[]))
   and c.jurisdiction = any($1)
   and c.source_type not in ('news', 'web')
   and (c.valid_from is null or c.valid_from <= $2::date)
@@ -134,7 +144,7 @@ const FILTERS = `
 
 const ROW_COLUMNS = `c.id, c.source_id, c.parent_id, c.seq, c.kind, c.header, c.text, c.act_name, c.section, c.article, c.para_no,
   c.opinion, c.para_role, c.court, c.decided_on, c.law_status, c.source_type, c.status, s.origin, s.roles_sampled,
-  s.status as source_status, cs.status as case_status, s.court_level, s.bench_size`;
+  s.status as source_status, cs.status as case_status, s.court_level, s.bench_size, c.visibility`;
 const ROW_JOINS = `join sources s on s.id = c.source_id left join case_status_v cs on cs.source_id = c.source_id`;
 
 export async function search(db: pg.PoolClient, req: SearchRequest, deps: SearchDeps): Promise<SearchResult> {
@@ -144,7 +154,8 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
   const asOn = f.asOn ?? today;
   const understood = understandQuery(req.query);
   const acts = f.acts ?? (understood.acts.length ? understood.acts : null);
-  const params = [f.jurisdiction ?? ['IN'], asOn, asOn < today, f.courts ?? null, acts];
+  // $6: her notes attached to this lecture, the only private sources searched (none unless the caller names them).
+  const params = [f.jurisdiction ?? ['IN'], asOn, asOn < today, f.courts ?? null, acts, req.notes ?? []];
   const max = req.maxSources ?? 8;
 
   await db.query('set local hnsw.ef_search = 100');
@@ -159,8 +170,8 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
     const act = ref.act ?? (ref.kind === 'section' && !understood.acts.length ? (req.contextAct ?? null) : null);
     const r = await db.query<{ id: string }>(
       `select c.id from chunks c where ${FILTERS}
-         and c.parent_id is null and ${ref.kind === 'article' ? 'c.article = $6' : 'c.section = $6'}
-         and ($7::text is null or c.act_name = $7)
+         and c.parent_id is null and ${ref.kind === 'article' ? 'c.article = $7' : 'c.section = $7'}
+         and ($8::text is null or c.act_name = $8)
        order by c.created_at desc limit 3`,
       [...params, ref.number, act],
     );
@@ -172,8 +183,8 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
   for (const name of understood.caseNames) {
     const r = await db.query<{ id: string }>(
       `select c.id from chunks c join sources s on s.id = c.source_id
-        where ${FILTERS} and s.type = 'judgment' and similarity(s.title, $6) >= 0.35
-        order by similarity(s.title, $6) desc, c.seq limit 60`,
+        where ${FILTERS} and s.type = 'judgment' and similarity(s.title, $7) >= 0.35
+        order by similarity(s.title, $7) desc, c.seq limit 60`,
       [...params, name],
     );
     caseCandidates.push(...r.rows.map((x) => x.id));
@@ -183,11 +194,11 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
     `select distinct c.id from legal_concepts lc
        join concept_links cl on cl.concept_id = lc.id
        join chunks c on c.source_id = cl.source_id and (cl.chunk_id is null or c.id = cl.chunk_id)
-      where (lc.name % $6 or exists (select 1 from unnest(lc.aliases) a where a % $6) or $6 ilike '%' || lc.name || '%'
+      where (lc.name % $7 or exists (select 1 from unnest(lc.aliases) a where a % $7) or $7 ilike '%' || lc.name || '%'
              -- a doctrine named inside a longer question ("… under the doctrine of lis pendens?"), as whole words
              or exists (select 1 from unnest(lc.aliases) a
                          where length(a) >= 5
-                           and ' ' || regexp_replace(lower($6), '[^a-z0-9]+', ' ', 'g') || ' '
+                           and ' ' || regexp_replace(lower($7), '[^a-z0-9]+', ' ', 'g') || ' '
                                like '% ' || trim(regexp_replace(lower(a), '[^a-z0-9]+', ' ', 'g')) || ' %'))
         and (cl.kind = 'key_section' or cl.confirmed_at is not null)
         and c.parent_id is null and ${FILTERS}
@@ -209,16 +220,16 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
   const vector = (
     await db.query<{ id: string }>(
       `with vec as materialized (
-         select c.id, c.embedding <=> $6::vector as dist from chunks c
+         select c.id, c.embedding <=> $7::vector as dist from chunks c
           where c.embedding is not null and ${FILTERS}
-          order by c.embedding <=> $6::vector limit 50)
+          order by c.embedding <=> $7::vector limit 50)
        select id from vec order by dist + 0`,
       [...params, toVector(qv!)],
     )
   ).rows.map((r) => r.id);
   const words = (
     await db.query<{ id: string }>(
-      `select c.id from chunks c, websearch_to_tsquery('english', $6) q
+      `select c.id from chunks c, websearch_to_tsquery('english', $7) q
         where c.tsv @@ q and ${FILTERS}
         order by ts_rank_cd(c.tsv, q) desc limit 50`,
       [...params, req.query],
@@ -347,6 +358,7 @@ async function expand(db: pg.PoolClient, ranked: { row: Row; score: number | nul
         rolesSampled: row.roles_sampled,
         sourceType: row.source_type,
         origin: row.origin,
+        private: row.visibility === 'private',
       },
       status: {
         law: row.law_status ?? undefined,
@@ -439,6 +451,19 @@ export async function statuteSource(db: pg.PoolClient, chunkId: string): Promise
   const row = rows.get(chunkId);
   if (!row || !['live', 'provisional'].includes(row.status) || !['act', 'constitution'].includes(row.source_type)) return null;
   return (await expand(db, [{ row, score: null }], 1))[0] ?? null;
+}
+
+/** Every section of her attached notes, in order (the build makes sure an attached document is used). */
+export async function noteSources(db: pg.PoolClient, sourceIds: string[]): Promise<RetrievedSource[]> {
+  if (!sourceIds.length) return [];
+  const ids = (
+    await db.query<{ id: string }>(
+      "select id from chunks where source_id = any($1::uuid[]) and visibility = 'private' and status = 'live' order by source_id, seq",
+      [sourceIds],
+    )
+  ).rows.map((r) => r.id);
+  const rows = await loadRows(db, ids);
+  return expand(db, ids.flatMap((id) => (rows.has(id) ? [{ row: rows.get(id)!, score: null }] : [])), ids.length);
 }
 
 /** The topic's key sections (chunk ids) and its confirmed leading cases (source ids and titles), for the must-cover list. */

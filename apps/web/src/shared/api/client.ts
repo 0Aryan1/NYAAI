@@ -31,6 +31,8 @@ import {
   type PrepareLecture,
   type ProfileRequest,
   type StyleRequest,
+  TeacherNote,
+  TeacherNoteList,
 } from '@nyaai/shared';
 
 export class ApiRequestError extends Error {
@@ -105,6 +107,25 @@ async function uploadPdf(query: UploadJudgmentQuery, file: File): Promise<Upload
   return UploadJudgmentResponse.parse(data);
 }
 
+/** Her own document, sent as it is (its media type says what it is); read in the worker as hers. */
+async function uploadNote(file: File, title: string, replaces?: string): Promise<TeacherNote> {
+  const params = new URLSearchParams({ title, fileName: file.name });
+  if (replaces) params.set('replaces', replaces);
+  const type = file.type || (/\.md$/i.test(file.name) ? 'text/markdown' : /\.txt$/i.test(file.name) ? 'text/plain' : 'application/octet-stream');
+  const res = await fetch(`/api/v1/notes?${params.toString()}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { accept: 'application/json', 'content-type': type, 'x-csrf-token': csrfToken() },
+    body: file,
+  });
+  const data: unknown = await res.json().catch(() => null);
+  if (!res.ok) {
+    const err = ApiError.safeParse(data);
+    throw new ApiRequestError(res.status, err.success ? err.data : null);
+  }
+  return TeacherNote.parse(data);
+}
+
 export interface Processor {
   name: string;
   purpose: string;
@@ -146,6 +167,9 @@ export const api = {
   sameCase: ({ id, same }: { id: string; same: boolean }) => call<void>('POST', `/library/judgments/${id}/same-case`, { body: { same } }),
   setCaseStatus: (id: string, body: SetCaseStatus) => call<void>('POST', `/library/judgments/${id}/status`, { body }),
   uploadJudgment: uploadPdf,
+  notes: () => call('GET', '/notes', { parse: (v) => TeacherNoteList.parse(v) }),
+  uploadNote,
+  deleteNote: (id: string) => call<void>('DELETE', `/notes/${id}`),
   uploadStatus: (jobId: string) => call('GET', `/library/uploads/${encodeURIComponent(jobId)}`, { parse: (v) => UploadJudgmentStatus.parse(v) }),
   courses: () => call('GET', '/courses', { parse: (v) => CourseList.parse(v) }),
   course: (id: string) => call('GET', `/courses/${id}`, { parse: (v) => CourseDetail.parse(v) }),
@@ -164,6 +188,7 @@ export const api = {
 export const queryKeys = {
   me: ['me'] as const,
   home: ['home'] as const,
+  notes: ['notes'] as const,
   consent: ['consent'] as const,
   authOptions: ['auth-options'] as const,
   suggest: (q: string) => ['suggest', q] as const,

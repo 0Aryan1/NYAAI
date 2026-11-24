@@ -56,6 +56,8 @@ export function standingOf(f: SourceFacts): { bonus: number; reasons: string[] }
     bonus += b;
     if (why) reasons.push(why);
   };
+  // Her own notes: no authority as law (the checks allow them for examples only), and no copy to speak of.
+  if (f.sourceType === 'teacher_note') return { bonus: 0, reasons: ['your own notes, attached to this lecture'] };
   if (f.sourceType === 'act') add(0.05, 'the Act itself');
   else if (f.sourceType === 'constitution') add(0.05, 'the Constitution itself');
   else if (f.sourceType === 'judgment') {

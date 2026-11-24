@@ -82,6 +82,8 @@ const workers = [
       usage: libraryUsage,
       embedModel: config.VOYAGE_EMBED_MODEL,
       cacheDays: config.KANOON_CACHE_DAYS,
+      worker,
+      voyageFor: (u) => voyageFrom(config, u),
     }),
     {
     connection: createRedis(config.REDIS_URL),

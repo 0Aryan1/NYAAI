@@ -77,6 +77,8 @@ const ACT_SHORT: Record<string, string> = {
 
 /** "s. 56 ICA", "Art. 19 Const.", "Satyabrata Ghose ¶12". */
 export function sourceLabel(s: RetrievedSource, title: string | null): string {
+  // Her notes are always named as hers, so nobody takes them for the Act or a judgment.
+  if (s.meta.sourceType === 'teacher_note') return s.header.split(' › ').slice(0, 2).join(' › ');
   if (s.meta.article) return `Art. ${s.meta.article}`;
   if (s.meta.section) return `s. ${s.meta.section} ${ACT_SHORT[s.meta.act ?? ''] ?? s.meta.act ?? ''}`.trim();
   const name = (title ?? s.header.split(' › ')[0] ?? '').split(/\s+v\.?\s+/i)[0]!.replace(/^(M\/s\.?|The)\s+/i, '').trim();

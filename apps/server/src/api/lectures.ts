@@ -61,6 +61,15 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
           }
         }
       }
+      // Her notes for this lecture: hers, and read (row security already hides other teachers' uploads).
+      if (body.notes.length) {
+        const notes = (await c.query<{ id: string; status: string; title: string }>("select id, status, coalesce(title, file_name) as title from uploads where id = any($1::uuid[]) and status not in ('deleted', 'replaced')", [body.notes])).rows;
+        if (notes.length !== new Set(body.notes).size) throw new AppError('NOT_FOUND', 'One of the documents you chose is no longer in your notes.');
+        const waiting = notes.filter((n) => n.status !== 'ready');
+        if (waiting.length) {
+          throw new AppError('NOTES_NOT_READY', waiting.some((n) => n.status === 'failed') ? `We could not read ${waiting.map((n) => n.title).join(', ')}. Remove it or upload it again.` : `Your notes are still being read: ${waiting.map((n) => n.title).join(', ')}. Try again in a moment.`);
+        }
+      }
       const id = (
         await c.query<{ id: string }>(
           `insert into lectures (college_id, owner_id, course_id, unit_id, topic, length_min, level, style_key, status)
@@ -69,9 +78,9 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
         )
       ).rows[0]!.id;
       await c.query(
-        `insert into lecture_inputs (lecture_id, college_id, owner_id, must_include_text, example_id, anything_special, filters, ambiguity_choice)
-         values ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [id, who.collegeId, who.userId, body.mustInclude?.text || null, body.mustInclude?.exampleId ?? null, body.anythingSpecial || null, body.filters, conceptId],
+        `insert into lecture_inputs (lecture_id, college_id, owner_id, must_include_text, example_id, anything_special, filters, ambiguity_choice, note_upload_ids)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [id, who.collegeId, who.userId, body.mustInclude?.text || null, body.mustInclude?.exampleId ?? null, body.anythingSpecial || null, body.filters, conceptId, [...new Set(body.notes)]],
       );
       // The plan points at the unit's latest lecture (a taught unit keeps the lecture it was taught from).
       if (body.course.kind === 'course' && body.course.unitId) {

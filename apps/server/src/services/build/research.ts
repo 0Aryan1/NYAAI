@@ -12,6 +12,10 @@
  *                source text, and its questions search the library only: a query that leaves the app (the outside
  *                lookup) comes only from clean context (rules §2, LLD §17.6). What is still missing is reported.
  *
+ * Her own notes (Option A, decision 2026-11-25): only the documents she attached to this lecture are searched, each
+ * one is used (a section of it joins the part it fits best when no search found it), and any private source that is
+ * not attached is dropped (`onlyAttached`), whatever the search returned.
+ *
  * The notes are saved on the lecture (`lectures.research`), so a retried build reuses them; each part is then
  * written closed-book from its own notes, and the ten checks run as before.
  */
@@ -23,7 +27,7 @@ import { PROMPTS, fence } from '@nyaai/prompts';
 import { GapQuestions, type LecturePlan } from '@nyaai/shared';
 import type { Gateway } from '../llm-gateway/index.ts';
 import { searchWithLookup, type GapLookup, type TenantRunner } from '../lookup/index.ts';
-import { conceptMustCover, search, sourceDetails, statuteSource, statuteUnits, type RetrievedSource, type SearchDeps, type SearchRequest, type StatuteUnit } from '../search/index.ts';
+import { conceptMustCover, noteSources, search, sourceDetails, statuteSource, statuteUnits, type RetrievedSource, type SearchDeps, type SearchRequest, type StatuteUnit } from '../search/index.ts';
 import type { UsageSink } from '../usage.ts';
 import { partQuery, sourceLabel } from './part.ts';
 import { pool } from './pool.ts';
@@ -75,6 +79,8 @@ export interface ResearchInput {
   filters: { jurisdiction?: string; asOn?: string };
   contextAct?: string;
   conceptId: string | null;
+  /** Her notes attached to this lecture (private source ids): the only private sources it may use. */
+  notes?: string[];
 }
 
 export interface ResearchDeps {
@@ -97,6 +103,7 @@ export async function researchLecture(input: ResearchInput, deps: ResearchDeps):
     maxSources,
     contextAct: input.contextAct,
     noExpand,
+    notes: input.notes ?? [],
   });
 
   // 1. Search every part at once.
@@ -134,6 +141,18 @@ export async function researchLecture(input: ResearchInput, deps: ResearchDeps):
     }
     caseNotes.push({ key: `case|${k.sourceId}`, kind: 'leading_case', label: `Leading case: ${k.title}`, sourceId: k.sourceId, act: null, number: null, partIndex: at });
   }
+  // Her attached notes: each document is used. One no search found gives its best-fitting sections to their parts.
+  const attached = input.notes ?? [];
+  if (attached.length) {
+    const all = await deps.tenant((c) => noteSources(c, attached));
+    for (const id of attached) {
+      if (parts.some((p) => p.sources.some((s) => s.sourceId === id))) continue;
+      const mine = all.filter((s) => s.sourceId === id);
+      const fit = mine.map((s) => ({ s, at: bestPart(plan, `${s.header} ${s.text}`), score: Math.max(0, ...plan.parts.map((p) => overlap(`${s.header} ${s.text}`, p))) }));
+      const chosen = fit.filter((f) => f.score > 0).sort((a, b) => b.score - a.score).slice(0, 2);
+      for (const f of chosen.length ? chosen : fit.slice(0, 1)) if (f.at !== null) addTo(parts[f.at]!, [f.s], true);
+    }
+  }
   settle(parts);
   let mustCover = [...(await statuteMustCover(plan, parts, keyUnits, deps.tenant)), ...caseNotes];
 
@@ -168,6 +187,7 @@ export async function researchLecture(input: ResearchInput, deps: ResearchDeps):
     if (!added) break;
   }
 
+  for (const p of parts) p.sources = onlyAttached(p.sources, attached);
   const titles = await deps.tenant((c) => sourceDetails(c, judgmentIds(parts)));
   return { version: 1, parts, mustCover, elsewhere: elsewhere(plan, parts, (id) => titles.get(id)?.title ?? null), gaps, notFound };
 }
@@ -184,6 +204,14 @@ export function sameNote(a: RetrievedSource, b: RetrievedSource): boolean {
   if (a.sourceId !== b.sourceId) return false;
   if (isStatute(a) && isStatute(b) && unitNo(a) && unitNo(a) === unitNo(b)) return true;
   return a.chunkId === b.chunkId || a.coveredChunkIds.some((id) => b.coveredChunkIds.includes(id));
+}
+
+/**
+ * The last guard on her notes (Option A): a private source is kept only if it is one of the documents attached to the
+ * lecture. The search already filters them; this holds even if it did not (and for notes saved by an earlier build).
+ */
+export function onlyAttached(list: RetrievedSource[], attached: string[]): RetrievedSource[] {
+  return list.filter((s) => !s.meta.private || attached.includes(s.sourceId));
 }
 
 /** Keeps the first (best-ranked) of each duplicate. */
@@ -203,7 +231,8 @@ export function addTo(part: PartNotes, more: RetrievedSource[], force: boolean):
     if (part.sources.some((o) => sameNote(o, s))) continue;
     if (part.sources.length >= MAX_SOURCES) {
       if (!force) continue;
-      const drop = part.sources.map((x, i) => ({ x, i })).reverse().find(({ x }) => !isStatute(x));
+      // The lowest judgment paragraph makes room; never a section, never her own attached note.
+      const drop = part.sources.map((x, i) => ({ x, i })).reverse().find(({ x }) => !isStatute(x) && !x.meta.private);
       if (!drop) continue;
       part.sources.splice(drop.i, 1);
     }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LecturePlan } from '@nyaai/shared';
 import type { RetrievedSource, StatuteUnit } from '../src/services/search/index.ts';
-import { MAX_SOURCES, addTo, assignMustCover, bestPart, dedupe, elsewhere, gapTask, mainPart, type PartNotes } from '../src/services/build/research.ts';
+import { MAX_SOURCES, addTo, assignMustCover, bestPart, dedupe, elsewhere, gapTask, mainPart, onlyAttached, type PartNotes } from '../src/services/build/research.ts';
 
 const ACT = 'Arbitration and Conciliation Act';
 const S34_TEXT = [
@@ -100,5 +100,17 @@ describe('research notes (merge and gap rules)', () => {
     expect(task).toContain('- Part 3: Time limit under s. 34(3)? (nothing new)');
     expect(task).toMatch(/<<<[0-9a-f]{12} research>>>/);
     expect(task).not.toContain('avoidance of any doubt');
+  });
+
+  it("her notes: a note not attached to the lecture is dropped; an attached one is never pushed out", () => {
+    const note = (id: string): RetrievedSource => ({ ...para(id, `n-${id}`, 0.1), header: `Your notes: ${id} › Seat`, meta: { rolesSampled: false, sourceType: 'teacher_note', origin: 'upload', private: true } });
+    const list = [statute('34'), note('attached'), note('old')];
+    expect(onlyAttached(list, ['attached']).map((x) => x.sourceId)).toEqual(['act-1', 'attached']);
+    expect(onlyAttached(list, []).some((x) => x.meta.private)).toBe(false);
+    // A full part: a forced key section pushes out a judgment paragraph, never her attached note.
+    const part: PartNotes = { sources: [note('attached'), ...Array.from({ length: MAX_SOURCES - 1 }, (_, i) => para(`j${i}`, `p${i}`, 0.5))], outcome: 'ok' };
+    addTo(part, [statute('35')], true);
+    expect(part.sources.some((x) => x.sourceId === 'attached')).toBe(true);
+    expect(part.sources).toHaveLength(MAX_SOURCES);
   });
 });

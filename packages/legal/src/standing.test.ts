@@ -32,6 +32,7 @@ describe('source standing: relevance first, then authority', () => {
   it('gives plain reasons for the teacher, without the case status (the Studio shows that live)', () => {
     expect(standingOf(judgment({ benchSize: 3, origin: 'court_site', caseStatus: 'good_law' })).reasons).toEqual(['Supreme Court', '3-judge bench', "the court's own reasoning", 'official copy']);
     expect(standingOf({ sourceType: 'act', courtLevel: null, benchSize: null, origin: 'india_code', provisional: false, caseStatus: null, paraRole: null, kind: 'section' }).reasons).toEqual(['the Act itself', 'official copy (India Code)']);
+    expect(standingOf({ sourceType: 'teacher_note', courtLevel: null, benchSize: null, origin: 'upload', provisional: false, caseStatus: null, paraRole: null, kind: 'heading_block' })).toEqual({ bonus: 0, reasons: ['your own notes, attached to this lecture'] });
     expect(standingOf(judgment({ kind: 'headnote', provisional: true })).reasons).toEqual(['Supreme Court', '2-judge bench', "a headnote (the reporter's summary)", 'Indian Kanoon copy', 'copy not yet approved by the library team']);
   });
 

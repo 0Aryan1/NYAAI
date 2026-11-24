@@ -8,6 +8,7 @@ import { Button } from '@/shared/ui/button';
 import { ChipGroup } from '@/shared/ui/chip-group';
 import { AmbiguityDialog } from './AmbiguityDialog';
 import { TopicBox } from './TopicBox';
+import { NotesPicker, useNotes, waitingNotes } from '@/features/notes/notes-ui';
 
 export const ONE_OFF = 'one_off';
 
@@ -34,6 +35,9 @@ export function HomePage() {
   const [choices, setChoices] = useState<ResolveChoice[] | null>(null);
   const [concept, setConcept] = useState<ResolveChoice | null>(null);
   const [busy, setBusy] = useState(false);
+  // Her notes for this lecture: none until she ticks or uploads one (Option A, decision 2026-11-25).
+  const [notes, setNotes] = useState<string[]>([]);
+  const allNotes = useNotes();
 
   async function prepare(choice?: ResolveChoice, prereqAck = false) {
     if (!course || !length || !level || !style) return;
@@ -56,6 +60,7 @@ export function HomePage() {
         filters: { jurisdiction: 'IN', comparative: false },
         ambiguityChoice: picked?.conceptId,
         prereqAck: prereqAck || undefined,
+        notes,
       });
       if (choice) setConcept(choice);
       void navigate(`/build/${r.lectureId}`);
@@ -89,6 +94,7 @@ export function HomePage() {
     !length && 'a class length',
     !level && 'a level',
     !style && 'a style',
+    waitingNotes(allNotes.data?.notes, notes).length > 0 && 'your notes to finish reading (or untick them)',
   ].filter((m): m is string => Boolean(m));
   const ready = missing.length === 0;
 
@@ -113,6 +119,13 @@ export function HomePage() {
       </div>
 
       <details className="mt-8 rounded-card border border-border bg-surface p-4">
+        <summary className="cursor-pointer text-sm font-medium">Use your own notes (optional){notes.length > 0 && ` · ${notes.length} chosen`}</summary>
+        <div className="mt-4">
+          <NotesPicker selected={notes} onChange={setNotes} />
+        </div>
+      </details>
+
+      <details className="mt-4 rounded-card border border-border bg-surface p-4">
         <summary className="cursor-pointer text-sm font-medium">Add your own example or a special request (optional)</summary>
         <div className="mt-4 space-y-4">
           <div>

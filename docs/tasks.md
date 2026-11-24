@@ -116,6 +116,9 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Coverage tab: "X of Y covered" instead of a bare % (L01 showed 0% for 0 of 1)
 - [ ] Coverage note "Add this for me" (put the item's own words on a slide, linked to its source) and a coverage re-run after edits
 - [x] One case, one source (migration 0012): an official copy that replaces a Kanoon text keeps the Kanoon copy on record; before a Kanoon download the lookup checks every held link, then the case (parties, decision date, court); a "maybe" is loaded and the editor asks "same case?" on the review screen (approval waits for the answer); `pnpm library relink` restored the Kanoon link of 15 official copies (from storage, nothing fetched)
+- [x] Teacher's own notes, Option A (migration 0013): "My notes" page and "Use your own notes" on Prepare (nothing ticked by default; a document uploaded there is ticked); Word, PDF or text read by the worker as her (`ingest.upload`), one private chunk per heading block, "Your notes: …" labels; a lecture searches only the attached notes (search filter `notes`), each attached note is always used, any other private source is dropped (`onlyAttached`); newer version replaces older; remove takes it out at once; C6: her notes support examples and facts only, never a statement of law; writer v7
+- [ ] Notes: try a real build with an attached note (needs credits)
+- [ ] Notes: read scanned PDFs (pictures of pages). Today they are refused with "This PDF is a scan with no text in it. Upload a Word copy or a typed PDF." Needs OCR (picture → text); OCR misreads characters (1/l, 0/O), so OCR'd notes must be labelled as machine-read and quotes checked, as for scanned judgments
 
 ## Day 4: PPT, edits, course series
 - [x] PPT builder: pptxgenjs base design now (automizer with her template later), flags in notes, remove-unverified (2026-11-22)

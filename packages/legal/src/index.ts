@@ -13,3 +13,4 @@ export * from './escr.ts';
 export * from './course.ts';
 export * from './standing.ts';
 export * from './same-case.ts';
+export * from './notes.ts';

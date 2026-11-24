@@ -41,7 +41,7 @@ export function searchRouter(deps: SearchApiDeps) {
       );
       const sections = await c.query<{ header: string; act_name: string | null; section: string | null; article: string | null }>(
         `select header, act_name, section, article from chunks
-          where parent_id is null and source_type in ('act', 'constitution') and status in ('live', 'provisional')
+          where visibility = 'shared' and parent_id is null and source_type in ('act', 'constitution') and status in ('live', 'provisional')
             and law_status is distinct from 'repealed'
             and (header ilike '%' || $1 || '%' or section = upper($1) or article = upper($1))
           order by (section = upper($1) or article = upper($1)) desc, similarity(header, $1) desc limit 4`,

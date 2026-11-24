@@ -24,7 +24,8 @@ import { usageSink, type UsageSink } from '../usage.ts';
 import type { Voyage } from '../voyage/index.ts';
 import { runPart, type PartContext, type PartOutput } from './part.ts';
 import { pool } from './pool.ts';
-import { researchLecture, type LectureResearch } from './research.ts';
+import { onlyAttached, researchLecture, type LectureResearch } from './research.ts';
+import { attachedNotes as notesFor } from '../ingest/note.ts';
 import { finaliseLecture, savePart, type FinalCounts } from './save.ts';
 
 export interface BuildDeps {
@@ -67,6 +68,7 @@ interface LectureRow {
   research: LectureResearch | null;
   must_include_text: string | null;
   anything_special: string | null;
+  note_upload_ids: string[];
   filters: { jurisdiction?: string; asOn?: string };
   concept_id: string | null;
   style: Record<string, string>;
@@ -118,7 +120,7 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
     const r = (
       await c.query<LectureRow>(
         `select l.topic, l.length_min, l.level, l.style_key, l.course_id, l.unit_id, l.plan, l.parts_done, l.research,
-                i.must_include_text, i.anything_special, i.filters, i.ambiguity_choice as concept_id,
+                i.must_include_text, i.anything_special, i.note_upload_ids, i.filters, i.ambiguity_choice as concept_id,
                 p.style, p.writing_guide, p.teaching_language, p.monthly_budget_micro_usd::text as budget,
                 (select sum(cost_micro_usd)::text from usage u where u.owner_id = l.owner_id and u.created_at >= date_trunc('month', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata') as spent
            from lectures l join lecture_inputs i on i.lecture_id = l.id join teacher_profiles p on p.owner_id = l.owner_id
@@ -134,6 +136,9 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
   });
 
   await emit({ type: 'build.step', lectureId: job.lectureId, step: 'sources' });
+  // Her notes for this lecture (Option A): only the attached documents, each at its newest version, if still there.
+  const attachedNotes = await tenant((c) => notesFor(c, row.note_upload_ids ?? []));
+  const attached = attachedNotes.map((n) => n.sourceId);
   const { concept, mappings, course } = await tenant(async (c) => {
     const concept = row.concept_id ? await conceptHints(c, row.concept_id) : null;
     const mappings = (
@@ -201,7 +206,7 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
   let research = row.research;
   if (!research) {
     research = await researchLecture(
-      { plan, topic: row.topic, level: row.level, filters: row.filters ?? {}, contextAct: ctx.contextAct, conceptId: row.concept_id },
+      { plan, topic: row.topic, level: row.level, filters: row.filters ?? {}, contextAct: ctx.contextAct, conceptId: row.concept_id, notes: attached },
       { tenant, searchDeps, lookup: deps.lookup, gateway: deps.gateway, usage, traceId, concurrency: deps.partConcurrency ?? 3 },
     );
     const notes = research;
@@ -220,7 +225,8 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
   const outputs: PartOutput[] = [];
   await pool(todo, deps.partConcurrency ?? 3, async ({ p, i }) => {
     const brief = {
-      sources: notes.parts[i]?.sources ?? [],
+      // The guard again: notes saved by an earlier attempt may name a document she has since removed or replaced.
+      sources: onlyAttached(notes.parts[i]?.sources ?? [], attached),
       outcome: notes.parts[i]?.outcome ?? ('not_found' as const),
       mustCover: notes.mustCover.filter((m) => m.partIndex === i && m.act && m.number).map((m) => ({ label: m.label, act: m.act!, number: m.number! })),
       elsewhere: notes.elsewhere[String(i)] ?? [],

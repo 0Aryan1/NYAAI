@@ -55,6 +55,10 @@ const WRITER_SYSTEM = [
   '   conclusion or a "so …" line that restates the law is a legal statement: make it a claim with a span.',
   '   Example lines may use the teacher\'s own example; any legal point inside them still needs a claim.',
   '8. Speaker notes follow the same rules; a note that states law carries claims.',
+  '9. A source labelled "Your notes" is the teacher\'s own notes for this class. Use it for her examples,',
+  '   illustrations and way of explaining: claims of type example or fact. It never supports a statement of law',
+  '   (a rule, holding, date, punishment, time limit, mapping or quotation of law): take that from the Act or a',
+  '   judgment in SOURCES, or add the question to notFound.',
   '',
   'WRITE: make it a lecture, not a list of quotations.',
   '- Each slide teaches one idea: a clear title, then 3–5 short lines a student can read at a glance.',
@@ -173,7 +177,7 @@ export const PROMPTS = {
   // Their effort must match too: an effort change invalidates the cache.
   'writer.part': {
     id: 'writer.part',
-    version: '6',
+    version: '7',
     tier: 'heavy',
     maxOutputTokens: 6000,
     effort: 'medium',
@@ -181,7 +185,7 @@ export const PROMPTS = {
   },
   'writer.repair': {
     id: 'writer.repair',
-    version: '6',
+    version: '7',
     tier: 'heavy',
     maxOutputTokens: 2500,
     effort: 'medium',

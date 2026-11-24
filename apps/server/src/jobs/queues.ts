@@ -24,6 +24,10 @@ export interface IngestJobData {
   replace?: boolean;
   /** ingest.judgment: the editor says the copy is from an official court website. */
   official?: boolean;
+  /** ingest.upload: a teacher's own document (read as her: `ownerId`, `collegeId`). */
+  uploadId?: string;
+  ownerId?: string;
+  collegeId?: string;
 }
 
 /** build.lecture: ids only; the teacher's identity is set with SET LOCAL from these (LLD §5.1). */

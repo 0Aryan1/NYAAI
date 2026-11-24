@@ -119,6 +119,8 @@ export const PrepareLecture = z.object({
   ambiguityChoice: z.uuid().optional(),
   /** HOME-10: she saw that earlier lectures this one builds on are not taught yet, and goes ahead. */
   prereqAck: z.boolean().optional(),
+  /** Her own notes for this lecture (upload ids). Only these are used; her other notes are not (decision 2026-11-25). */
+  notes: z.array(z.uuid()).max(5).default([]),
 });
 export type PrepareLecture = z.infer<typeof PrepareLecture>;
 export const PrepareResponse = z.object({ lectureId: z.uuid(), jobId: z.string() });

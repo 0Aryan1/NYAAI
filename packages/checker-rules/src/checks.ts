@@ -206,9 +206,13 @@ export function codeChecks(claim: ClaimInput, sources: ReadonlyMap<string, Check
 
   results.push(mappingCheck(claim, mappings));
 
-  // C6: news and web support only "It was reported…" lines of type news_report.
+  // C6: news and web support only "It was reported…" lines of type news_report. The teacher's own notes support her
+  // examples and facts only: a statement of law (a rule, holding, date, punishment, time limit, mapping or quotation)
+  // needs the Act or a judgment, so a slip in her notes never reaches the class unflagged.
   if (src.sourceType === 'news' || src.sourceType === 'web') {
     results.push(result('C6', claim.type === 'news_report' && NEWS_WORDING.test(claim.text), 'News cannot support a statement of law'));
+  } else if (src.sourceType === 'teacher_note') {
+    results.push(result('C6', claim.type === 'example' || claim.type === 'fact', 'Your notes cannot support a statement of law; cite the Act or a judgment'));
   } else {
     results.push(result('C6', claim.type !== 'news_report', 'Only news can be reported as news'));
   }

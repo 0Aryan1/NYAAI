@@ -105,6 +105,15 @@ describe('planted errors are flagged by code', () => {
     const news = new Map([['S1', { ...s56, sourceType: 'news' }]]);
     expect(codeChecks(claim({}), news).results.find((r) => r.name === 'C6')).toMatchObject({ result: 'fail', detail: 'News cannot support a statement of law' });
   });
+  it("C6: the teacher's own notes support her examples and facts, never a statement of law", () => {
+    const notes = new Map([['S1', { ...s56, sourceType: 'teacher_note' }]]);
+    const c6 = (type: ClaimInput['type']) => codeChecks(claim({ type }), notes).results.find((r) => r.name === 'C6');
+    expect(c6('example')).toMatchObject({ result: 'pass' });
+    expect(c6('fact')).toMatchObject({ result: 'pass' });
+    for (const t of ['rule', 'holding', 'date', 'punishment', 'time_limit', 'mapping', 'quote'] as const) {
+      expect(c6(t)).toMatchObject({ result: 'fail', detail: 'Your notes cannot support a statement of law; cite the Act or a judgment' });
+    }
+  });
   it("C7: 'held' resting on counsel's argument, a statute, a dissent, or unsampled labels", () => {
     const argued = claim({ tag: 'S2', type: 'holding', text: 'The Court held that the requisition ended the contract.', span: 'It was contended by counsel that the requisition order put an end to the contract altogether.' });
     expect(fails(argued)).toEqual(["C7: Not the court's majority reasoning"]);
