@@ -519,6 +519,11 @@ export async function approveSourceChunks(db: pg.PoolClient, sourceId: string): 
   await db.query("update chunks set status = 'live' where source_id = $1 and status = 'provisional'", [sourceId]);
 }
 
+/** A source taken out of the library (a second copy of a case it holds): its chunks leave search. */
+export async function retireSourceChunks(db: pg.PoolClient, sourceId: string): Promise<void> {
+  await db.query("update chunks set status = 'retired' where source_id = $1 and status <> 'retired'", [sourceId]);
+}
+
 /** Children of one statute section, and paragraphs within one window, collapse into one source. */
 function groupKey(r: Row): string {
   if (r.parent_id) return `parent:${r.parent_id}`;

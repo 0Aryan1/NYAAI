@@ -77,9 +77,10 @@ export function citationsOf(citation: string | null): string[] {
 
 type Item = ReviewJudgmentList['judgments'][number];
 type Filter = 'todo' | 'done' | 'all';
-/** Still needs the expert: labels, case status, or approval of a live lookup. */
-const todo = (x: Item) => !x.rolesChecked || x.caseStatus === 'not_verified' || x.status === 'provisional';
-const stillToDo = (x: Item) => [x.caseStatus === 'not_verified' && 'status', !x.rolesChecked && 'labels', x.status === 'provisional' && 'approval'].filter((t): t is string => !!t);
+/** Still needs the expert: labels, case status, approval of a live lookup, or whether it is a second copy. */
+const todo = (x: Item) => !x.rolesChecked || x.caseStatus === 'not_verified' || x.status === 'provisional' || x.maybeSame;
+const stillToDo = (x: Item) =>
+  [x.maybeSame && 'same case?', x.caseStatus === 'not_verified' && 'status', !x.rolesChecked && 'labels', x.status === 'provisional' && 'approval'].filter((t): t is string => !!t);
 
 /**
  * Library editor (LIB-2): for each judgment she confirms whether it is still good law, checks the paragraph labels,
@@ -109,6 +110,17 @@ export function LibraryReviewPage() {
   const setRole = useMutation({ mutationFn: ({ chunkId, role }: { chunkId: string; role: ParaRole }) => api.setParagraphRole(chunkId, role), onSuccess: refresh });
   const checked = useMutation({ mutationFn: api.rolesChecked, onSuccess: refresh });
   const approve = useMutation({ mutationFn: api.approveJudgment, onSuccess: refresh });
+  const sameCase = useMutation({
+    mutationFn: api.sameCase,
+    onSuccess: (_, v) => {
+      // The same case: this copy leaves the library, so show the one that stays.
+      if (v.same && j?.maybeSameAs) {
+        setSelected(j.maybeSameAs.id);
+        setFilter('all');
+      }
+      refresh();
+    },
+  });
   const j = detail.data;
   const cites = citationsOf(j?.citation ?? null);
   const counts = { todo: all.filter(todo).length, done: all.filter((x) => !todo(x)).length, all: all.length };
@@ -226,8 +238,39 @@ export function LibraryReviewPage() {
               {j.scanned && <p className="mt-3 rounded-control bg-flag-yellow-bg px-3 py-2 text-sm text-flag-yellow">This text was read from a scan and may have reading errors. Check quoted words against the PDF.</p>}
             </header>
 
+            {j.maybeSameAs && (
+              <section id="step-same" aria-labelledby="same" className="scroll-mt-6 rounded-card border border-flag-yellow bg-flag-yellow-bg p-5">
+                <h3 id="same" className="font-semibold">Is this the same case as one already in the library?</h3>
+                <p className="mt-1 max-w-prose text-sm">
+                  The library already holds{' '}
+                  <button
+                    type="button"
+                    className="font-medium text-accent hover:underline"
+                    onClick={() => {
+                      setSelected(j.maybeSameAs!.id);
+                      setFilter('all');
+                    }}
+                  >
+                    {j.maybeSameAs.title}
+                  </button>
+                  {[j.maybeSameAs.court, j.maybeSameAs.decidedOn].filter(Boolean).length > 0 && ` (${[j.maybeSameAs.court, j.maybeSameAs.decidedOn].filter(Boolean).join(', ')})`}, with the same parties.
+                  This one may be a second copy of it, or a different judgment in the same matter, such as an earlier order or a review. Compare the court and the
+                  date.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button disabled={sameCase.isPending} onClick={() => sameCase.mutate({ id: j.id, same: false })}>
+                    Different case: keep both
+                  </Button>
+                  <Button disabled={sameCase.isPending} onClick={() => sameCase.mutate({ id: j.id, same: true })}>
+                    Same case: remove this copy
+                  </Button>
+                </div>
+              </section>
+            )}
+
             <Checklist
               steps={[
+                ...(j.maybeSameAs ? [{ done: false, title: 'Is this a second copy of a case we hold?', hint: 'Answer the yellow question above.', target: 'step-same' }] : []),
                 { done: j.caseStatus !== 'not_verified', title: 'Is it still good law?', hint: 'Say whether a later judgment overruled it.', target: 'step-status' },
                 { done: j.rolesChecked, title: 'Are the paragraph labels right?', hint: 'Check which paragraphs are the court’s own reasoning and decision.', target: 'step-labels' },
                 j.status === 'provisional'
@@ -289,10 +332,11 @@ export function LibraryReviewPage() {
                   This copy came from {j.origin === 'indian_kanoon' ? 'Indian Kanoon, not the official report' : 'a court website or an upload and is not approved yet'}. Until you approve it, lectures mark lines
                   from it “not yet reviewed”. Check the name, court and date above, and that the paragraphs run from start to end.
                 </p>
-                <Button variant="primary" className="mt-4" disabled={approve.isPending} onClick={() => approve.mutate(j.id)}>
+                <Button variant="primary" className="mt-4" disabled={approve.isPending || !!j.maybeSameAs} onClick={() => approve.mutate(j.id)}>
                   <ShieldCheck className="size-4" aria-hidden />
                   Approve this copy
                 </Button>
+                {j.maybeSameAs && <p className="mt-2 text-sm text-muted">First answer whether this is the same case as the one already in the library.</p>}
               </section>
             )}
 

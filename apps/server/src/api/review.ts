@@ -5,15 +5,17 @@
  *  - "Labels checked" sets sources.roles_sampled (C7 then lets high-risk "held" claims rest on it);
  *  - "Approve" turns a live lookup from provisional into live.
  *  - "Case status": the expert's finding that a case is still good law, doubted, overruled or reversed (LIB-2).
+ *  - "Same case?": a lookup loaded a judgment that may be one already held (0012). A different case clears the
+ *    question; the same case retires the new copy and keeps its link on the case that stays.
  * Each action closes the matching review item. Lectures already built keep their flags until they are rebuilt, except
  * case status, which the Studio reads live.
  */
 import express from 'express';
 import { z } from 'zod';
-import { ReviewJudgment, ReviewJudgmentList, SetCaseStatus, SetParagraphLabel, type CaseStatus } from '@nyaai/shared';
+import { ReviewJudgment, ReviewJudgmentList, SameCaseAnswer, SetCaseStatus, SetParagraphLabel, type CaseStatus } from '@nyaai/shared';
 import { AppError } from '../errors.ts';
 import { requireRole } from '../middleware/auth.ts';
-import { approveSourceChunks, judgmentParagraphs, setParagraphLabel } from '../services/search/index.ts';
+import { approveSourceChunks, judgmentParagraphs, retireSourceChunks, setParagraphLabel } from '../services/search/index.ts';
 
 const Id = z.uuid();
 /** A `date` column as YYYY-MM-DD, read in local time (pg gives local midnight). */
@@ -27,8 +29,9 @@ export function reviewRouter() {
   r.get('/library/judgments', async (req, res) => {
     const rows = await req.db!(async (c) =>
       (
-        await c.query<{ id: string; title: string; court: string | null; decided_on: Date | null; status: Status; roles_sampled: boolean; paragraphs: number; origin: string; scanned: boolean; case_status: CaseStatus }>(
+        await c.query<{ id: string; title: string; court: string | null; decided_on: Date | null; status: Status; roles_sampled: boolean; paragraphs: number; origin: string; scanned: boolean; case_status: CaseStatus; maybe_same: boolean }>(
           `select s.id, s.title, s.court, s.decided_on, s.status, s.roles_sampled, s.origin, s.scanned, cs.status as case_status,
+                  s.maybe_same_as is not null as maybe_same,
                   (select count(*)::int from chunks k where k.source_id = s.id and k.kind <> 'headnote') as paragraphs
              from sources s left join case_status_v cs on cs.source_id = s.id
             where s.type = 'judgment' and s.visibility = 'shared' and s.status <> 'retired'
@@ -38,7 +41,7 @@ export function reviewRouter() {
     );
     res.json(
       ReviewJudgmentList.parse({
-        judgments: rows.map((x) => ({ id: x.id, title: x.title, court: x.court, decidedOn: isoDate(x.decided_on), status: x.status, rolesChecked: x.roles_sampled, paragraphs: x.paragraphs, origin: x.origin, scanned: x.scanned, caseStatus: x.case_status ?? 'not_verified' })),
+        judgments: rows.map((x) => ({ id: x.id, title: x.title, court: x.court, decidedOn: isoDate(x.decided_on), status: x.status, rolesChecked: x.roles_sampled, paragraphs: x.paragraphs, origin: x.origin, scanned: x.scanned, caseStatus: x.case_status ?? 'not_verified', maybeSame: x.maybe_same })),
       }),
     );
   });
@@ -50,8 +53,12 @@ export function reviewRouter() {
         await c.query<{
           id: string; title: string; court: string | null; decided_on: Date | null; url: string | null; status: Status; roles_sampled: boolean;
           origin: string; citation: string | null; scanned: boolean; expires_at: Date | null;
+          same_id: string | null; same_title: string | null; same_court: string | null; same_decided_on: Date | null;
         }>(
-          "select id, title, court, decided_on, url, status, roles_sampled, origin, citation, scanned, expires_at from sources where id = $1 and type = 'judgment'",
+          `select s.id, s.title, s.court, s.decided_on, s.url, s.status, s.roles_sampled, s.origin, s.citation, s.scanned, s.expires_at,
+                  m.id as same_id, m.title as same_title, m.court as same_court, m.decided_on as same_decided_on
+             from sources s left join sources m on m.id = s.maybe_same_as and m.status <> 'retired'
+            where s.id = $1 and s.type = 'judgment'`,
           [id],
         )
       ).rows[0];
@@ -91,6 +98,7 @@ export function reviewRouter() {
         copies: copies.map((x) => ({ origin: x.origin, url: x.url, citation: x.citation, scanned: x.scanned, agreement: x.agreement === null ? null : Number(x.agreement), inUse: x.in_use })),
         caseStatus: history[0]?.treatment ?? 'not_verified',
         statusHistory: history.map((h) => ({ status: h.treatment, note: h.note, byCase: h.by_case, confirmedBy: h.confirmed_by, confirmedAt: h.confirmed_at.toISOString() })),
+        maybeSameAs: s.same_id ? { id: s.same_id, title: s.same_title!, court: s.same_court, decidedOn: isoDate(s.same_decided_on) } : null,
         paragraphs: paragraphs.map((p) => ({ chunkId: p.chunkId, paraNo: p.paraNo, kind: p.kind, opinion: p.opinion, judge: p.judge, role: p.role, text: p.text })),
       }),
     );
@@ -125,6 +133,8 @@ export function reviewRouter() {
   r.post('/library/judgments/:id/approve', async (req, res) => {
     const id = Id.parse(req.params.id);
     const ok = await req.db!(async (c) => {
+      const open = await c.query("select 1 from sources s join sources m on m.id = s.maybe_same_as and m.status <> 'retired' where s.id = $1", [id]);
+      if (open.rowCount) throw new AppError('VALIDATION_FAILED', 'First say whether this is the same case as the one already in the library.');
       const s = await c.query("update sources set status = 'live' where id = $1 and status = 'provisional' returning id", [id]);
       if (!s.rowCount) return false;
       await approveSourceChunks(c, id);
@@ -136,6 +146,40 @@ export function reviewRouter() {
       return true;
     });
     if (!ok) throw new AppError('NOT_FOUND', 'That judgment is not waiting for approval.');
+    res.status(204).end();
+  });
+
+  /**
+   * "Is this the same case as …?" A different case: the question is closed. The same case: this copy leaves the
+   * library (its paragraphs leave search) and its link is kept on the case that stays, so no lookup loads it again.
+   */
+  r.post('/library/judgments/:id/same-case', async (req, res) => {
+    const id = Id.parse(req.params.id);
+    const body = SameCaseAnswer.parse(req.body);
+    const ok = await req.db!(async (c) => {
+      const s = (await c.query<{ keep: string }>("select maybe_same_as as keep from sources where id = $1 and type = 'judgment' and maybe_same_as is not null", [id])).rows[0];
+      if (!s) return false;
+      if (!body.same) {
+        await c.query('update sources set maybe_same_as = null where id = $1', [id]);
+        return true;
+      }
+      await c.query(
+        `insert into source_copies (college_id, source_id, origin, url, storage_key, content_hash, citation, scanned, agreement, in_use)
+         select global_college(), $2, origin, url, storage_key, content_hash, citation, scanned, null, false
+           from sources where id = $1 and storage_key is not null
+         on conflict (source_id, content_hash) do nothing`,
+        [id, s.keep],
+      );
+      await c.query("update sources set status = 'retired', maybe_same_as = null where id = $1", [id]);
+      await retireSourceChunks(c, id);
+      await c.query(
+        `update review_queue set state = 'resolved', resolved_at = now(), assignee_id = app_user(), resolution = jsonb_build_object('action', 'same_case', 'kept', $2::text)
+          where ref_id = $1 and state in ('open', 'in_progress')`,
+        [id, s.keep],
+      );
+      return true;
+    });
+    if (!ok) throw new AppError('NOT_FOUND', 'That judgment has no open same-case question.');
     res.status(204).end();
   });
 

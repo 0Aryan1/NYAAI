@@ -111,6 +111,7 @@ export async function loadJudgmentPdf(
         await client.query('commit');
         return { kind: agreement < SAME_JUDGMENT ? 'mismatch' : 'kept_existing', sourceId, agreement };
       }
+      await keepReplacedCopy(client, sourceId, agreement, hash);
       await client.query(
         `update sources set origin = $2, url = $3, storage_key = $4, content_hash = $5, citation = coalesce($6, citation),
                 court = coalesce($7, court), court_level = coalesce($8, court_level), bench_size = coalesce($9, bench_size),
@@ -156,6 +157,20 @@ export async function loadJudgmentPdf(
   // A scanned copy is never official-and-live by itself: its reading errors need the editor's eye.
   const finished = await finishSource(sourceId, { ...deps, provisional: opts.provisional || doc.scanned });
   return { kind: 'loaded', sourceId, paragraphs, opinions, scanned: doc.scanned, replaced, keptIds, keptRoles, agreement, ...finished };
+}
+
+/**
+ * The copy being replaced stays on record, not in use (its Kanoon link most of all), so a later lookup knows the case
+ * is held and does not load it again (0012).
+ */
+export async function keepReplacedCopy(client: pg.PoolClient, sourceId: string, agreement: number | null, newHash: string): Promise<void> {
+  await client.query(
+    `insert into source_copies (college_id, source_id, origin, url, storage_key, content_hash, citation, scanned, agreement, in_use)
+     select global_college(), id, origin, url, storage_key, content_hash, citation, scanned, $2, false
+       from sources where id = $1 and storage_key is not null and content_hash <> $3
+     on conflict (source_id, content_hash) do nothing`,
+    [sourceId, agreement, newHash],
+  );
 }
 
 /**

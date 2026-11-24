@@ -2,11 +2,14 @@
  * Load one judgment from Indian Kanoon into the shared library (F2, HLD D25): provisional, with `expires_at`.
  * Stages 1–4 here (fetch, store, convert, split, metadata), then stages 5–7 in finish.ts.
  * Idempotent: the same Kanoon document (same content hash) updates the same source.
+ * One case, one source: a Kanoon document whose link the library holds under another source (an official copy that
+ * replaced it) is not loaded again (AlreadyHeldError).
  */
 import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { casePartyWords, identifyCourt, kanoonToJudgment, splitJudgment } from '@nyaai/legal';
+import { casePartyWords, identifyCourt, kanoonToJudgment, splitJudgment, type HeldCase } from '@nyaai/legal';
 import { PROMPTS, fence } from '@nyaai/prompts';
+import type pg from 'pg';
 import type { Gateway } from '../llm-gateway/index.ts';
 import type { Kanoon } from '../kanoon/index.ts';
 import type { Storage } from '../storage/index.ts';
@@ -27,6 +30,36 @@ export interface KanoonIngestResult extends FinishResult {
 }
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+export const kanoonUrl = (tid: number | string) => `https://indiankanoon.org/doc/${tid}/`;
+
+/** The case is already in the library, under another copy. */
+export class AlreadyHeldError extends Error {
+  constructor(readonly sourceId: string) {
+    super(`This judgment is already in the library (source ${sourceId}), from another copy.`);
+    this.name = 'AlreadyHeldError';
+  }
+}
+
+/** Links the library holds (a source's own link, or a copy it keeps on record) → the source that holds each. */
+export async function heldLinks(db: pg.Pool | pg.PoolClient, urls: string[]): Promise<Map<string, string>> {
+  if (!urls.length) return new Map();
+  const r = await db.query<{ url: string; source_id: string }>(
+    `select s.url, s.id as source_id from sources s where s.url = any($1) and s.status <> 'retired'
+     union
+     select c.url, c.source_id from source_copies c join sources s on s.id = c.source_id where c.url = any($1) and s.status <> 'retired'`,
+    [urls],
+  );
+  return new Map(r.rows.map((x) => [x.url, x.source_id]));
+}
+
+/** Every judgment the library holds, for the same-case check before a download. */
+export async function heldJudgments(db: pg.Pool | pg.PoolClient): Promise<HeldCase[]> {
+  const r = await db.query<{ id: string; title: string; decided_on: string | null; court_level: string | null }>(
+    "select id, title, to_char(decided_on, 'YYYY-MM-DD') as decided_on, court_level from sources where type = 'judgment' and status <> 'retired'",
+  );
+  return r.rows.map((x) => ({ sourceId: x.id, title: x.title, decidedOn: x.decided_on, courtLevel: x.court_level }));
+}
 const FullName = z.object({ caseName: z.string().nullable() });
 
 /** Kanoon shortens long titles with "...": ask the light model for the full name, and keep it only if it checks out. */
@@ -65,6 +98,12 @@ export async function fullCaseName(
 
 export async function ingestKanoonJudgment(tid: number, deps: KanoonIngestDeps, opts: { knownName?: string; nameVerified?: boolean } = {}): Promise<KanoonIngestResult> {
   const { library } = deps;
+  const url = kanoonUrl(tid);
+  // Held under another source (its official copy replaced this text): loading it again would make a second source.
+  // The same source (its own link) is a refresh and goes ahead.
+  const own = (await library.query("select 1 from sources where url = $1 and status <> 'retired'", [url])).rowCount;
+  const holder = own ? null : (await heldLinks(library, [url])).get(url);
+  if (holder) throw new AlreadyHeldError(holder);
   await deps.progress?.('reading');
   const doc = await deps.kanoon.doc(tid);
   const raw = JSON.stringify(doc);
@@ -98,7 +137,7 @@ export async function ingestKanoonJudgment(tid: number, deps: KanoonIngestDeps, 
                roles_sampled = false
          returning id`,
         [caseName, input.citations.join('; ') || null, court?.court ?? null, court?.level ?? null, split.benchSize || null,
-         input.decidedOn, `https://indiankanoon.org/doc/${tid}/`, key, hash, deps.cacheDays],
+         input.decidedOn, url, key, hash, deps.cacheDays],
       )
     ).rows[0]!.id;
     await client.query('delete from chunks where source_id = $1', [sourceId]);

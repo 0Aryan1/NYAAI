@@ -22,12 +22,15 @@
  *                                             replace Indian Kanoon copies of Supreme Court judgments with the
  *                                             official report: typeset copies replace the text in place (ids kept),
  *                                             scanned copies are kept beside the cleaner text with their citations
+ *   pnpm library relink [--dry]             keep the Kanoon link of each official copy that replaced a Kanoon text
+ *                                             (from the Kanoon file still in storage; nothing fetched), so a lookup
+ *                                             never loads the same case again
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
-import { caseMatches, kanoonToJudgment, pdfToJudgment, pickAct, pickCaseHit, pickEscrByDate, pickEscrRecord, sameAct, splitJudgment, titleQuery, type EscrRecord, type KanoonDoc } from '@nyaai/legal';
+import { caseMatches, kanoonToJudgment, matchHeldCase, pdfToJudgment, pickAct, pickCaseHit, pickEscrByDate, pickEscrRecord, sameAct, splitJudgment, titleQuery, type EscrRecord, type KanoonDoc } from '@nyaai/legal';
 import type { Kanoon } from '../src/services/kanoon/index.ts';
 import { createPool, withTenant } from '@nyaai/db';
 import { loadConfig } from '../src/config.ts';
@@ -37,7 +40,7 @@ import type { Escr } from '../src/services/escr/index.ts';
 import { pdfIsScanned, pdfLines } from '../src/services/ingest/extract.ts';
 import { loadJudgmentPdf, type JudgmentPdfResult } from '../src/services/ingest/judgment-pdf.ts';
 import { finishSource } from '../src/services/ingest/finish.ts';
-import { ingestKanoonJudgment } from '../src/services/ingest/kanoon.ts';
+import { heldJudgments, ingestKanoonJudgment, kanoonUrl } from '../src/services/ingest/kanoon.ts';
 import { loadIndiaCodeAct } from '../src/services/ingest/india-code.ts';
 import { ingestSource } from '../src/services/ingest/source.ts';
 import { createGapLookup, searchWithLookup, type TenantRunner } from '../src/services/lookup/index.ts';
@@ -281,6 +284,36 @@ try {
       }
     }
     console.log([...tally.entries()].map(([k, n]) => `${n} ${k}`).join(', ') || 'Nothing to do.');
+  } else if (command === 'relink') {
+    // Upkeep (0012): official copies that replaced a Kanoon text before the Kanoon copy was kept on record forgot its
+    // link, so a lookup could load the case again. The Kanoon files are still in storage: each one no source uses is
+    // matched to its case (parties, date, court) and kept as a copy. Nothing is fetched or billed. --dry lists only.
+    const storage = storageFrom(config);
+    const used = new Set(
+      (await library.query<{ key: string }>('select storage_key as key from sources where storage_key is not null union select storage_key from source_copies')).rows.map((r) => r.key),
+    );
+    const keys = (await storage.list('sources/indian_kanoon/')).filter((k) => k.endsWith('.json') && !used.has(k));
+    const held = await heldJudgments(library);
+    let linked = 0;
+    for (const key of keys) {
+      const doc = JSON.parse(new TextDecoder().decode(await storage.get(key))) as KanoonDoc;
+      const match = matchHeldCase({ title: doc.title, docsource: doc.docsource ?? null, publishdate: doc.publishdate ?? null }, held);
+      if (match?.kind !== 'same') {
+        console.log(`  ${doc.title}: ${match ? `may be ${match.held.title}; not linked, check by hand` : 'no such case in the library'}`);
+        continue;
+      }
+      console.log(`  ${doc.title} → ${match.held.title}`);
+      if (values.dry) continue;
+      const hash = path.basename(key, '.json');
+      const r = await library.query(
+        `insert into source_copies (college_id, source_id, origin, url, storage_key, content_hash, citation, scanned, agreement, in_use)
+         values (global_college(), $1, 'indian_kanoon', $2, $3, $4, null, false, null, false)
+         on conflict (source_id, content_hash) do nothing`,
+        [match.held.sourceId, kanoonUrl(doc.tid), key, hash],
+      );
+      linked += r.rowCount ?? 0;
+    }
+    console.log(`${keys.length} Kanoon file(s) no source uses; ${values.dry ? 'dry run, nothing written' : `${linked} link(s) kept as copies`}.`);
   } else if (command === 'pack') {
     if (!values.file) throw new Error('pack needs --file <pack.json>');
     const file = path.resolve(process.env.INIT_CWD ?? process.cwd(), values.file);

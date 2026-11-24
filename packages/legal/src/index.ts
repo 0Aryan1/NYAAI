@@ -12,3 +12,4 @@ export * from './compare.ts';
 export * from './escr.ts';
 export * from './course.ts';
 export * from './standing.ts';
+export * from './same-case.ts';

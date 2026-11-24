@@ -143,6 +143,7 @@ export const api = {
   setParagraphRole: (chunkId: string, role: ParaRole) => call<void>('PATCH', `/library/paragraphs/${chunkId}`, { body: { role } }),
   rolesChecked: (id: string) => call<void>('POST', `/library/judgments/${id}/roles-checked`),
   approveJudgment: (id: string) => call<void>('POST', `/library/judgments/${id}/approve`),
+  sameCase: ({ id, same }: { id: string; same: boolean }) => call<void>('POST', `/library/judgments/${id}/same-case`, { body: { same } }),
   setCaseStatus: (id: string, body: SetCaseStatus) => call<void>('POST', `/library/judgments/${id}/status`, { body }),
   uploadJudgment: uploadPdf,
   uploadStatus: (jobId: string) => call('GET', `/library/uploads/${encodeURIComponent(jobId)}`, { parse: (v) => UploadJudgmentStatus.parse(v) }),

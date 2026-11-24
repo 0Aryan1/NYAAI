@@ -126,6 +126,8 @@ export const ReviewJudgmentList = z.object({
       origin: z.string(),
       scanned: z.boolean(),
       caseStatus: CaseStatus,
+      /** It may be the same case as another judgment in the library: the editor is asked. */
+      maybeSame: z.boolean(),
     }),
   ),
 });
@@ -149,6 +151,8 @@ export const ReviewJudgment = z.object({
   caseStatus: CaseStatus,
   /** Every confirmed status, newest first. */
   statusHistory: z.array(CaseStatusEntry),
+  /** A judgment already in the library this may be the same case as (same parties; the date or court differs, or is unknown). */
+  maybeSameAs: z.object({ id: z.uuid(), title: z.string(), court: z.string().nullable(), decidedOn: z.string().nullable() }).nullable(),
   paragraphs: z.array(
     z.object({
       chunkId: z.uuid(),
@@ -162,6 +166,10 @@ export const ReviewJudgment = z.object({
   ),
 });
 export type ReviewJudgment = z.infer<typeof ReviewJudgment>;
+
+/** POST /library/judgments/:id/same-case: the editor's answer to "is this the same case as …?". */
+export const SameCaseAnswer = z.object({ same: z.boolean() });
+export type SameCaseAnswer = z.infer<typeof SameCaseAnswer>;
 
 /**
  * POST /library/uploads/judgment?… with the PDF as the body (application/pdf, up to 50 MB). The editor names the

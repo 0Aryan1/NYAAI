@@ -18,6 +18,8 @@ import { parseConfig } from '../../src/config.ts';
 import type { IndiaCode, IndiaCodeAct } from '../../src/services/india-code/index.ts';
 import type { Kanoon } from '../../src/services/kanoon/index.ts';
 import { createGapLookup, recordGap, searchWithLookup, type LookupDeps } from '../../src/services/lookup/index.ts';
+import { AlreadyHeldError, ingestKanoonJudgment } from '../../src/services/ingest/kanoon.ts';
+import { keepReplacedCopy } from '../../src/services/ingest/judgment-pdf.ts';
 import { createStorage } from '../../src/services/storage/index.ts';
 import { noUsage } from '../../src/services/usage.ts';
 import { EMBED_DIMS, type Voyage } from '../../src/services/voyage/index.ts';
@@ -80,6 +82,8 @@ describe.skipIf(!up)('library gaps and trusted-source lookup (integration)', () 
   const tid = 900_000_000 + Math.floor(Math.random() * 90_000_000);
   const kanoonUrl = `https://indiankanoon.org/doc/${tid}/`;
   const as = (userId: string, role: 'teacher' | 'library_editor' = 'teacher') => ({ userId, collegeId: college, role });
+  /** Sources a test moved off the Kanoon link (an official copy took over), for clean-up. */
+  const moved: string[] = [];
 
   // Fakes: India Code finds two Acts with the same name (so nothing is loaded automatically), Kanoon serves one judgment.
   const indiaCodeCalls: string[] = [];
@@ -154,7 +158,7 @@ describe.skipIf(!up)('library gaps and trusted-source lookup (integration)', () 
   afterAll(async () => {
     if (!owner) return;
     const gaps = (await owner.query<{ id: string }>('select id from library_gaps where college_id = $1', [college])).rows.map((r) => r.id);
-    const srcs = (await owner.query<{ id: string }>('select id from sources where url = $1', [kanoonUrl])).rows.map((r) => r.id);
+    const srcs = [...(await owner.query<{ id: string }>('select id from sources where url = $1', [kanoonUrl])).rows.map((r) => r.id), ...moved];
     await owner.query('delete from review_queue where ref_id = any($1) or college_id = $2', [[...gaps, ...srcs], college]);
     await owner.query('delete from sources where id = any($1)', [srcs]);
     await owner.query('delete from library_gaps where college_id = $1', [college]);
@@ -259,5 +263,61 @@ describe.skipIf(!up)('library gaps and trusted-source lookup (integration)', () 
 
     const teacher = await signIn(`t1-${tag}@gt.test`, `10.78.${tag.charCodeAt(0)}.1`);
     await teacher.agent.get('/api/v1/library/gaps').expect(403);
+  });
+  it('one case, one source: a replaced Kanoon copy keeps its link; the same case is skipped; a maybe is asked', async () => {
+    const lookup = async (n: number) => createGapLookup(deps).run(await record(t1, `pelican herd ${w} harbour round ${n}`));
+    const kanoonStep = (r: { attempts: { provider: string; outcome: string; detail: string }[] }) => r.attempts.find((a) => a.provider === 'indian_kanoon')!;
+    const held = (await owner.query<{ id: string }>('select id from sources where url = $1', [kanoonUrl])).rows[0]!.id;
+    moved.push(held);
+
+    // The official copy replaces the Kanoon text (as judgment-pdf does): the Kanoon copy stays on record.
+    const c = await library.connect();
+    try {
+      await keepReplacedCopy(c, held, 0.97, `official-${w}`);
+      await c.query("update sources set origin = 'court_site', url = $2, content_hash = $3, status = 'live' where id = $1", [held, `https://court.example/${w}.pdf`, `official-${w}`]);
+    } finally {
+      c.release();
+    }
+    // source_copies is library data: the library role reads it (the owner has no policy on it).
+    const copy = (await library.query('select origin, url, in_use, agreement from source_copies where source_id = $1', [held])).rows;
+    expect(copy).toEqual([{ origin: 'indian_kanoon', url: kanoonUrl, in_use: false, agreement: '0.970' }]);
+
+    // 1. By link: Kanoon finds the same document again; it is not loaded, by the lookup or directly.
+    const byLink = await lookup(1);
+    expect(kanoonStep(byLink)).toMatchObject({ outcome: 'skipped' });
+    expect(byLink.loadedSourceIds).toEqual([]);
+    await expect(ingestKanoonJudgment(tid, { ...deps, kanoon: fakeKanoon, storage: deps.storage, cacheDays: 1 })).rejects.toBeInstanceOf(AlreadyHeldError);
+
+    // 2. By case: without the link (an official copy loaded directly), parties + date + court still say "held".
+    await library.query('delete from source_copies where source_id = $1', [held]);
+    const byCase = await lookup(2);
+    expect(kanoonStep(byCase)).toMatchObject({ outcome: 'skipped', detail: expect.stringContaining(`Pelican Herd v. Harbour Board ${w}`) });
+
+    // 3. Maybe: same parties, another date. Loaded (never skipped when unsure), and the editor is asked.
+    await owner.query("update sources set decided_on = '1998-05-05' where id = $1", [held]);
+    const maybe = await lookup(3);
+    expect(kanoonStep(maybe)).toMatchObject({ outcome: 'loaded', detail: expect.stringContaining('may be the same case as') });
+    const second = maybe.loadedSourceIds[0]!;
+    expect((await owner.query('select maybe_same_as from sources where id = $1', [second])).rows[0].maybe_same_as).toBe(held);
+
+    // The editor answers on the review screen: approval waits for the answer; "same case" retires the copy and
+    // keeps its link on the case that stays, so the next lookup skips it by link.
+    const config = parseConfig({
+      DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL, S3_BUCKET: 'b', S3_ACCESS_KEY_ID: 'k', S3_SECRET_ACCESS_KEY: 's',
+      SESSION_SECRET: 'a'.repeat(32), CSRF_SECRET: 'b'.repeat(32), ALLOWED_EMAIL_DOMAINS: 'gt.test', LOG_LEVEL: 'silent', NODE_ENV: 'development', DEV_LOGIN: 'true',
+    });
+    const agent = request.agent(createApp({ config, logger: pino({ level: 'silent' }), pool: app, redis }));
+    const login = await agent.post('/api/v1/auth/dev-login').set('x-forwarded-for', `10.79.${tag.charCodeAt(0)}.1`).send({ email: `ed-${tag}@gt.test` }).expect(204);
+    const csrf = decodeURIComponent(([] as string[]).concat(login.headers['set-cookie'] ?? []).find((x) => x.startsWith('nyaai_csrf='))!.split(';')[0]!.slice(11));
+    const list = await agent.get('/api/v1/library/judgments').expect(200);
+    expect(list.body.judgments.find((x: { id: string }) => x.id === second)).toMatchObject({ maybeSame: true });
+    const detail = await agent.get(`/api/v1/library/judgments/${second}`).expect(200);
+    expect(detail.body.maybeSameAs).toMatchObject({ id: held, title: `Pelican Herd v. Harbour Board ${w}`, decidedOn: '1998-05-05' });
+    await agent.post(`/api/v1/library/judgments/${second}/approve`).set('x-csrf-token', csrf).expect(400);
+    await agent.post(`/api/v1/library/judgments/${second}/same-case`).set('x-csrf-token', csrf).send({ same: true }).expect(204);
+    expect((await owner.query('select status, maybe_same_as from sources where id = $1', [second])).rows[0]).toEqual({ status: 'retired', maybe_same_as: null });
+    expect((await owner.query("select count(*)::int n from chunks where source_id = $1 and status <> 'retired'", [second])).rows[0].n).toBe(0);
+    expect((await library.query('select url from source_copies where source_id = $1', [held])).rows).toEqual([{ url: kanoonUrl }]);
+    expect(kanoonStep(await lookup(4))).toMatchObject({ outcome: 'skipped' });
   });
 });

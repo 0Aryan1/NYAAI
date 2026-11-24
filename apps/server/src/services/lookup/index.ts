@@ -14,14 +14,14 @@
  * Act or case name taken from them by code, never text from a retrieved document (LLD §17.6 rule 2).
  */
 import type pg from 'pg';
-import { classifyGap, pickAct, pickCaseHit, questionKey, sameAct, type GapClass } from '@nyaai/legal';
+import { classifyGap, matchHeldCase, pickAct, pickCaseHit, questionKey, sameAct, type GapClass } from '@nyaai/legal';
 import type { IndiaCode } from '../india-code/index.ts';
 import type { Kanoon } from '../kanoon/index.ts';
 import type { Storage } from '../storage/index.ts';
 import type { WebLead, WebSearch } from '../web-search/index.ts';
 import type { FinishDeps } from '../ingest/finish.ts';
 import { loadIndiaCodeAct } from '../ingest/india-code.ts';
-import { ingestKanoonJudgment } from '../ingest/kanoon.ts';
+import { heldJudgments, heldLinks, ingestKanoonJudgment, kanoonUrl } from '../ingest/kanoon.ts';
 import { search, type SearchDeps, type SearchRequest, type SearchResult } from '../search/index.ts';
 
 export type Provider = 'india_code' | 'indian_kanoon' | 'web';
@@ -148,19 +148,32 @@ export function createGapLookup(deps: LookupDeps): GapLookup {
     else hits = hits.slice(0, maxJudgments * 2);
     if (!hits.length) return void attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'nothing', detail: gap.kind === 'case' ? `No judgment titled like "${gap.case_name}"` : 'No judgments found' });
 
-    const urls = hits.map((h) => `https://indiankanoon.org/doc/${h.tid}/`);
-    const have = new Set((await library.query<{ url: string }>("select url from sources where origin = 'indian_kanoon' and url = any($1) and status <> 'retired'", [urls])).rows.map((r) => r.url));
-    const fresh = hits.filter((h) => !have.has(`https://indiankanoon.org/doc/${h.tid}/`)).slice(0, gap.kind === 'case' ? 1 : maxJudgments);
-    if (!fresh.length) return void attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'skipped', detail: 'The judgments found are already in the library' });
+    // One case, one source: skip what the library holds by link (its own or a kept copy), then by case (parties,
+    // decision date, court). A judgment that may be a held case is still loaded, and the editor is asked.
+    const held = await heldLinks(library, hits.map((h) => kanoonUrl(h.tid)));
+    const cases = await heldJudgments(library);
+    const checked = hits.filter((h) => !held.has(kanoonUrl(h.tid))).map((h) => ({ h, match: matchHeldCase(h, cases) }));
+    const sameCase = checked.filter((x) => x.match?.kind === 'same');
+    const fresh = checked.filter((x) => x.match?.kind !== 'same').slice(0, gap.kind === 'case' ? 1 : maxJudgments);
+    if (!fresh.length) {
+      const names = sameCase.map((x) => x.match!.held.title);
+      return void attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'skipped', detail: `The judgments found are already in the library${names.length ? `: ${names.join('; ')}` : ''}` });
+    }
     if (Date.now() > deadline) return void attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'skipped', detail: 'out of time for this lookup' });
 
     const results = await Promise.allSettled(
-      fresh.map((h) => ingestKanoonJudgment(h.tid, { ...deps, kanoon: deps.kanoon!, storage: deps.storage, cacheDays: deps.cacheDays })),
+      fresh.map(async ({ h, match }) => {
+        const r = await ingestKanoonJudgment(h.tid, { ...deps, kanoon: deps.kanoon!, storage: deps.storage, cacheDays: deps.cacheDays });
+        if (match?.kind === 'maybe' && match.held.sourceId !== r.sourceId) {
+          await library.query('update sources set maybe_same_as = $2 where id = $1', [r.sourceId, match.held.sourceId]);
+        }
+        return { ...r, maybeSameAs: match?.kind === 'maybe' ? match.held.title : null };
+      }),
     );
     const ok = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
     const failed = results.flatMap((r) => (r.status === 'rejected' ? [errText(r.reason)] : []));
     loaded.push(...ok.map((r) => r.sourceId));
-    if (ok.length) attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'loaded', detail: `${ok.map((r) => r.caseName).join('; ')} (not yet reviewed)`, sourceIds: ok.map((r) => r.sourceId) });
+    if (ok.length) attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'loaded', detail: `${ok.map((r) => (r.maybeSameAs ? `${r.caseName} (may be the same case as ${r.maybeSameAs})` : r.caseName)).join('; ')} (not yet reviewed)`, sourceIds: ok.map((r) => r.sourceId) });
     if (failed.length) attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'failed', detail: failed.join(' | ').slice(0, 300) });
   }
 
