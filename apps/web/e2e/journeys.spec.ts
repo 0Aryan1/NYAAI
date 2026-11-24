@@ -1,0 +1,177 @@
+/**
+ * The two reference journeys (BRD §5), click by click as a teacher would, with axe-core (WCAG 2.2 AA) on every
+ * screen. J3 first (a new teacher sets up), then J1 with the same teacher (a lecture end to end, then the next one
+ * opens with a recap). The AI is the scripted fake (E2E_FAKE_AI); search runs on the real library.
+ *
+ * Not covered here, because they are not built yet: the coach's class activity (J1 step 8, week 2), her own
+ * template (J1 step 9 uses the base design), old slides, template and courses in setup (J3 steps 3, 5, 6 are "skip
+ * for now"; the course is made from a syllabus on the Courses screen instead).
+ */
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { expect, test, type Page } from '@playwright/test';
+
+const require = createRequire(import.meta.url);
+const AXE = readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
+const email = () => {
+  const e = process.env.E2E_EMAIL;
+  if (!e) throw new Error('E2E_EMAIL is set by global-setup');
+  return e;
+};
+
+/** axe-core on the page as it is now: no WCAG 2.0/2.1/2.2 A or AA violation. */
+async function axe(page: Page, where: string) {
+  await page.addScriptTag({ content: AXE });
+  const violations = await page.evaluate(async () => {
+    const r = await (window as unknown as { axe: { run: (c: Document, o: object) => Promise<{ violations: { id: string; nodes: { target: string[] }[] }[] }> } }).axe.run(document, {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+    });
+    return r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(' | ')}`);
+  });
+  expect(violations, `accessibility on ${where}`).toEqual([]);
+}
+
+const pick = (page: Page, text: string | RegExp) => page.locator('label').filter({ hasText: text }).first().click();
+
+const SYLLABUS = `# Law of Contract
+
+Unit I: Discharge of contracts
+1. Frustration of contract
+2. Impossibility of performance
+
+Suggested Readings
+1. Pollock and Mulla, Indian Contract Act`;
+
+test.describe.serial('teacher journeys', () => {
+  test('J3: first sign-in, consent, profile, style, finish, Home', async ({ page }) => {
+    await page.goto('/login');
+    await axe(page, 'sign-in');
+    await page.getByLabel('Email').fill(email());
+    await page.getByLabel('Email').press('Enter');
+
+    // 1. Consent: every outside service is listed; nothing goes on until she agrees.
+    await expect(page).toHaveURL(/\/setup\/consent/);
+    await axe(page, 'setup: consent');
+    const agree = page.getByRole('button', { name: 'I agree, continue' });
+    await expect(agree).toBeDisabled();
+    await page.getByRole('checkbox').check();
+    await agree.click();
+
+    // 2. Profile: name, subjects taught, teaching language.
+    await expect(page).toHaveURL(/\/setup\/profile/);
+    await axe(page, 'setup: profile');
+    await page.getByLabel('Name').fill('E2E Teacher');
+    await pick(page, 'Law of Contract I');
+    await pick(page, /^English$/);
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    // 3. Old slides: optional.
+    await expect(page).toHaveURL(/\/setup\/old_slides/);
+    await page.getByRole('button', { name: 'Skip for now' }).click();
+
+    // 4. Five style questions, one tap each.
+    await expect(page).toHaveURL(/\/setup\/style/);
+    await axe(page, 'setup: style');
+    for (const group of await page.locator('fieldset').all()) await group.locator('label').first().click();
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    // 5–6. Template and courses: skipped for now; finish → Home.
+    await expect(page).toHaveURL(/\/setup\/template/);
+    await page.getByRole('button', { name: 'Skip for now' }).click();
+    await expect(page).toHaveURL(/\/setup\/courses/);
+    await page.getByRole('button', { name: 'Finish setup' }).click();
+    await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
+    await axe(page, 'Home');
+  });
+
+  test('J1: a lecture end to end, then the next one opens with a recap', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('Email').fill(email());
+    await page.getByLabel('Email').press('Enter');
+    await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
+
+    // A course from her syllabus (COURSE-2): the reading list is left out.
+    await page.goto('/courses');
+    await axe(page, 'Courses');
+    await page.locator('input[aria-label="Upload your syllabus"]').setInputFiles({ name: 'syllabus.md', mimeType: 'text/markdown', buffer: Buffer.from(SYLLABUS) });
+    await expect(page.getByRole('textbox', { name: /Lectures, one per line/ })).toHaveValue('Frustration of contract\nImpossibility of performance');
+    await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Law of Contract');
+    await page.getByRole('checkbox', { name: /Find the sources for every lecture now/ }).uncheck();
+    await page.getByRole('button', { name: 'Create course' }).click();
+    await expect(page).toHaveURL(/\/courses\/[0-9a-f-]{36}$/);
+    await axe(page, 'course plan');
+    const courseUrl = page.url();
+
+    // 2–5. Prepare L01 from the plan: course and topic come with it; she taps length, level and style.
+    await page.getByRole('button', { name: /^Prepare L01/ }).first().click();
+    await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Prepare', exact: true })).toBeDisabled(); // none pre-selected
+    await pick(page, '50 min');
+    await pick(page, 'Standard');
+    await pick(page, 'My usual style');
+    await page.getByText('Add your own example or a special request (optional)').click();
+    await page.getByLabel('Must include').fill('A wedding hall booking cancelled in the lockdown.');
+    await page.getByRole('button', { name: 'Prepare', exact: true }).click();
+
+    // 5. The build: real steps, then the Studio opens by itself.
+    await expect(page.getByRole('heading', { name: 'Preparing your lecture' })).toBeVisible();
+    await axe(page, 'Build');
+    await page.waitForURL(/\/lectures\/[0-9a-f-]{36}$/, { timeout: 180_000 });
+    const lectureUrl = page.url();
+
+    // 6–7. Studio: the plan, a source with its exact words, the yellow point verified, a line edited.
+    await expect(page.getByRole('button', { name: 'Download' })).toBeVisible();
+    await axe(page, 'Studio');
+    const source = page.locator('button[aria-label^="Source 1"]').first();
+    await source.click();
+    const drawer = page.getByRole('complementary', { name: 'Source' });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.locator('mark')).not.toHaveText(''); // the supporting words, highlighted
+    await axe(page, 'Studio: source');
+
+    await page.getByRole('button', { name: /A point to check/ }).first().click();
+    await page.getByRole('button', { name: 'Please verify' }).first().click();
+    await page.getByRole('button', { name: 'I have checked it: mark verified' }).click();
+    await expect(page.getByText('All changes saved')).toBeVisible();
+
+    await page.getByRole('button', { name: /What .* means/ }).first().click();
+    // The line's own buttons show when the pointer is over it (or on keyboard focus).
+    const firstLine = page.locator('.group').filter({ has: page.getByRole('button', { name: 'Edit this line', includeHidden: true }) }).first();
+    await firstLine.hover();
+    await firstLine.getByRole('button', { name: 'Edit this line' }).click();
+    const box = page.getByRole('textbox', { name: 'Edit this line' });
+    await box.fill('A shorter line in my own words: an agreement to do an impossible act is void.');
+    await box.press('Enter');
+    await expect(page.getByText('All changes saved')).toBeVisible();
+    await expect(page.getByText('A shorter line in my own words', { exact: false }).first()).toBeVisible();
+
+    // 9. Download the .pptx.
+    await page.getByRole('button', { name: 'Download' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await axe(page, 'Download dialog');
+    const seen = dialog.getByRole('checkbox', { name: /I have seen the points to verify/ });
+    if (await seen.count()) await seen.check();
+    const [file] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Download' }).click()]);
+    expect(file.suggestedFilename()).toMatch(/\.pptx$/);
+    await dialog.getByRole('button', { name: 'Close' }).last().click();
+
+    // 10. Mark taught; the class memory is written; the next lecture opens with a recap.
+    await page.getByRole('button', { name: 'Mark taught' }).click();
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('button', { name: 'Mark taught' })).toBeHidden();
+    const courseId = courseUrl.split('/').pop()!;
+    await expect
+      .poll(async () => ((await (await page.request.get(`/api/v1/courses/${courseId}`)).json()) as { units: { memory: unknown }[] }).units[0]?.memory, { timeout: 60_000 })
+      .not.toBeNull();
+
+    await page.goto(courseUrl);
+    await page.getByRole('button', { name: /^Prepare L02/ }).first().click();
+    await pick(page, '50 min');
+    await pick(page, 'Standard');
+    await pick(page, 'My usual style');
+    await page.getByRole('button', { name: 'Prepare', exact: true }).click();
+    await page.waitForURL((u) => /\/lectures\/[0-9a-f-]{36}$/.test(u.pathname) && !lectureUrl.endsWith(u.pathname), { timeout: 180_000 });
+    await expect(page.getByRole('button', { name: /Recap of last class/ }).first()).toBeVisible();
+  });
+});

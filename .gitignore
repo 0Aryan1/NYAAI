@@ -11,3 +11,6 @@ coverage/
 # Local AI-assistant instructions (kept off GitHub)
 CLAUDE.md
 .claude/
+apps/web/e2e/.run.json
+apps/web/test-results/
+apps/web/playwright-report/

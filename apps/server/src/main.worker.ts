@@ -28,7 +28,7 @@ if (!config.DATABASE_URL_LIBRARY) {
 const library = createPool(config.DATABASE_URL_LIBRARY, 4);
 const storage = storageFrom(config);
 const libraryUsage = usageSink(library, { collegeId: 'global', ownerId: null });
-if (!config.VOYAGE_API_KEY) {
+if (!config.VOYAGE_API_KEY && !config.E2E_FAKE_AI) {
   logger.fatal('VOYAGE_API_KEY is required by the worker (search indexing).');
   process.exit(1);
 }
@@ -46,27 +46,28 @@ const lookup = createGapLookup({
   gateway,
   usage: libraryUsage,
   embedModel: config.VOYAGE_EMBED_MODEL,
-  kanoon: config.INDIAN_KANOON_TOKEN ? kanoonFrom(config, libraryUsage) : null,
-  indiaCode: indiaCodeFrom(),
-  web: webSearchFrom(config, libraryUsage),
+  // E2E: no outside lookups (Kanoon, India Code, web): the journeys run on the library as it is.
+  kanoon: config.INDIAN_KANOON_TOKEN && !config.E2E_FAKE_AI ? kanoonFrom(config, libraryUsage) : null,
+  indiaCode: config.E2E_FAKE_AI ? null : indiaCodeFrom(),
+  web: config.E2E_FAKE_AI ? null : webSearchFrom(config, libraryUsage),
   cacheDays: config.KANOON_CACHE_DAYS,
   budgetMs: 120_000, // inside a lecture build: at most 2 minutes of lookups per part
 });
 
-const opsQueue = new Queue('ops', { connection });
+const opsQueue = new Queue('ops', { connection, prefix: config.QUEUE_PREFIX });
 const workers = [
   ...(gateway
     ? [
         new Worker(
           'build',
           buildProcessor({ worker, logPool: worker, gateway, voyageFor: (u) => voyageFrom(config, u), lookup, publisher: connection, minScore: config.RERANK_MIN_SCORE, logger }),
-          { connection: createRedis(config.REDIS_URL), concurrency: 3, lockDuration: 120_000 },
+          { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 3, lockDuration: 120_000 },
         ),
-        new Worker('learn', learnProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), concurrency: 2 }),
-        new Worker('check', checkProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), concurrency: 8 }),
+        new Worker('learn', learnProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 2 }),
+        new Worker('check', checkProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 8 }),
       ]
     : []),
-  new Worker('ops', opsProcessor({ logger, worker, storage }), { connection: createRedis(config.REDIS_URL), concurrency: 1 }),
+  new Worker('ops', opsProcessor({ logger, worker, storage }), { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 1 }),
   new Worker(
     'ingest',
     ingestProcessor({
@@ -76,9 +77,9 @@ const workers = [
       logger,
       voyage: voyageFrom(config, libraryUsage),
       gateway: gatewayFrom(config),
-      kanoon: config.INDIAN_KANOON_TOKEN ? kanoonFrom(config, libraryUsage) : null,
-      indiaCode: indiaCodeFrom(),
-      web: webSearchFrom(config, libraryUsage),
+      kanoon: config.INDIAN_KANOON_TOKEN && !config.E2E_FAKE_AI ? kanoonFrom(config, libraryUsage) : null,
+      indiaCode: config.E2E_FAKE_AI ? null : indiaCodeFrom(),
+      web: config.E2E_FAKE_AI ? null : webSearchFrom(config, libraryUsage),
       usage: libraryUsage,
       embedModel: config.VOYAGE_EMBED_MODEL,
       cacheDays: config.KANOON_CACHE_DAYS,
@@ -88,6 +89,7 @@ const workers = [
     }),
     {
     connection: createRedis(config.REDIS_URL),
+    prefix: config.QUEUE_PREFIX,
     concurrency: 4,
     settings: { backoffStrategy: (attemptsMade: number) => ingestBackoff(attemptsMade) },
     },

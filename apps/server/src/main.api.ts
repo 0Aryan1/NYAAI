@@ -11,11 +11,11 @@ const config = { ...loadConfig(), APP_ROLE: 'api' as const };
 const logger = createLogger(config);
 const pool = createPool(config.DATABASE_URL);
 const redis = createRedis(config.REDIS_URL);
-const ingest = new Queue<IngestJobData>('ingest', { connection: createRedis(config.REDIS_URL) });
-const build = new Queue<BuildJobData>('build', { connection: createRedis(config.REDIS_URL) });
-const learn = new Queue<LearnJobData>('learn', { connection: createRedis(config.REDIS_URL) });
-const check = new Queue<CheckJobData>('check', { connection: createRedis(config.REDIS_URL) });
-const ops = new Queue<OpsJobData>('ops', { connection: createRedis(config.REDIS_URL) });
+const ingest = new Queue<IngestJobData>('ingest', { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX });
+const build = new Queue<BuildJobData>('build', { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX });
+const learn = new Queue<LearnJobData>('learn', { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX });
+const check = new Queue<CheckJobData>('check', { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX });
+const ops = new Queue<OpsJobData>('ops', { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX });
 
 const missing = missingProviderKeys(config);
 if (missing.length) logger.warn({ missing }, 'provider keys not set; AI and lookup features will be unavailable');

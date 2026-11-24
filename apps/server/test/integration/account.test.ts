@@ -141,6 +141,20 @@ describe.skipIf(!up)('export and delete my data (integration)', () => {
       await s.agent.post('/api/v1/lectures').set('x-csrf-token', s.csrf).send({ topic: 'seat of arbitration', course: { kind: 'one_off' }, lengthMin: 40, level: 'standard', styleKey: 'usual', notes: [note.body.id] }).expect(202);
       await withTenant(worker, who, async (c) => {
         await c.query("insert into examples (college_id, owner_id, text) values ($1, $2, 'A Delhi company and a Mumbai company')", [college, who.userId]);
+        // A built lecture has citations, and coverage notes that point at them (the order the deletion must respect).
+        const lecture = (await c.query<{ id: string }>('select id from lectures where owner_id = $1 limit 1', [who.userId])).rows[0]!.id;
+        const citation = (
+          await c.query<{ id: string }>(
+            `insert into citations (college_id, owner_id, lecture_id, line_key, claim_text, claim_type, span_text, check_status, checks)
+             values ($1, $2, $3, 'p0-s1-l1', 'The seat decides the court.', 'rule', 'the seat decides', 'supported', '[]') returning id`,
+            [college, who.userId, lecture],
+          )
+        ).rows[0]!.id;
+        await c.query(
+          `insert into coverage_items (college_id, owner_id, lecture_id, section_key, item_kind, item_ref, state, covered_by)
+           values ($1, $2, $3, 'ACA:s20', 'explanation', gen_random_uuid(), 'covered', $4)`,
+          [college, who.userId, lecture, citation],
+        );
         await usageSink(c, { collegeId: college, ownerId: who.userId })({ provider: 'voyage', model: 'fake', purpose: 'test', costMicroUsd: 5 });
       });
       if (who === herId) {
@@ -202,7 +216,7 @@ describe.skipIf(!up)('export and delete my data (integration)', () => {
 
     const r = await forgetTeacher(herId, { worker, storage: storage! });
     expect(r.files).toBe(1);
-    expect(r.counts).toMatchObject({ courses: 1, lectures: 1, uploads: 1, sources: 1, examples: 1, invite_allowlist: 1, library_gap_askers: 1 });
+    expect(r.counts).toMatchObject({ courses: 1, lectures: 1, uploads: 1, sources: 1, examples: 1, invite_allowlist: 1, library_gap_askers: 1, citations: 1, coverage_items: 1 });
 
     expect(Object.values(await owned(her)).every((n) => n === 0)).toBe(true);
     expect(await storage!.exists(noteKey)).toBe(false);

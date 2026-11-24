@@ -1,4 +1,6 @@
 /** Builds the outside-service clients from config, so the API, worker and CLIs wire them the same way. */
+import { createFakeGateway } from './llm-gateway/fake.ts';
+import { createFakeVoyage } from './voyage/fake.ts';
 import type { Config } from '../config.ts';
 import { createGateway, type Gateway } from './llm-gateway/index.ts';
 import { createKanoon, type Kanoon } from './kanoon/index.ts';
@@ -23,6 +25,7 @@ export function storageFrom(config: Config): Storage {
 }
 
 export function voyageFrom(config: Config, usage: UsageSink): Voyage {
+  if (config.E2E_FAKE_AI) return createFakeVoyage();
   if (!config.VOYAGE_API_KEY) throw new Error('VOYAGE_API_KEY is not set; search indexing needs it.');
   return createVoyage(
     {
@@ -44,6 +47,7 @@ export function escrFrom(storage: Storage): Escr {
 
 /** Null when no Anthropic key is set: callers degrade honestly (e.g. labels stay 'unknown'). */
 export function gatewayFrom(config: Config): Gateway | null {
+  if (config.E2E_FAKE_AI) return createFakeGateway();
   if (!config.ANTHROPIC_API_KEY) return null;
   return createGateway({ apiKey: config.ANTHROPIC_API_KEY, lightModel: config.MODEL_CHECKER, heavyModel: config.MODEL_WRITER });
 }

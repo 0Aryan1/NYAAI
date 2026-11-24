@@ -125,7 +125,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Edit checks (C1–C8 inline; C9/C10 background `check.lines`, covered by the build integration test); ~~course memory, recap and bridge~~ (done 2026-11-22, above)
 - [x] Web: save on every change, versions with undo, Download dialog, course plan (2026-11-22)
 - [x] DATA-3: syllabus upload → for each planned lecture, the same gap check + lookup in the background (`ingest.syllabus`) (done 2026-11-25, see Day 3)
-- [ ] Done when: J1 end to end; .pptx output tests green
+- [x] Done when: J1 end to end; .pptx output tests green (2026-11-25: `pnpm --filter @nyaai/web e2e`, J1 passes in a real browser and downloads the .pptx)
 
 ## Day 5: Explore, quick Research, reports queue
 - [ ] Explore (library only), quick Research, wrong-fact reports, library editor queue
@@ -138,8 +138,10 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Accessibility (2026-11-25): axe-core 4.10 (WCAG 2.0/2.1/2.2 A and AA) on every screen in light and dark, plus the Studio's source panel, coverage tab and Download dialog: all clean after fixes (Studio slide numbers faded twice; light-theme yellow #B45309 → #A34A07 and green #15803D → #147236, also in the .pptx)
 - [x] Withdraw consent (2026-11-25): "Your consent" on Your data; withdrawn → building, notes, edit checks, class memory and syllabus source checks are refused (`CONSENT_REQUIRED`), the app sends her to the consent step (Your data stays open); agreeing again resumes everything
 - [ ] Landing page (`apps/site`, LLD §13.5): public, pre-rendered, React Bits; not a BRD requirement
-- [ ] axe-core inside the Playwright E2E (J1, J3) once that is set up
-- [ ] Done when: E2E J1 and J3 green; pilot live
+- [x] axe-core inside the Playwright E2E (J1, J3): every screen the journeys visit, WCAG 2.0/2.1/2.2 A and AA
+- [x] E2E J1 and J3 green (2026-11-25): Playwright on the installed Chrome, own ports (API 4100, web 5174) and queue prefix `e2e`, scripted fake AI (`E2E_FAKE_AI`, refused in production) on the real library, a throwaway teacher per run removed by `forget_teacher`
+- [ ] Pilot live (needs the domain, Google OAuth client, CNLU data-residency sign-off)
+- [ ] E2E gaps: coach activity (week 2), her own template, old slides / template / courses steps in setup are still placeholders; run the journeys in CI once CI has Postgres, Redis and S3
 
 ## Day 7: With teachers
 - [ ] Teachers repeat the end-to-end video on their own topics
