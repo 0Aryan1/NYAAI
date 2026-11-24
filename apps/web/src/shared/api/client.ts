@@ -158,6 +158,7 @@ export const api = {
   devLogin: (email: string) => call<void>('POST', '/auth/dev-login', { body: { email } }),
   logout: () => call<void>('POST', '/auth/logout'),
   me: () => call('GET', '/me', { parse: (v) => Me.parse(v) }),
+  deleteMyData: (confirmEmail: string) => call<unknown>('POST', '/me/delete-data', { body: { confirmEmail } }),
   consent: () => call<{ version: string; processors: Processor[]; accepted: boolean }>('GET', '/consents/current'),
   acceptConsent: () => call<void>('POST', '/consents', { body: { version: CONSENT_VERSION, accept: true } }),
   saveProfile: (body: ProfileRequest) => call<void>('PATCH', '/setup/profile', { body }),

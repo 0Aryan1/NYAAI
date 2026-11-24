@@ -14,6 +14,7 @@ const ERRORS: Record<string, string> = {
   expired: 'The sign-in took too long. Please try again.',
   google_failed: 'Google sign-in did not finish. Please try again.',
   not_configured: "Google sign-in isn't set up yet.",
+  deleted: 'Your data is being deleted and you have been signed out.',
 };
 
 /** Seeded development accounts (packages/db/seeds/dev.sql). Shown only when the server allows dev login. */

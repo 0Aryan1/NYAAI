@@ -66,7 +66,7 @@ const workers = [
         new Worker('check', checkProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), concurrency: 8 }),
       ]
     : []),
-  new Worker('ops', opsProcessor(logger), { connection: createRedis(config.REDIS_URL), concurrency: 1 }),
+  new Worker('ops', opsProcessor({ logger, worker, storage }), { connection: createRedis(config.REDIS_URL), concurrency: 1 }),
   new Worker(
     'ingest',
     ingestProcessor({

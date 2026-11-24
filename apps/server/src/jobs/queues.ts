@@ -32,6 +32,13 @@ export interface IngestJobData {
   collegeId?: string;
 }
 
+/** ops.delete_user_data: the teacher who asked (she is the only one it may act for). */
+export interface OpsJobData {
+  userId?: string;
+  collegeId?: string;
+  requestedAt?: string;
+}
+
 /** build.lecture: ids only; the teacher's identity is set with SET LOCAL from these (LLD §5.1). */
 export interface BuildJobData {
   lectureId: string;

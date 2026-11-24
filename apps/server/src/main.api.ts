@@ -4,7 +4,7 @@ import { loadConfig, missingProviderKeys } from './config.ts';
 import { createLogger } from './logger.ts';
 import { createRedis } from './redis.ts';
 import { createApp } from './app.ts';
-import type { BuildJobData, CheckJobData, IngestJobData, LearnJobData } from './jobs/queues.ts';
+import type { BuildJobData, CheckJobData, IngestJobData, LearnJobData, OpsJobData } from './jobs/queues.ts';
 import { gatewayFrom, storageFrom, voyageFrom } from './services/factory.ts';
 
 const config = { ...loadConfig(), APP_ROLE: 'api' as const };
@@ -15,6 +15,7 @@ const ingest = new Queue<IngestJobData>('ingest', { connection: createRedis(conf
 const build = new Queue<BuildJobData>('build', { connection: createRedis(config.REDIS_URL) });
 const learn = new Queue<LearnJobData>('learn', { connection: createRedis(config.REDIS_URL) });
 const check = new Queue<CheckJobData>('check', { connection: createRedis(config.REDIS_URL) });
+const ops = new Queue<OpsJobData>('ops', { connection: createRedis(config.REDIS_URL) });
 
 const missing = missingProviderKeys(config);
 if (missing.length) logger.warn({ missing }, 'provider keys not set; AI and lookup features will be unavailable');
@@ -25,7 +26,7 @@ const server = createApp({
   logger,
   pool,
   redis,
-  queues: { ingest, build, learn, check },
+  queues: { ingest, build, learn, check, ops },
   storage: storageFrom(config),
   search: {
     voyage: config.VOYAGE_API_KEY ? (usage) => voyageFrom(config, usage) : null,

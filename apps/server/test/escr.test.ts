@@ -57,7 +57,7 @@ describe('Supreme Court Reports mirror', () => {
 
   it('reads a year once, keeps a small index in storage, and fetches PDFs by file key', async () => {
     const mem = new Map<string, Uint8Array>();
-    const storage: Storage = { put: async (k, b) => void mem.set(k, b), get: async (k) => mem.get(k)!, exists: async (k) => mem.has(k), list: async (p) => [...mem.keys()].filter((k) => k.startsWith(p)) };
+    const storage: Storage = { put: async (k, b) => void mem.set(k, b), get: async (k) => mem.get(k)!, exists: async (k) => mem.has(k), list: async (p) => [...mem.keys()].filter((k) => k.startsWith(p)), delete: async (k) => void mem.delete(k) };
     const urls: string[] = [];
     const fetchImpl = (async (url: string) => {
       urls.push(url);

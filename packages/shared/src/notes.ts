@@ -37,3 +37,7 @@ export const UploadNoteQuery = z.object({
   replaces: z.uuid().optional(),
 });
 export type UploadNoteQuery = z.infer<typeof UploadNoteQuery>;
+
+/** POST /me/delete-data (BRD NFR-8): she types her own email to confirm; everything about her is deleted. */
+export const DeleteMyData = z.object({ confirmEmail: z.string().trim().min(3).max(320) });
+export type DeleteMyData = z.infer<typeof DeleteMyData>;

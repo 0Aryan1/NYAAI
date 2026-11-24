@@ -47,7 +47,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Live: "Sale of Goods Act" question → India Code → 67 sections (provisional) → answered; "Mohori Bibee" → not on Kanoon → 2 official links for the editor
 - [ ] Day 3: the lecture build retrieves with `searchWithLookup` (lookup inline, within the build's time budget)
 - [ ] Day 5: Explore uses `searchWithLookup` with `lookup = null` and queues `ingest.lookup`; editor queue screen shows gaps (attempts, links, close/re-run) and lets the editor confirm auto-loaded India Code Acts
-- [ ] Day 6: "delete my data" — askers cascade; decide whether her gap questions are deleted or kept unattributed
+- [x] Day 6: "delete my data" — her asker links are deleted; her gap questions stay as library questions, unattributed (decided 2026-11-25)
 
 ## Day 3: Planner, writer, checks, coverage
 - [x] LLM gateway: tiers, structured output, cost logging (Day 2); budget gate in Prepare and the build; per-lecture cost tagging
@@ -122,7 +122,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 
 ## Day 4: PPT, edits, course series
 - [x] PPT builder: pptxgenjs base design now (automizer with her template later), flags in notes, remove-unverified (2026-11-22)
-- [ ] Edit checks (C1–C8 inline; C9/C10 background); ~~course memory, recap and bridge~~ (done 2026-11-22, above)
+- [x] Edit checks (C1–C8 inline; C9/C10 background `check.lines`, covered by the build integration test); ~~course memory, recap and bridge~~ (done 2026-11-22, above)
 - [x] Web: save on every change, versions with undo, Download dialog, course plan (2026-11-22)
 - [x] DATA-3: syllabus upload → for each planned lecture, the same gap check + lookup in the background (`ingest.syllabus`) (done 2026-11-25, see Day 3)
 - [ ] Done when: J1 end to end; .pptx output tests green
@@ -132,7 +132,10 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Done when: full gold + red-team + planted sets pass
 
 ## Day 6: Privacy, deletion, deploy
-- [ ] Delete and export my data; consent screen; axe fixes; empty, error and slow states; landing page
+- [x] Delete and export my data (2026-11-25): "Your data" in the account menu; export = one zip (my-data.json + her note files); delete = type her email → signed out → `ops.delete_user_data` → `forget_teacher` (migration 0015) removes every row about her, her private notes and search data, her files; account kept only as an anonymous removed shell; logged in deletion_log with counts
+- [x] Consent screen (setup step, lists every processor; its promise "withdraw and delete my data at any time" is now true)
+- [ ] Axe (accessibility) fixes; empty, error and slow states; landing page
+- [ ] Withdraw consent without deleting everything (today: delete all is the way to withdraw)
 - [ ] Done when: E2E J1 and J3 green; pilot live
 
 ## Day 7: With teachers

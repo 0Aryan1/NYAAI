@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Check, GraduationCap, Home, Library, LogOut, Monitor, Moon, PanelLeft, Sun, NotebookPen } from 'lucide-react';
+import { Check, GraduationCap, Home, Library, LogOut, Monitor, Moon, PanelLeft, Sun, NotebookPen, ShieldCheck } from 'lucide-react';
 import type { Role } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { applyTheme, readTheme, type ThemeChoice } from '@/shared/lib/theme';
@@ -141,6 +141,7 @@ export function AppShell() {
                   onSelect: () => setTheme(t.value),
                 };
               }),
+              { label: 'Your data', icon: <ShieldCheck className="size-4 text-muted" aria-hidden />, onSelect: () => void navigate('/account/data') },
               { label: 'Sign out', icon: <LogOut className="size-4 text-muted" aria-hidden />, onSelect: () => void signOut() },
             ]}
           />
