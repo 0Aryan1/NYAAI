@@ -128,7 +128,10 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Done when: J1 end to end; .pptx output tests green (2026-11-25: `pnpm --filter @nyaai/web e2e`, J1 passes in a real browser and downloads the .pptx)
 
 ## Day 5: Explore, quick Research, reports queue
-- [ ] Explore (library only), quick Research, wrong-fact reports, library editor queue
+- [x] Wrong-fact reports (ADM-2, F12; 2026-11-26, migrations 0017–0018): "Report a wrong fact" on every Studio line (one click, optional note); copies of the line and its source words go to the editor's queue (due in 24 h); editor's Reports screen (`/library/reports`): "the source is right" or "I fixed the source text / a label / a law mapping", with a note; a fix turns every line citing that source piece yellow for its teacher; the case joins the gold set; the teacher sees the answer on her line; covered by the build integration test and a third browser journey
+- [ ] Library editor queue (LIB-1), still to add: the library-gaps list (API exists, no screen) and law-mapping rows (no editor yet); judgments, labels, case status and reports each have their screen
+- [ ] Explore (library only): topic map (EXP-1), follow-up questions with sources (EXP-2, needs credits for real answers), turn into a lecture (EXP-6)
+- [ ] Quick Research (RES-1, RES-3, RES-4, RES-6)
 - [ ] Done when: full gold + red-team + planted sets pass
 
 ## Day 6: Privacy, deletion, deploy
@@ -141,7 +144,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] axe-core inside the Playwright E2E (J1, J3): every screen the journeys visit, WCAG 2.0/2.1/2.2 A and AA
 - [x] E2E J1 and J3 green (2026-11-25): Playwright on the installed Chrome, own ports (API 4100, web 5174) and queue prefix `e2e`, scripted fake AI (`E2E_FAKE_AI`, refused in production) on the real library, a throwaway teacher per run removed by `forget_teacher`
 - [x] Connection drops (2026-11-25): offline banner on every screen; a Studio edit that cannot reach the server is kept on the slide ("N slides not saved yet", "Try now") and saved by itself when the connection is back (or every 15 s); several offline changes to one slide go as one save; leaving with changes waiting asks first; verify, example and undo say plainly she is offline; covered in J1 (connection cut, edit, back, reload)
-- [ ] A page that hits the per-teacher rate limit (429) shows the general "could not be loaded" message: say "Too many requests; wait a minute" instead
+- [ ] A page that hits the per-teacher rate limit (429) shows the general "could not be loaded" message: say "Too many requests; wait a minute" instead (sign-in limit 5/min is also a setting now, `SIGNIN_LIMIT_PER_MIN`)
 - [ ] Pilot live (needs the domain, Google OAuth client, CNLU data-residency sign-off)
 - [ ] E2E gaps: coach activity (week 2), her own template, old slides / template / courses steps in setup are still placeholders; run the journeys in CI once CI has Postgres, Redis and S3
 

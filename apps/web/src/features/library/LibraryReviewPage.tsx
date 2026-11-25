@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router';
 import { Check, CircleHelp, ExternalLink, FilePlus, Search, ShieldCheck } from 'lucide-react';
 import type { ParaRole, ReviewJudgmentList } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
@@ -90,9 +91,11 @@ const stillToDo = (x: Item) =>
 export function LibraryReviewPage() {
   const qc = useQueryClient();
   const list = useQuery({ queryKey: queryKeys.reviewJudgments, queryFn: api.reviewJudgments });
-  const [selected, setSelected] = useState<string | null>(null);
+  // Opened from a wrong-fact report: that judgment, whatever its state.
+  const [params] = useSearchParams();
+  const [selected, setSelected] = useState<string | null>(params.get('judgment'));
   const [adding, setAdding] = useState(false);
-  const [filter, setFilter] = useState<Filter>('todo');
+  const [filter, setFilter] = useState<Filter>(params.get('judgment') ? 'all' : 'todo');
   const [q, setQ] = useState('');
   const [allCitations, setAllCitations] = useState(false);
   const all = useMemo(() => list.data?.judgments ?? [], [list.data]);

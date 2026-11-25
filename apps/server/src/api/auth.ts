@@ -60,7 +60,7 @@ export function authRouter({ config, pool, redis, google }: AuthRouterDeps) {
   });
 
   if (devLogin) {
-    r.post('/auth/dev-login', signInLimit(redis), async (req, res) => {
+    r.post('/auth/dev-login', signInLimit(redis, config.SIGNIN_LIMIT_PER_MIN), async (req, res) => {
       const { email } = DevLoginRequest.parse(req.body);
       if (!domainAllowed(email, config.ALLOWED_EMAIL_DOMAINS)) {
         throw new AppError('FORBIDDEN', 'Please use your college email address.');
@@ -74,14 +74,14 @@ export function authRouter({ config, pool, redis, google }: AuthRouterDeps) {
     });
   }
 
-  r.get('/auth/google', signInLimit(redis), async (_req, res) => {
+  r.get('/auth/google', signInLimit(redis, config.SIGNIN_LIMIT_PER_MIN), async (_req, res) => {
     if (!google) throw new AppError('SERVICE_UNAVAILABLE', "Google sign-in isn't set up yet.");
     const { url, flowCookie } = await google.start();
     res.cookie(FLOW_COOKIE, flowCookie, { httpOnly: true, secure: production, sameSite: 'lax', path: '/api/v1/auth', maxAge: 10 * 60 * 1000 });
     res.redirect(302, url);
   });
 
-  r.get('/auth/google/callback', signInLimit(redis), async (req, res) => {
+  r.get('/auth/google/callback', signInLimit(redis, config.SIGNIN_LIMIT_PER_MIN), async (req, res) => {
     const fail = (reason: string) => res.redirect(302, `${config.WEB_ORIGIN}/login?error=${encodeURIComponent(reason)}`);
     if (!google) return fail('not_configured');
     const flow = req.cookies?.[FLOW_COOKIE] as string | undefined;

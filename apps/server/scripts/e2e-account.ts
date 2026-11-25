@@ -24,6 +24,8 @@ try {
   } else if (command === 'remove') {
     const user = (await owner.query<{ id: string; college_id: string }>('select id, college_id from users where email = $1', [email])).rows[0];
     if (user) {
+      // Test reports must not stay in the gold set (a real teacher's do, unlinked; these are not real).
+      await owner.query('delete from eval_items where from_report in (select id from reports where owner_id = $1)', [user.id]);
       const storage = storageFrom(config);
       const r = await forgetTeacher({ userId: user.id, collegeId: user.college_id, role: 'teacher' }, { worker, storage });
       await withTenant(worker, { userId: user.id, collegeId: user.college_id, role: 'teacher' }, (c) => c.query('delete from deletion_log where id = $1', [r.logId]));

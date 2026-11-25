@@ -32,5 +32,5 @@ function middleware(l: RateLimiterRedis, key: (req: Parameters<RequestHandler>[0
   };
 }
 
-export const signInLimit = (redis: Redis) => middleware(limiter(redis, 'rl_signin', 5), (req) => req.ip ?? 'unknown');
+export const signInLimit = (redis: Redis, perMinute = 5) => middleware(limiter(redis, 'rl_signin', perMinute), (req) => req.ip ?? 'unknown');
 export const teacherLimit = (redis: Redis, perMinute = 60) => middleware(limiter(redis, 'rl_teacher', perMinute), (req) => req.identity?.userId ?? req.ip ?? 'unknown');

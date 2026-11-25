@@ -18,6 +18,7 @@ import { MarkTaught } from './MarkTaught';
 import { CHECKING } from './ClaimLine';
 import { useSlideEditor } from './useSlideEditor';
 import { DownloadDialog } from './DownloadDialog';
+import { ReportDialog } from './ReportDialog';
 
 /** Every open (yellow) line in slide order, for N / Shift+N. */
 export function openPoints(slides: StudioSlide[]): { slide: number; lineKey: string }[] {
@@ -51,6 +52,10 @@ export function StudioPage() {
   // Slide view by default; check view shows every source as a chip and every grey case as a pill.
   const [showChecks, setShowChecks] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [reporting, setReporting] = useState<{ slideId: string; lineKey: string; text: string } | null>(null);
+  const reportsQ = useQuery({ queryKey: queryKeys.lectureReports(id), queryFn: () => api.lectureReports(id) });
+  // Her latest report on each line (ADM-2).
+  const reports = useMemo(() => new Map((reportsQ.data?.reports ?? []).map((r) => [`${r.slideId}|${r.lineKey}`, r])), [reportsQ.data]);
   const points = useMemo(() => openPoints(slides), [slides]);
 
   useEventStream((e) => {
@@ -109,6 +114,7 @@ export function StudioPage() {
   return (
     <div className="flex h-full flex-col">
       {downloading && <DownloadDialog lecture={lec} onClose={() => setDownloading(false)} />}
+      {reporting && <ReportDialog lectureId={id} {...reporting} onClose={() => setReporting(null)} />}
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border bg-surface px-6 py-4">
         <div className="min-w-0">
           <p className="mb-0.5 truncate text-xs text-muted">
@@ -257,6 +263,8 @@ export function StudioPage() {
                 showChecks={showChecks}
                 onOpenSource={openSource}
                 editor={lec.status === 'building' ? undefined : editor}
+                reports={reports}
+                onReport={lec.status === 'building' ? undefined : (lineKey, text) => setReporting({ slideId: slide.id, lineKey, text })}
               />
             </article>
           ) : (

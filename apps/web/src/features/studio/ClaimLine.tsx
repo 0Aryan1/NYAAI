@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Check, CircleHelp, Pencil, Trash2, User } from 'lucide-react';
-import type { SlideLine } from '@nyaai/shared';
+import { AlertTriangle, Check, CircleHelp, Pencil, Trash2, User, Flag } from 'lucide-react';
+import type { SlideLine, LineReport } from '@nyaai/shared';
 import { cn } from '@/shared/lib/utils';
 
 /** The background check of an edited line is still running (server: services/edit CHANGED). */
@@ -18,7 +18,18 @@ interface ClaimLineProps {
   onEdit?: (text: string) => void;
   onRemove?: () => void;
   onVerify?: () => void;
+  /** Wrong-fact report (ADM-2): one click on the line, then an optional note. */
+  onReport?: () => void;
+  /** Her latest report on this line, with the library's answer. */
+  report?: LineReport;
 }
+
+const OUTCOME: Record<NonNullable<LineReport['outcome']>, string> = {
+  was_correct: 'The library checked it: the source is right',
+  fixed_chunk: 'The library corrected the source: check this line',
+  fixed_label: 'The library corrected a label on the source: check this line',
+  fixed_mapping: 'The library corrected a law mapping: check this line',
+};
 
 /** A textarea that grows with its text, saved on Enter or when she leaves it; Escape puts the words back. */
 function LineEditor({ initial, onDone }: { initial: string; onDone: (text: string | null) => void }) {
@@ -66,7 +77,7 @@ function LineEditor({ initial, onDone }: { initial: string; onDone: (text: strin
  * an open point is never hidden. Colour is never the only signal (icon + text label everywhere). Click the words to
  * change them; the line is checked again (LLD §8.6).
  */
-export function ClaimLine({ line, active, numbers, showChecks, onOpenSource, onEdit, onRemove, onVerify }: ClaimLineProps) {
+export function ClaimLine({ line, active, numbers, showChecks, onOpenSource, onEdit, onRemove, onVerify, onReport, report }: ClaimLineProps) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const checking = line.flagReason === CHECKING;
@@ -126,6 +137,13 @@ export function ClaimLine({ line, active, numbers, showChecks, onOpenSource, onE
         </span>
       )}
       {!editing && checking && <span className="ml-2 align-middle text-xs not-italic text-muted">Checking…</span>}
+      {!editing && report && (
+        <span className="mt-0.5 flex items-center gap-1 text-xs not-italic text-muted" title={report.resolutionNote ?? undefined}>
+          <Flag className="size-3 shrink-0" aria-hidden />
+          {report.status === 'resolved' && report.outcome ? OUTCOME[report.outcome] : 'Reported: the library team will check it within a day'}
+          {report.status === 'resolved' && report.resolutionNote && <span className="truncate">({report.resolutionNote})</span>}
+        </span>
+      )}
       {!editing && yellow && (
         <button
           type="button"
@@ -148,6 +166,11 @@ export function ClaimLine({ line, active, numbers, showChecks, onOpenSource, onE
           {onRemove && (
             <button type="button" onClick={onRemove} className="rounded-control p-1 text-muted hover:bg-bg hover:text-danger" aria-label="Remove this line" title="Remove">
               <Trash2 className="size-3.5" aria-hidden />
+            </button>
+          )}
+          {onReport && (
+            <button type="button" onClick={onReport} className="rounded-control p-1 text-muted hover:bg-bg hover:text-flag-yellow" aria-label="Report a wrong fact" title="Report a wrong fact">
+              <Flag className="size-3.5" aria-hidden />
             </button>
           )}
         </span>

@@ -34,6 +34,11 @@ import {
   TeacherNote,
   TeacherNoteList,
   SyllabusPreview,
+  LectureReports,
+  ReportQueue,
+  ResolveReportResponse,
+  type ReportLine,
+  type ResolveReport,
 } from '@nyaai/shared';
 
 export class ApiRequestError extends Error {
@@ -158,6 +163,10 @@ export const api = {
   devLogin: (email: string) => call<void>('POST', '/auth/dev-login', { body: { email } }),
   logout: () => call<void>('POST', '/auth/logout'),
   me: () => call('GET', '/me', { parse: (v) => Me.parse(v) }),
+  reportLine: (lectureId: string, body: ReportLine) => call<{ id: string }>('POST', `/lectures/${lectureId}/reports`, { body }),
+  lectureReports: (lectureId: string) => call('GET', `/lectures/${lectureId}/reports`, { parse: (v) => LectureReports.parse(v) }),
+  reportQueue: (state: 'open' | 'resolved') => call('GET', `/library/reports?state=${state}`, { parse: (v) => ReportQueue.parse(v) }),
+  resolveReport: (id: string, body: ResolveReport) => call('POST', `/library/reports/${id}/resolve`, { body, parse: (v) => ResolveReportResponse.parse(v) }),
   withdrawConsent: () => call<void>('POST', '/consents/withdraw'),
   deleteMyData: (confirmEmail: string) => call<unknown>('POST', '/me/delete-data', { body: { confirmEmail } }),
   consent: () => call<{ version: string; processors: Processor[]; accepted: boolean }>('GET', '/consents/current'),
@@ -210,6 +219,8 @@ export const queryKeys = {
   me: ['me'] as const,
   home: ['home'] as const,
   notes: ['notes'] as const,
+  lectureReports: (id: string) => ['lecture-reports', id] as const,
+  reportQueue: (state: string) => ['review', 'reports', state] as const,
   consent: ['consent'] as const,
   authOptions: ['auth-options'] as const,
   suggest: (q: string) => ['suggest', q] as const,

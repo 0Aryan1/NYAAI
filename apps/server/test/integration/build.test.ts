@@ -195,6 +195,10 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
 
   afterAll(async () => {
     if (!owner) return;
+    const reports = (await owner.query<{ id: string }>('select id from reports where college_id = $1', [college])).rows.map((r) => r.id);
+    await owner.query('delete from eval_items where from_report = any($1::uuid[])', [reports]);
+    await owner.query('delete from review_queue where ref_id = any($1::uuid[])', [reports]);
+    await owner.query('delete from reports where college_id = $1', [college]);
     await owner.query('delete from lectures where college_id = $1', [college]);
     await owner.query('delete from sources where id = $1', [sourceId]);
     await owner.query('delete from review_queue where college_id = $1', [college]);
@@ -417,5 +421,53 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
     const clean = await dl.post(`/api/v1/lectures/${lectureId}/download`).set('x-csrf-token', tok).send({ mode: 'remove_unverified' }).buffer(true).parse(binary).expect(200);
     expect(Number(clean.headers['x-removed-lines'])).toBeGreaterThan(0);
     expect(await yellow()).toBe(0);
+  });
+
+  it('a wrong-fact report: her copy goes to the editor; a fixed source re-flags every line on it; the case joins the gold set (F12)', async () => {
+    const editorEmail = `ed-${tag}@bt.test`;
+    const editor = randomUUID();
+    await owner.query("insert into users (id, college_id, email, name, role) values ($1, $2, $3, 'Editor', 'library_editor')", [editor, college, editorEmail]);
+    await owner.query('insert into teacher_profiles (owner_id, college_id) values ($1, $2)', [editor, college]);
+    await owner.query("insert into invite_allowlist (college_id, email, role) values ($1, $2, 'library_editor')", [college, editorEmail]);
+    const signIn = async (email: string, n: number) => {
+      const agent = request.agent(createApp({ config: config(), logger: pino({ level: 'silent' }), pool: app, redis }));
+      const login = await agent.post('/api/v1/auth/dev-login').set('x-forwarded-for', `10.95.${tag.charCodeAt(0)}.${n}`).send({ email }).expect(204);
+      return { agent, csrf: decodeURIComponent(([] as string[]).concat(login.headers['set-cookie'] ?? []).find((c) => c.startsWith('nyaai_csrf='))!.split(';')[0]!.slice(11)) };
+    };
+    const t = await signIn(`b-${tag}@bt.test`, 1);
+    type Line = { lineKey: string; text: string; status: string; flag: string | null; flagReason: string | null; sources: unknown[] };
+    const slides = (await t.agent.get(`/api/v1/lectures/${lectureId}/slides`).expect(200)).body.slides as { id: string; lines: Line[] }[];
+    const slide = slides.find((x) => x.lines.some((l) => l.sources.length && l.status === 'supported'))!;
+    const line = slide.lines.find((l) => l.sources.length && l.status === 'supported')!;
+
+    // She reports it, with a note.
+    const filed = await t.agent.post(`/api/v1/lectures/${lectureId}/reports`).set('x-csrf-token', t.csrf).send({ slideId: slide.id, lineKey: line.lineKey, note: 'The Act says may, not must.' }).expect(201);
+    const mine = (await t.agent.get(`/api/v1/lectures/${lectureId}/reports`).expect(200)).body.reports;
+    expect(mine).toEqual([expect.objectContaining({ id: filed.body.id, lineKey: line.lineKey, status: 'open', outcome: null })]);
+    await t.agent.get('/api/v1/library/reports').expect(403);
+
+    // The editor sees copies (the line, the source words, her note), due within 24 hours.
+    const e = await signIn(editorEmail, 2);
+    const queue = (await e.agent.get('/api/v1/library/reports').expect(200)).body;
+    const item = queue.reports.find((x: { id: string }) => x.id === filed.body.id);
+    expect(item).toMatchObject({ lineCopy: line.text, note: 'The Act says may, not must.', status: 'open' });
+    expect(item.spanCopy.length).toBeGreaterThan(8);
+    expect(new Date(item.dueAt).getTime() - Date.now()).toBeGreaterThan(23 * 3600_000);
+    // An editor cannot file a report on a lecture that is not hers.
+    await e.agent.post(`/api/v1/lectures/${lectureId}/reports`).set('x-csrf-token', e.csrf).send({ slideId: slide.id, lineKey: line.lineKey }).expect((r) => expect(r.status).toBeGreaterThanOrEqual(400));
+
+    // She fixed the source: every line resting on that piece turns yellow again, for its teacher to check.
+    const fixed = await e.agent.post(`/api/v1/library/reports/${filed.body.id}/resolve`).set('x-csrf-token', e.csrf).send({ outcome: 'fixed_chunk', note: 'Corrected the section text from the Gazette.' }).expect(200);
+    expect(fixed.body.linesFlagged).toBeGreaterThanOrEqual(1);
+    await e.agent.post(`/api/v1/library/reports/${filed.body.id}/resolve`).set('x-csrf-token', e.csrf).send({ outcome: 'was_correct' }).expect(404);
+    const after = (await t.agent.get(`/api/v1/lectures/${lectureId}/slides`).expect(200)).body.slides as { id: string; lines: Line[] }[];
+    const again = after.find((x) => x.id === slide.id)!.lines.find((l) => l.lineKey === line.lineKey)!;
+    expect(again).toMatchObject({ status: 'open', flag: 'yellow', flagReason: 'The library corrected this source after a report; check this line again' });
+    expect((await t.agent.get(`/api/v1/lectures/${lectureId}/reports`).expect(200)).body.reports[0]).toMatchObject({ status: 'resolved', outcome: 'fixed_chunk', resolutionNote: 'Corrected the section text from the Gazette.' });
+
+    // F12.4: the case is in the gold set; the queue item is closed.
+    const gold = (await owner.query("select set_name, question, expected from eval_items where from_report = $1", [filed.body.id])).rows[0];
+    expect(gold).toMatchObject({ set_name: 'gold', question: line.text, expected: expect.objectContaining({ outcome: 'fixed_chunk' }) });
+    expect((await owner.query("select state from review_queue where ref_id = $1 and kind = 'wrong_fact'", [filed.body.id])).rows[0].state).toBe('resolved');
   });
 });

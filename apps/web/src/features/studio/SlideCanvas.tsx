@@ -1,4 +1,4 @@
-import type { StudioSlide } from '@nyaai/shared';
+import type { StudioSlide, LineReport } from '@nyaai/shared';
 import { useState } from 'react';
 import { Plus, User } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
@@ -13,6 +13,9 @@ interface SlideCanvasProps {
   onOpenSource: (citationId: string, lineKey: string) => void;
   /** Present when she may edit (STUDIO-2, -4, -6). */
   editor?: SlideEditor;
+  /** Her wrong-fact reports on this lecture, by `slideId|lineKey` (ADM-2). */
+  reports?: Map<string, LineReport>;
+  onReport?: (lineKey: string, text: string) => void;
 }
 
 /** Footnote numbers for one slide: each distinct source label gets one number, in reading order. */
@@ -127,7 +130,7 @@ function ExampleForm({ onSave, onCancel }: { onSave: (text: string, keep: boolea
   );
 }
 
-export function SlideCanvas({ slide, activeLine, showChecks, onOpenSource, editor }: SlideCanvasProps) {
+export function SlideCanvas({ slide, activeLine, showChecks, onOpenSource, editor, reports, onReport }: SlideCanvasProps) {
   const { byCitation, notes } = footnoteNumbers(slide);
   const [adding, setAdding] = useState<null | 'line' | 'note' | 'example'>(null);
   const [titleEditing, setTitleEditing] = useState(false);
@@ -146,6 +149,8 @@ export function SlideCanvas({ slide, activeLine, showChecks, onOpenSource, edito
       onEdit={editor ? (t) => void editor.editLine(slide, l.lineKey, t) : undefined}
       onRemove={editor ? () => void editor.removeLine(slide, l.lineKey) : undefined}
       onVerify={editor && l.flag === 'yellow' ? () => void editor.verify(slide, l.lineKey) : undefined}
+      onReport={onReport && !l.lineKey.startsWith('unsaved-') ? () => onReport(l.lineKey, l.text) : undefined}
+      report={reports?.get(`${slide.id}|${l.lineKey}`)}
     />
   );
   const list = (items: typeof lines) => <ul className={cn('space-y-[1cqw]', bullet ? 'list-disc pl-6 marker:text-accent/60' : 'list-none')}>{items.map(line)}</ul>;

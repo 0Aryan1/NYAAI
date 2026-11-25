@@ -209,3 +209,53 @@ export type UploadJudgmentStatus = z.infer<typeof UploadJudgmentStatus>;
 
 /** PATCH /library/paragraphs/:chunkId */
 export const SetParagraphLabel = z.object({ role: ParaRole, opinion: z.enum(['majority', 'concurring', 'dissent', 'separate_no_majority', 'unknown']).optional() });
+
+/* ---------------------------------------------------------------------------------------------------------------
+ * Wrong-fact reports (BRD ADM-2, LIB-1; HLD F12).
+ * ------------------------------------------------------------------------------------------------------------- */
+
+export const ReportOutcome = z.enum(['fixed_chunk', 'fixed_label', 'fixed_mapping', 'was_correct']);
+export type ReportOutcome = z.infer<typeof ReportOutcome>;
+
+/** POST /lectures/:id/reports: the line she thinks is wrong, and why (optional). */
+export const ReportLine = z.object({ slideId: z.uuid(), lineKey: z.string().min(1).max(40), note: z.string().trim().max(500).optional() });
+export type ReportLine = z.infer<typeof ReportLine>;
+
+/** GET /lectures/:id/reports: her reports on this lecture, with the library's answer. */
+export const LineReport = z.object({
+  id: z.uuid(),
+  slideId: z.uuid().nullable(),
+  lineKey: z.string().nullable(),
+  status: z.enum(['open', 'in_progress', 'resolved', 'rejected']),
+  outcome: ReportOutcome.nullable(),
+  resolutionNote: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type LineReport = z.infer<typeof LineReport>;
+export const LectureReports = z.object({ reports: z.array(LineReport) });
+
+/** GET /library/reports: the editor's queue of wrong-fact reports (copies only; never the teacher's lecture). */
+export const QueueReport = z.object({
+  id: z.uuid(),
+  lineCopy: z.string(),
+  spanCopy: z.string(),
+  sourceLabel: z.string().nullable(),
+  sourceTitle: z.string().nullable(),
+  sourceHeader: z.string().nullable(),
+  /** The judgment, when the line rests on one: the editor opens it in the review screen. */
+  judgmentId: z.uuid().nullable(),
+  note: z.string().nullable(),
+  status: z.enum(['open', 'in_progress', 'resolved', 'rejected']),
+  outcome: ReportOutcome.nullable(),
+  resolutionNote: z.string().nullable(),
+  createdAt: z.string(),
+  dueAt: z.string().nullable(),
+});
+export type QueueReport = z.infer<typeof QueueReport>;
+export const ReportQueue = z.object({ reports: z.array(QueueReport), open: z.number().int() });
+export type ReportQueue = z.infer<typeof ReportQueue>;
+
+/** POST /library/reports/:id/resolve */
+export const ResolveReport = z.object({ outcome: ReportOutcome, note: z.string().trim().max(1000).optional() });
+export type ResolveReport = z.infer<typeof ResolveReport>;
+export const ResolveReportResponse = z.object({ linesFlagged: z.number().int() });

@@ -52,6 +52,8 @@ const Schema = z
     /** BullMQ key prefix: the E2E run uses its own, so a developer's worker never takes its jobs. */
     /** Requests per minute per teacher (LLD §17.4: 60). Raised only for the browser journeys, which click faster than people. */
     RATE_LIMIT_PER_MIN: z.coerce.number().int().min(10).max(10_000).default(60),
+    /** Sign-in attempts per minute per IP (LLD §17.4: 5). Raised only for the browser journeys. */
+    SIGNIN_LIMIT_PER_MIN: z.coerce.number().int().min(1).max(10_000).default(5),
     QUEUE_PREFIX: z.string().regex(/^[a-z0-9_-]{1,20}$/).default('bull'),
 
     SESSION_SECRET: z.string().min(32, 'must be at least 32 characters'),

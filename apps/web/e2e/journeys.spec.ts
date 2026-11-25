@@ -42,6 +42,9 @@ Unit I: Discharge of contracts
 Suggested Readings
 1. Pollock and Mulla, Indian Contract Act`;
 
+/** Lecture 1 of J1, for the report journey after it. */
+let firstLecture = '';
+
 test.describe.serial('teacher journeys', () => {
   test('J3: first sign-in, consent, profile, style, finish, Home', async ({ page }) => {
     await page.goto('/login');
@@ -118,6 +121,7 @@ test.describe.serial('teacher journeys', () => {
     await axe(page, 'Build');
     await page.waitForURL(/\/lectures\/[0-9a-f-]{36}$/, { timeout: 180_000 });
     const lectureUrl = page.url();
+    firstLecture = lectureUrl;
 
     // 6–7. Studio: the plan, a source with its exact words, the yellow point verified, a line edited.
     await expect(page.getByRole('button', { name: 'Download' })).toBeVisible();
@@ -198,5 +202,50 @@ test.describe.serial('teacher journeys', () => {
     await page.getByRole('button', { name: 'Prepare', exact: true }).click();
     await page.waitForURL((u) => /\/lectures\/[0-9a-f-]{36}$/.test(u.pathname) && !lectureUrl.endsWith(u.pathname), { timeout: 180_000 });
     await expect(page.getByRole('button', { name: /Recap of last class/ }).first()).toBeVisible();
+  });
+
+  test('ADM-2 / LIB-1: she reports a wrong fact; the library editor answers; she sees the answer on the line', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('Email').fill(email());
+    await page.getByLabel('Email').press('Enter');
+    await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
+    await page.goto(firstLecture);
+    await page.getByRole('button', { name: /What .* means/ }).first().click();
+    const claim = page.locator('.group').filter({ has: page.locator('button[aria-label^="Source 1"]') }).first();
+    const lineText = (await claim.locator('span.leading-relaxed').first().innerText()).trim();
+    await claim.hover();
+    await claim.getByRole('button', { name: 'Report a wrong fact' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Report a wrong fact' });
+    await expect(dialog).toBeVisible();
+    await axe(page, 'Studio: report dialog');
+    await dialog.getByLabel('What is wrong? (optional)').fill('I think the Act says may, not must.');
+    await dialog.getByRole('button', { name: 'Send report' }).click();
+    await expect(dialog.getByRole('status')).toContainText('within a day');
+    await dialog.getByRole('button', { name: 'Close' }).last().click();
+    await expect(page.getByText('Reported: the library team will check it within a day').first()).toBeVisible();
+
+    // The library editor: the report is in her queue, as a copy, and she answers it.
+    await page.context().clearCookies();
+    await page.goto('/login');
+    await page.getByRole('button', { name: 'Library editor' }).click();
+    await expect(page).toHaveURL(/\/library/);
+    await page.goto('/library/reports');
+    await axe(page, 'Library: reports');
+    const card = page.getByRole('listitem').filter({ hasText: 'I think the Act says may, not must.' });
+    await expect(card).toContainText(lineText.slice(0, 40));
+    await card.getByText('The source is right').click();
+    await card.getByLabel('Note for the teacher (optional)').fill('Checked against the official text.');
+    await card.getByRole('button', { name: 'Send answer' }).click();
+    await expect(card.getByRole('status')).toContainText('Answered');
+
+    // Back as the teacher: the answer is on her line.
+    await page.context().clearCookies();
+    await page.goto('/login');
+    await page.getByLabel('Email').fill(email());
+    await page.getByLabel('Email').press('Enter');
+    await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
+    await page.goto(firstLecture);
+    await page.getByRole('button', { name: /What .* means/ }).first().click();
+    await expect(page.getByText('The library checked it: the source is right').first()).toBeVisible();
   });
 });
