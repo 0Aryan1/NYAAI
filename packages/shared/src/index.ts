@@ -8,3 +8,4 @@ export * from './search.ts';
 export * from './lecture.ts';
 export * from './course.ts';
 export * from './notes.ts';
+export * from './explore.ts';

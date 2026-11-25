@@ -59,7 +59,8 @@ export function HomePage() {
         mustInclude: mustInclude.trim() ? { text: mustInclude.trim() } : undefined,
         anythingSpecial: special.trim() || undefined,
         filters: { jurisdiction: 'IN', comparative: false },
-        ambiguityChoice: picked?.conceptId,
+        // From Explore's "Turn into a lecture": the topic she explored, already chosen.
+        ambiguityChoice: picked?.conceptId ?? params.get('concept') ?? undefined,
         prereqAck: prereqAck || undefined,
         notes,
       });

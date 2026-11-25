@@ -92,6 +92,14 @@ export function createFakeGateway(): Gateway {
         case 'writer.repair':
           data = { written: null, repairs: [] };
           break;
+        case 'explore.answer': {
+          const claims = fencedSources(ctx.join('\n'))
+            .slice(0, 2)
+            .map((s) => ({ s, span: quotable(s.text) }))
+            .filter((x): x is { s: FencedSource; span: string } => !!x.span);
+          data = { lines: claims.map((c) => ({ text: c.span, kind: 'claim', claims: [{ text: c.span, type: 'rule', tag: c.s.tag, span: c.span }] })), notFound: [] };
+          break;
+        }
         case 'research.gaps':
           data = { questions: [] };
           break;

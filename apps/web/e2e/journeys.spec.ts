@@ -248,4 +248,38 @@ test.describe.serial('teacher journeys', () => {
     await page.getByRole('button', { name: /What .* means/ }).first().click();
     await expect(page.getByText('The library checked it: the source is right').first()).toBeVisible();
   });
+
+  test('J4 / EXP-1, EXP-2, EXP-6: explore a topic, ask a follow-up from the library, turn it into a lecture', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('Email').fill(email());
+    await page.getByLabel('Email').press('Enter');
+    await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Explore' }).click();
+    await expect(page.getByRole('heading', { name: 'Explore' })).toBeVisible();
+    await axe(page, 'Explore');
+    await page.getByPlaceholder(/Find a topic/).fill('lis pendens');
+    await page.getByRole('link', { name: /Lis pendens/ }).first().click();
+
+    // The topic map: key sections and leading cases from the expert's list.
+    await expect(page.getByRole('heading', { name: 'Lis pendens', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Key sections' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Leading cases' })).toBeVisible();
+    await axe(page, 'Explore: topic map');
+
+    // A follow-up, answered from the library: a line with its source, and the source's exact words.
+    await page.getByLabel('Your question').fill('Does lis pendens apply to a transfer made while the suit is pending?');
+    await page.getByRole('button', { name: 'Ask' }).click();
+    const answer = page.getByRole('article').first();
+    await expect(answer).toContainText('Does lis pendens apply');
+    const chip = answer.getByRole('button').first();
+    await chip.click();
+    await expect(answer.locator('mark')).not.toHaveText('');
+    await axe(page, 'Explore: answer and source');
+
+    // Turn into a lecture: Prepare opens with the topic chosen.
+    await page.getByRole('button', { name: 'Turn into a lecture' }).click();
+    await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
+    await expect(page.getByRole('combobox')).toHaveValue('Lis pendens');
+  });
 });

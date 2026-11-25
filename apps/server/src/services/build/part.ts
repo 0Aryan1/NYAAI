@@ -85,6 +85,46 @@ export function sourceLabel(s: RetrievedSource, title: string | null): string {
   return s.meta.paraNo ? `${name} ¶${s.meta.paraNo}` : name;
 }
 
+/**
+ * Retrieved sources as the ten checks see them (pieces: the paragraphs or statute chunks each covers; source
+ * details), with their short labels and relevance. Shared by the lecture writer and Explore answers.
+ */
+export async function checkSourcesFor(
+  tenant: TenantRunner,
+  found: RetrievedSource[],
+): Promise<{ sources: Map<string, CheckSource>; labels: Map<string, string>; relevance: Map<string, number | null> }> {
+  const { pieces, details } = await tenant(async (c) => ({
+    pieces: await loadPieces(c, found.flatMap((s) => s.coveredChunkIds)),
+    details: await sourceDetails(c, [...new Set(found.map((s) => s.sourceId))]),
+  }));
+  const sources = new Map<string, CheckSource>();
+  const labels = new Map<string, string>();
+  const relevance = new Map<string, number | null>();
+  for (const s of found) {
+    const d = details.get(s.sourceId);
+    const mine = pieces.filter((p) => s.coveredChunkIds.includes(p.chunkId));
+    sources.set(s.tag, {
+      tag: s.tag,
+      sourceId: s.sourceId,
+      sourceType: s.meta.sourceType,
+      title: d?.title ?? null,
+      header: s.header,
+      text: s.text,
+      pieces: mine.length ? mine : [{ chunkId: s.chunkId, text: s.text, paraNo: s.meta.paraNo ?? null, opinion: s.meta.opinion ?? null, paraRole: s.meta.paraRole ?? null, kind: 'section' }],
+      court: s.meta.court ?? null,
+      decidedOn: s.meta.decidedOn ?? null,
+      section: s.meta.section ?? null,
+      article: s.meta.article ?? null,
+      caseStatus: s.status.case ?? null,
+      rolesSampled: s.meta.rolesSampled,
+      holdingNote: d?.holdingNote ?? null,
+    });
+    labels.set(s.tag, sourceLabel(s, d?.title ?? null));
+    relevance.set(s.tag, s.standing?.relevance ?? s.rerankScore);
+  }
+  return { sources, labels, relevance };
+}
+
 export function partQuery(topic: string, part: LecturePlan['parts'][number]): string {
   return `${topic}: ${part.title}. ${part.questions.join(' ')}`.slice(0, 500);
 }
@@ -125,35 +165,7 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
   }
 
   // 2. Sources as the checks see them: pieces (paragraphs or statute chunks) and source details.
-  const { pieces, details } = await deps.tenant(async (c) => ({
-    pieces: await loadPieces(c, found.sources.flatMap((s) => s.coveredChunkIds)),
-    details: await sourceDetails(c, [...new Set(found.sources.map((s) => s.sourceId))]),
-  }));
-  const sources = new Map<string, CheckSource>();
-  const labels = new Map<string, string>();
-  const relevance = new Map<string, number | null>();
-  for (const s of found.sources) {
-    const d = details.get(s.sourceId);
-    const mine = pieces.filter((p) => s.coveredChunkIds.includes(p.chunkId));
-    sources.set(s.tag, {
-      tag: s.tag,
-      sourceId: s.sourceId,
-      sourceType: s.meta.sourceType,
-      title: d?.title ?? null,
-      header: s.header,
-      text: s.text,
-      pieces: mine.length ? mine : [{ chunkId: s.chunkId, text: s.text, paraNo: s.meta.paraNo ?? null, opinion: s.meta.opinion ?? null, paraRole: s.meta.paraRole ?? null, kind: 'section' }],
-      court: s.meta.court ?? null,
-      decidedOn: s.meta.decidedOn ?? null,
-      section: s.meta.section ?? null,
-      article: s.meta.article ?? null,
-      caseStatus: s.status.case ?? null,
-      rolesSampled: s.meta.rolesSampled,
-      holdingNote: d?.holdingNote ?? null,
-    });
-    labels.set(s.tag, sourceLabel(s, d?.title ?? null));
-    relevance.set(s.tag, s.standing?.relevance ?? s.rerankScore);
-  }
+  const { sources, labels, relevance } = await checkSourcesFor(deps.tenant, found.sources);
 
   // 3. Write, closed-book. Teacher block and sources block are the cacheable prefix (LLD §17.1).
   const boundary = randomBytes(6).toString('hex');

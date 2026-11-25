@@ -130,7 +130,10 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 ## Day 5: Explore, quick Research, reports queue
 - [x] Wrong-fact reports (ADM-2, F12; 2026-11-26, migrations 0017–0018): "Report a wrong fact" on every Studio line (one click, optional note); copies of the line and its source words go to the editor's queue (due in 24 h); editor's Reports screen (`/library/reports`): "the source is right" or "I fixed the source text / a label / a law mapping", with a note; a fix turns every line citing that source piece yellow for its teacher; the case joins the gold set; the teacher sees the answer on her line; covered by the build integration test and a third browser journey
 - [ ] Library editor queue (LIB-1), still to add: the library-gaps list (API exists, no screen) and law-mapping rows (no editor yet); judgments, labels, case status and reports each have their screen
-- [ ] Explore (library only): topic map (EXP-1), follow-up questions with sources (EXP-2, needs credits for real answers), turn into a lecture (EXP-6)
+- [x] Explore, library only (2026-11-26): topic list by subject with search (`/explore`); topic map (EXP-1: key sections, leading cases with "link not yet confirmed" and case status, open questions from her lectures, her course units); follow-up questions (EXP-2: library search, `explore.answer` v1 light tier, every claim through the same ten checks as a lecture line via the shared `checkSourcesFor`; unsourced law flagged; "Not found in the library" and the question goes to the library team); "Turn into a lecture" (EXP-6: Prepare with topic and concept chosen); consent and budget gates; integration test (planted wrong quote caught) and browser journey J4
+- [ ] Explore answers with real AI (needs credits): check answer quality and cost on 5 questions
+- [ ] Library data: only 1 of 55 concepts has leading cases linked (concept_links kind leading_case); link the leading cases of each pilot topic (from the course packs, then the expert confirms). Affects Explore's topic map and the lecture build's must-cover cases
+- [ ] EXP-3 What's new, EXP-5 reading list, EXP-7 topic brief / tutorial problems (Should items)
 - [ ] Quick Research (RES-1, RES-3, RES-4, RES-6)
 - [ ] Done when: full gold + red-team + planted sets pass
 
