@@ -140,6 +140,8 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Landing page (`apps/site`, LLD §13.5): public, pre-rendered, React Bits; not a BRD requirement
 - [x] axe-core inside the Playwright E2E (J1, J3): every screen the journeys visit, WCAG 2.0/2.1/2.2 A and AA
 - [x] E2E J1 and J3 green (2026-11-25): Playwright on the installed Chrome, own ports (API 4100, web 5174) and queue prefix `e2e`, scripted fake AI (`E2E_FAKE_AI`, refused in production) on the real library, a throwaway teacher per run removed by `forget_teacher`
+- [x] Connection drops (2026-11-25): offline banner on every screen; a Studio edit that cannot reach the server is kept on the slide ("N slides not saved yet", "Try now") and saved by itself when the connection is back (or every 15 s); several offline changes to one slide go as one save; leaving with changes waiting asks first; verify, example and undo say plainly she is offline; covered in J1 (connection cut, edit, back, reload)
+- [ ] A page that hits the per-teacher rate limit (429) shows the general "could not be loaded" message: say "Too many requests; wait a minute" instead
 - [ ] Pilot live (needs the domain, Google OAuth client, CNLU data-residency sign-off)
 - [ ] E2E gaps: coach activity (week 2), her own template, old slides / template / courses steps in setup are still placeholders; run the journeys in CI once CI has Postgres, Redis and S3
 

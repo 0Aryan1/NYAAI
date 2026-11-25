@@ -145,6 +145,31 @@ test.describe.serial('teacher journeys', () => {
     await expect(page.getByText('All changes saved')).toBeVisible();
     await expect(page.getByText('A shorter line in my own words', { exact: false }).first()).toBeVisible();
 
+    // The connection drops while she edits: her words stay, wait, and save by themselves when it is back.
+    await page.route('**/api/v1/slides/**', (r) => r.abort('internetdisconnected'));
+    await firstLine.hover();
+    await firstLine.getByRole('button', { name: 'Edit this line' }).click();
+    await box.fill('Written while the connection was down.');
+    await box.press('Enter');
+    await expect(page.getByText(/1 slide not saved yet/)).toBeVisible();
+    await expect(page.getByText('Written while the connection was down.').first()).toBeVisible();
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
+      window.dispatchEvent(new Event('offline'));
+    });
+    await expect(page.getByRole('status').filter({ hasText: 'You’re offline' })).toBeVisible();
+    await axe(page, 'Studio: offline');
+    await page.unroute('**/api/v1/slides/**');
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => true });
+      window.dispatchEvent(new Event('online'));
+    });
+    await expect(page.getByText('All changes saved')).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'You’re offline' })).toBeHidden();
+    await page.reload();
+    await page.getByRole('button', { name: /What .* means/ }).first().click();
+    await expect(page.getByText('Written while the connection was down.').first()).toBeVisible(); // it reached the server
+
     // 9. Download the .pptx.
     await page.getByRole('button', { name: 'Download' }).click();
     const dialog = page.getByRole('dialog');

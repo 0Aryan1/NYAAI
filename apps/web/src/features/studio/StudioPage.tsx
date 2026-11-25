@@ -5,6 +5,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, CircleHelp, CloudOff, Downloa
 import type { StudioSlide } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { useEventStream } from '@/shared/hooks/useEventStream';
+import { useOnline } from '@/shared/hooks/useOnline';
 import { lectureNo } from '@/shared/lib/labels';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
@@ -41,6 +42,7 @@ export function StudioPage() {
     refetchInterval: (q) => (q.state.data?.slides.some((s) => [...s.lines, ...s.notes].some((l) => l.flagReason === CHECKING)) ? 4000 : false),
   });
   const editor = useSlideEditor(id);
+  const online = useOnline();
   const slides = useMemo(() => slidesQ.data?.slides ?? [], [slidesQ.data]);
   const [current, setCurrent] = useState(0);
   const [citation, setCitation] = useState<string | null>(null);
@@ -216,7 +218,18 @@ export function StudioPage() {
                         <Loader2 className="size-3.5 animate-spin" aria-hidden /> Saving…
                       </>
                     )}
-                    {editor.state === 'saved' && 'All changes saved'}
+                    {editor.pending > 0 && editor.state !== 'saving' && (
+                      <span className="inline-flex items-center gap-1 text-flag-yellow">
+                        <CloudOff className="size-3.5" aria-hidden />
+                        {editor.pending === 1 ? '1 slide' : `${editor.pending} slides`} not saved yet: saving when you’re back online
+                        {online && (
+                          <button type="button" className="ml-1 text-accent underline" onClick={() => void editor.retryNow()}>
+                            Try now
+                          </button>
+                        )}
+                      </span>
+                    )}
+                    {editor.state === 'saved' && editor.pending === 0 && 'All changes saved'}
                     {editor.state === 'error' && (
                       <span className="inline-flex items-center gap-1 text-danger" title={editor.error ?? undefined}>
                         <CloudOff className="size-3.5" aria-hidden /> {editor.error}

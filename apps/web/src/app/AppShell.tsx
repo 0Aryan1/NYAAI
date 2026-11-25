@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { OfflineBanner } from '@/shared/ui/offline-banner';
 import { useQuery } from '@tanstack/react-query';
 import { Check, GraduationCap, Home, Library, LogOut, Monitor, Moon, PanelLeft, Sun, NotebookPen, ShieldCheck } from 'lucide-react';
 import type { Role } from '@nyaai/shared';
@@ -146,6 +147,7 @@ export function AppShell() {
             ]}
           />
         </header>
+        <OfflineBanner />
         <main className={cn('min-h-0 flex-1', fullBleed ? 'overflow-clip' : 'relative overflow-y-auto px-4 py-8 sm:px-8 lg:py-10')}>
           <Outlet />
         </main>

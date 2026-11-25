@@ -50,6 +50,8 @@ const Schema = z
     /** Browser journeys (E2E) only: a scripted fake Claude and Voyage, no outside lookups. Never in production. */
     E2E_FAKE_AI: bool,
     /** BullMQ key prefix: the E2E run uses its own, so a developer's worker never takes its jobs. */
+    /** Requests per minute per teacher (LLD §17.4: 60). Raised only for the browser journeys, which click faster than people. */
+    RATE_LIMIT_PER_MIN: z.coerce.number().int().min(10).max(10_000).default(60),
     QUEUE_PREFIX: z.string().regex(/^[a-z0-9_-]{1,20}$/).default('bull'),
 
     SESSION_SECRET: z.string().min(32, 'must be at least 32 characters'),

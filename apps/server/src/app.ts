@@ -91,7 +91,7 @@ export function createApp({ config, logger, pool, redis, queues, search, storage
   const v1 = express.Router();
   v1.use(healthRouter({ pool, redis }));
   v1.use(authRouter({ config, pool, redis, google }));
-  v1.use(SIGNED_IN, requireAuth({ pool, sessionSecret: config.SESSION_SECRET, production }), teacherLimit(redis), requireCsrf(config.CSRF_SECRET));
+  v1.use(SIGNED_IN, requireAuth({ pool, sessionSecret: config.SESSION_SECRET, production }), teacherLimit(redis, config.RATE_LIMIT_PER_MIN), requireCsrf(config.CSRF_SECRET));
   v1.use(meRouter(config), accountRouter(queues?.ops, storage), setupRouter(), homeRouter(), libraryRouter(queues?.ingest, storage), notesRouter(queues?.ingest, storage), lecturesRouter(queues?.build, queues?.learn), reviewRouter(), coursesRouter(queues?.ingest), slidesRouter(queues?.check));
   v1.use(searchRouter({ redis, voyage: search?.voyage ?? null, gateway: search?.gateway ?? null, minScore: search?.minScore ?? config.RERANK_MIN_SCORE }));
   app.use('/api/v1', v1);
