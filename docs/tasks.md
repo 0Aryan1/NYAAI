@@ -46,7 +46,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Tests: 17 unit (legal), 3 client, 5 integration (counting, RLS, no auto-load on ambiguity, Kanoon load → answered, HTTP)
 - [x] Live: "Sale of Goods Act" question → India Code → 67 sections (provisional) → answered; "Mohori Bibee" → not on Kanoon → 2 official links for the editor
 - [ ] Day 3: the lecture build retrieves with `searchWithLookup` (lookup inline, within the build's time budget)
-- [ ] Day 5: Explore uses `searchWithLookup` with `lookup = null` and queues `ingest.lookup`; editor queue screen shows gaps (attempts, links, close/re-run) and lets the editor confirm auto-loaded India Code Acts
+- [x] Day 5: Explore uses `searchWithLookup` with `lookup = null` (gap recorded); editor queue screen shows gaps (attempts, links, close/re-run) (2026-11-26). Still open: confirming auto-loaded India Code Acts on a screen
 - [x] Day 6: "delete my data" — her asker links are deleted; her gap questions stay as library questions, unattributed (decided 2026-11-25)
 
 ## Day 3: Planner, writer, checks, coverage
@@ -129,7 +129,8 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 
 ## Day 5: Explore, quick Research, reports queue
 - [x] Wrong-fact reports (ADM-2, F12; 2026-11-26, migrations 0017–0018): "Report a wrong fact" on every Studio line (one click, optional note); copies of the line and its source words go to the editor's queue (due in 24 h); editor's Reports screen (`/library/reports`): "the source is right" or "I fixed the source text / a label / a law mapping", with a note; a fix turns every line citing that source piece yellow for its teacher; the case joins the gold set; the teacher sees the answer on her line; covered by the build integration test and a third browser journey
-- [ ] Library editor queue (LIB-1), still to add: the library-gaps list (API exists, no screen) and law-mapping rows (no editor yet); judgments, labels, case status and reports each have their screen
+- [x] Library gaps screen (2026-11-26, `/library/gaps`): most-asked first; who asked and how often; what the lookup tried (India Code, Indian Kanoon); links found on official sites (Perplexity, gov.in / nic.in, each opened and checked) for the editor to open and add through Library; Look again, Close (loaded by hand / not something we hold, asked twice, with a note), Reopen; axe clean; screen tests
+- [ ] Library editor queue (LIB-1), still to add: law-mapping rows (no editor yet)
 - [x] Explore, library only (2026-11-26): topic list by subject with search (`/explore`); topic map (EXP-1: key sections, leading cases with "link not yet confirmed" and case status, open questions from her lectures, her course units); follow-up questions (EXP-2: library search, `explore.answer` v1 light tier, every claim through the same ten checks as a lecture line via the shared `checkSourcesFor`; unsourced law flagged; "Not found in the library" and the question goes to the library team); "Turn into a lecture" (EXP-6: Prepare with topic and concept chosen); consent and budget gates; integration test (planted wrong quote caught) and browser journey J4
 - [ ] Explore answers with real AI (needs credits): check answer quality and cost on 5 questions
 - [x] Leading cases linked to topics (2026-11-26): `pnpm library link-cases --file <pack> [--dry]` reads each pack case's note (sections and Articles by kind and by the Acts of its unit; topic names and aliases), or the topics a person named in the pack (`"concepts"`, 8 cases); 67 links added unconfirmed; topics with leading cases 1 → 30 of 55; rerun adds nothing

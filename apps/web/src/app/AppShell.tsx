@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { OfflineBanner } from '@/shared/ui/offline-banner';
 import { useQuery } from '@tanstack/react-query';
-import { Check, GraduationCap, Home, Library, LogOut, Monitor, Moon, PanelLeft, Sun, NotebookPen, ShieldCheck, Flag, Compass, Tags } from 'lucide-react';
+import { Check, GraduationCap, Home, Library, LogOut, Monitor, Moon, PanelLeft, Sun, NotebookPen, ShieldCheck, Flag, Compass, Tags, SearchX } from 'lucide-react';
 import type { Role } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { applyTheme, readTheme, type ThemeChoice } from '@/shared/lib/theme';
@@ -28,6 +28,7 @@ const NAV: NavItem[] = [
   { to: '/notes', label: 'My notes', icon: NotebookPen, roles: ['teacher'] },
   { to: '/library', label: 'Library', icon: Library, roles: ['library_editor'] },
   { to: '/library/topics', label: 'Topics', icon: Tags, roles: ['library_editor'] },
+  { to: '/library/gaps', label: 'Gaps', icon: SearchX, roles: ['library_editor'] },
   { to: '/library/reports', label: 'Reports', icon: Flag, roles: ['library_editor'] },
 ];
 
@@ -46,8 +47,11 @@ const initials = (name = '') =>
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('') || '·';
 
-/** Full-bleed screens (the Studio) manage their own padding and scrolling. */
-const FULL_BLEED = /^\/lectures\/[^/]+$|^\/library(\/|$)/;
+/**
+ * Full-bleed screens manage their own padding and scrolling: the Studio, and the judgment review (two panes that
+ * scroll apart). The other library screens (Topics, Gaps, Reports) are ordinary pages that scroll.
+ */
+export const FULL_BLEED = /^\/lectures\/[^/]+$|^\/library\/?$/;
 
 export function AppShell() {
   const me = useQuery({ queryKey: queryKeys.me, queryFn: api.me });
