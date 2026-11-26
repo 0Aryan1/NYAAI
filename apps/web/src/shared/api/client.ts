@@ -8,6 +8,7 @@ import {
   ResolveResponse,
   SuggestResponse,
   CitationSource,
+  CoverageAdded,
   CoverageResponse,
   LectureSummary,
   PrepareResponse,
@@ -52,12 +53,15 @@ import {
   type ResolveReport,
 } from '@nyaai/shared';
 
+import { noteRateLimited } from './rate-limit';
+
 export class ApiRequestError extends Error {
   constructor(
     readonly status: number,
     readonly body: ApiError | null,
   ) {
-    super(body?.error.message ?? `Request failed (${status})`);
+    super(body?.error.message ?? (status === 429 ? 'Too many requests. Please wait a minute and try again.' : `Request failed (${status})`));
+    if (status === 429) noteRateLimited();
   }
 }
 
@@ -212,6 +216,7 @@ export const api = {
   citationSource: (id: string) => call('GET', `/citations/${id}/source`, { parse: (v) => CitationSource.parse(v) }),
   coverage: (id: string) => call('GET', `/lectures/${id}/coverage`, { parse: (v) => CoverageResponse.parse(v) }),
   leaveOut: (itemId: string) => call<void>('POST', `/coverage/${itemId}/leave-out`),
+  addCoverage: (itemId: string) => call('POST', `/coverage/${itemId}/add`, { parse: (v) => CoverageAdded.parse(v) }),
   // Library editor review (role E)
   reviewJudgments: () => call('GET', '/library/judgments', { parse: (v) => ReviewJudgmentList.parse(v) }),
   reviewJudgment: (id: string) => call('GET', `/library/judgments/${id}`, { parse: (v) => ReviewJudgment.parse(v) }),

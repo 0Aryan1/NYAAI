@@ -1,13 +1,14 @@
 /**
  * Lectures and the read-only Studio (F3, F7 reading; LLD §4.2–4.3). Prepare queues `build.lecture` and returns 202;
  * the Studio reads slides with each line's status, its source chips, the source drawer and the coverage list.
- * Editing (PATCH /slides/:id) arrives on Day 4.
+ * Editing lives in slides.ts; "Add this for me" and "Leave out" on the coverage list live here.
  */
 import express from 'express';
 import type { Queue } from 'bullmq';
 import { z } from 'zod';
 import {
   CitationSource,
+  CoverageAdded,
   CoverageResponse,
   LectureSummary,
   PrepareLecture,
@@ -22,6 +23,8 @@ import { requireConsent } from '../middleware/consent.ts';
 import { BUILD_JOB_OPTIONS, LEARN_JOB_OPTIONS, type BuildJobData, type LearnJobData } from '../jobs/queues.ts';
 import { loadUnits } from '../services/course/index.ts';
 import { loadStudioSlides } from '../services/studio/index.ts';
+import { canAddFor } from '../services/coverage/index.ts';
+import { addCoverageLine, refreshCounts } from '../services/edit/index.ts';
 import { chunkForDrawer } from '../services/search/index.ts';
 import { resolveConcept } from '../services/topics.ts';
 
@@ -111,7 +114,7 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
           id: string; topic: string; status: LectureSummary['status']; length_min: number; level: string; plan: LectureSummary['plan'];
           yellow_open: number; grey_open: number; coverage_open: number; coverage_score: string | null; parts_done: number[]; error_code: string | null; created_at: Date; ready_at: Date | null;
           taught: string | null; course_id: string | null; course_name: string | null; unit_id: string | null; position: number | null;
-          live_yellow: number; live_grey: number;
+          live_yellow: number; live_grey: number; cov_covered: number; cov_counted: number;
         }>(
           // Yellow and grey per line, with case status read live (see lineFrom).
           `with lines as (
@@ -123,7 +126,9 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
               group by ci.slide_id, ci.line_key)
            select l.*, to_char(l.taught_on, 'YYYY-MM-DD') taught, c.name course_name, u.position,
                   (select count(*)::int from lines where yellow) live_yellow,
-                  (select count(*)::int from lines where grey and not yellow) live_grey
+                  (select count(*)::int from lines where grey and not yellow) live_grey,
+                  (select count(*)::int from coverage_items ci where ci.lecture_id = l.id and ci.item_kind <> 'left_out' and ci.state = 'covered') cov_covered,
+                  (select count(*)::int from coverage_items ci where ci.lecture_id = l.id and ci.item_kind <> 'left_out' and ci.state <> 'left_out_by_teacher') cov_counted
              from lectures l left join courses c on c.id = l.course_id left join course_units u on u.id = l.unit_id
             where l.id = $1`,
           [id],
@@ -141,6 +146,7 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
         plan: row.plan ? { parts: row.plan.parts, leftOut: row.plan.leftOut } : null,
         counts: { yellow: row.status === 'building' ? row.yellow_open : row.live_yellow, grey: row.status === 'building' ? row.grey_open : row.live_grey, coverage: row.coverage_open },
         coverageScore: row.coverage_score === null ? null : Number(row.coverage_score),
+        coverageCounts: row.coverage_score === null ? null : { covered: row.cov_covered, counted: row.cov_counted },
         partsDone: row.parts_done,
         errorCode: row.error_code,
         createdAt: row.created_at.toISOString(),
@@ -252,31 +258,45 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
     const id = Id.parse(req.params.id);
     const { items, plan } = await req.db!(async (c) => ({
       items: (
-        await c.query<{ id: string; section_key: string; item_kind: string; item_label: string | null; state: 'covered' | 'missing' | 'left_out_by_teacher'; reason: string | null; item_text: string | null }>(
-          'select id, section_key, item_kind, item_label, state, reason, item_text from coverage_items where lecture_id = $1 order by section_key, item_label',
+        await c.query<{ id: string; section_key: string; item_kind: string; item_ref: string | null; item_label: string | null; state: 'covered' | 'missing' | 'left_out_by_teacher'; reason: string | null; item_text: string | null }>(
+          'select id, section_key, item_kind, item_ref, item_label, state, reason, item_text from coverage_items where lecture_id = $1 order by section_key, item_label',
           [id],
         )
       ).rows,
       plan: (await c.query<{ plan: { notFound?: { partIndex: number; question: string }[] } | null; coverage_score: string | null }>('select plan, coverage_score from lectures where id = $1', [id])).rows[0],
     }));
     if (!plan) throw new AppError('NOT_FOUND', 'We could not find that lecture.');
-    const toItem = (i: (typeof items)[number]) => ({ id: i.id, sectionKey: i.section_key, kind: i.item_kind as 'clause', label: i.item_label ?? i.section_key, state: i.state, reason: i.reason, text: i.item_text });
+    const toItem = (i: (typeof items)[number]) => ({ id: i.id, sectionKey: i.section_key, kind: i.item_kind as 'clause', label: i.item_label ?? i.section_key, state: i.state, reason: i.reason, text: i.item_text, canAdd: false });
     const groups = new Map<string, typeof items>();
     for (const i of items.filter((x) => x.item_kind !== 'left_out')) groups.set(i.section_key, [...(groups.get(i.section_key) ?? []), i]);
+    const counted = items.filter((x) => x.item_kind !== 'left_out' && x.state !== 'left_out_by_teacher');
     res.json(
       CoverageResponse.parse({
         score: plan.coverage_score === null ? null : Number(plan.coverage_score),
+        covered: counted.filter((x) => x.state === 'covered').length,
+        counted: counted.length,
         groups: [...groups].map(([key, list]) => ({
           sectionKey: key,
           title: key.includes(':') ? key.replace(/^(.*):([sa])(.*)$/, (_m, act: string, k: string, n: string) => (k === 'a' ? `Article ${n}` : `s. ${n} ${act}`)) : key,
           missing: list.filter((x) => x.state === 'missing').length,
           total: list.length,
-          items: list.map(toItem),
+          items: list.map((x) => ({ ...toItem(x), canAdd: x.state === 'missing' && canAddFor(x) })),
         })),
         leftOut: items.filter((x) => x.item_kind === 'left_out').map(toItem),
         notFound: plan.plan?.notFound ?? [],
       }),
     );
+  });
+
+  // "Add this for me": the Act's own words for a missing item, on the slide that teaches its section.
+  r.post('/coverage/:id/add', requireConsent, async (req, res) => {
+    const id = Id.parse(req.params.id);
+    const out = await req.db!(async (c) => {
+      const added = await addCoverageLine(c, req.identity!, id);
+      await refreshCounts(c, added.lectureId);
+      return added;
+    });
+    res.status(201).json(CoverageAdded.parse({ slideId: out.slideId, lineKey: out.lineKey }));
   });
 
   // Only the teacher clears a coverage note or a left-out item (HLD 5.2 d).

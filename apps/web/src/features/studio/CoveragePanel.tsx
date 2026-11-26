@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, queryKeys } from '@/shared/api/client';
+import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 
 /**
  * Coverage panel (LLD §8.5, §12.4): missing provisos, exceptions, explanations, clauses and leading cases grouped per
  * section; the "Left out of this lecture" list; questions the library could not answer. Only her tick clears a note.
  */
-export function CoveragePanel({ lectureId }: { lectureId: string }) {
+export function CoveragePanel({ lectureId, onAdded }: { lectureId: string; onAdded?: (slideId: string, lineKey: string) => void }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: queryKeys.coverage(lectureId), queryFn: () => api.coverage(lectureId) });
   const leave = useMutation({
@@ -16,6 +16,15 @@ export function CoveragePanel({ lectureId }: { lectureId: string }) {
       void qc.invalidateQueries({ queryKey: queryKeys.lecture(lectureId) });
     },
   });
+  // "Add this for me": the Act's own words go on the slide that teaches the section; the Studio then shows that line.
+  const add = useMutation({
+    mutationFn: api.addCoverage,
+    onSuccess: async (r) => {
+      await qc.invalidateQueries({ queryKey: ['lecture', lectureId] });
+      onAdded?.(r.slideId, r.lineKey);
+    },
+  });
+  const busy = leave.isPending || add.isPending;
   const d = q.data;
   if (!d) return <p className="text-sm text-muted">{q.isError ? 'Coverage could not be loaded.' : 'Loading coverage…'}</p>;
   const missingGroups = d.groups.filter((g) => g.missing > 0);
@@ -24,8 +33,11 @@ export function CoveragePanel({ lectureId }: { lectureId: string }) {
     <section aria-label="Coverage" className="space-y-6 text-sm">
       <div>
         <p className="text-muted">
-          {d.score === null ? 'Nothing in the cited sections needs a separate mention.' : `${Math.round(d.score * 100)}% of the provisos, exceptions and clauses of the sections you teach are covered.`}
+          {d.counted === 0
+            ? 'Nothing in the cited sections needs a separate mention.'
+            : `${d.covered} of ${d.counted} provisos, exceptions, explanations, clauses and leading cases of what you teach ${d.counted === 1 ? 'is' : 'are'} covered.`}
         </p>
+        {add.error && <p className="mt-1 text-danger">{add.error instanceof ApiRequestError ? add.error.message : 'That could not be added. Try again.'}</p>}
       </div>
 
       {missingGroups.length > 0 && (
@@ -42,9 +54,16 @@ export function CoveragePanel({ lectureId }: { lectureId: string }) {
                     <li key={i.id}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">Missing: {i.label}</span>
-                        <Button size="sm" variant="ghost" disabled={leave.isPending} onClick={() => leave.mutate(i.id)} title="Confirm you are leaving this out on purpose">
-                          Leave out
-                        </Button>
+                        <span className="flex shrink-0 gap-1">
+                          {i.canAdd && (
+                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => add.mutate(i.id)} title="Put the Act’s own words on the slide that teaches this section">
+                              Add this for me
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" disabled={busy} onClick={() => leave.mutate(i.id)} title="Confirm you are leaving this out on purpose">
+                            Leave out
+                          </Button>
+                        </span>
                       </div>
                       {i.text && (
                         <blockquote className="mt-2 whitespace-pre-line border-l-2 border-flag-coverage/50 pl-3 text-[13px] leading-relaxed">
@@ -72,7 +91,7 @@ export function CoveragePanel({ lectureId }: { lectureId: string }) {
                     {i.label}
                     {i.reason && <span className="block text-xs text-muted">{i.reason}</span>}
                   </span>
-                  <Button size="sm" variant="ghost" disabled={leave.isPending} onClick={() => leave.mutate(i.id)} title="Confirm this is meant to be left out">
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => leave.mutate(i.id)} title="Confirm this is meant to be left out">
                     Okay
                   </Button>
                 </li>

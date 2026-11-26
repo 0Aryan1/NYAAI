@@ -78,10 +78,20 @@ test.describe.serial('teacher journeys', () => {
     for (const group of await page.locator('fieldset').all()) await group.locator('label').first().click();
     await page.getByRole('button', { name: 'Next' }).click();
 
-    // 5–6. Template and courses: skipped for now; finish → Home.
+    // 5. Template: skipped for now.
     await expect(page).toHaveURL(/\/setup\/template/);
     await page.getByRole('button', { name: 'Skip for now' }).click();
+
+    // 6. Courses: the same form as the Courses screen; she adds one, it is listed, then she finishes → Home.
     await expect(page).toHaveURL(/\/setup\/courses/);
+    await expect(page.getByRole('button', { name: 'Finish without a course' })).toBeVisible();
+    await axe(page, 'setup: courses');
+    await page.getByLabel('Name', { exact: true }).fill('Law of Contract I');
+    await page.getByRole('textbox', { name: /Lectures, one per line/ }).fill('Offer and acceptance\nConsideration');
+    await page.getByRole('button', { name: 'Create course' }).click();
+    await expect(page.getByRole('list', { name: 'Your courses' }).getByText('Law of Contract I')).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Your courses' }).getByText('2 lectures planned')).toBeVisible();
+    await expect(page.getByLabel('Name', { exact: true })).toHaveValue(''); // ready for another
     await page.getByRole('button', { name: 'Finish setup' }).click();
     await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
     await axe(page, 'Home');

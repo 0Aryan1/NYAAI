@@ -423,6 +423,44 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
     expect(await yellow()).toBe(0);
   });
 
+  it('coverage: "X of Y", "Add this for me" puts the Act\'s words on a slide, and a removal that uncovers it stops the download (LLD §8.5)', async () => {
+    const cv = request.agent(createApp({ config: config(), logger: pino({ level: 'silent' }), pool: app, redis }));
+    const login = await cv.post('/api/v1/auth/dev-login').set('x-forwarded-for', `10.96.${tag.charCodeAt(0)}.1`).send({ email: `b-${tag}@bt.test` }).expect(204);
+    const tok = decodeURIComponent(([] as string[]).concat(login.headers['set-cookie'] ?? []).find((c) => c.startsWith('nyaai_csrf='))!.split(';')[0]!.slice(11));
+    // She takes back her "leave out" (as if never ticked): the Explanation is missing again, 0 of 1 covered.
+    await owner.query("update coverage_items set state = 'missing', ticked_by = null, ticked_at = null where lecture_id = $1 and item_kind = 'explanation'", [lectureId]);
+    await owner.query('update lectures set coverage_score = 0, coverage_open = 1 where id = $1', [lectureId]);
+    let cov = (await cv.get(`/api/v1/lectures/${lectureId}/coverage`).expect(200)).body;
+    expect(cov).toMatchObject({ covered: 0, counted: 1 });
+    const item = cov.groups[0].items[0];
+    expect(item).toMatchObject({ label: 'Explanation to s. 901', state: 'missing', canAdd: true });
+    expect((await cv.get(`/api/v1/lectures/${lectureId}`).expect(200)).body.coverageCounts).toEqual({ covered: 0, counted: 1 });
+
+    // Add this for me: the Act's words in quotation marks, on the slide citing s. 901, supported by code checks alone.
+    const added = (await cv.post(`/api/v1/coverage/${item.id}/add`).set('x-csrf-token', tok).expect(201)).body;
+    type Line = { lineKey: string; text: string; status: string; flag: string | null; sources: { label: string; citationId: string }[] };
+    const slides = (await cv.get(`/api/v1/lectures/${lectureId}/slides`).expect(200)).body.slides as { id: string; lines: Line[] }[];
+    const line = slides.find((x) => x.id === added.slideId)!.lines.find((l) => l.lineKey === added.lineKey)!;
+    expect(line.text).toBe(`Explanation to s. 901: “Explanation.—For the purposes of this section, striped animals include every zebra ${w} of the herd.”`);
+    expect(line).toMatchObject({ status: 'supported', flag: null, sources: [{ label: `s. 901 ${act}` }] });
+    const src = (await cv.get(`/api/v1/citations/${line.sources[0]!.citationId}/source`).expect(200)).body;
+    expect(src.checks.find((c: { name: string }) => c.name === 'C9')).toMatchObject({ result: 'pass' });
+    cov = (await cv.get(`/api/v1/lectures/${lectureId}/coverage`).expect(200)).body;
+    expect(cov).toMatchObject({ covered: 1, counted: 1, score: 1 });
+    expect((await cv.get(`/api/v1/lectures/${lectureId}`).expect(200)).body).toMatchObject({ coverageCounts: { covered: 1, counted: 1 }, counts: { coverage: 0 } });
+    // Twice is refused: the item is no longer open.
+    await cv.post(`/api/v1/coverage/${item.id}/add`).set('x-csrf-token', tok).expect(404);
+
+    // If that line were unverified, "Remove unverified lines" would uncover the Explanation: the download stops and
+    // lists it; the removal is kept, and the next download builds the file.
+    await owner.query("update citations set check_status = 'open', flag_kind = 'yellow', flag_reason = 'Please verify' where lecture_id = $1 and line_key = $2", [lectureId, added.lineKey]);
+    const stop = await cv.post(`/api/v1/lectures/${lectureId}/download`).set('x-csrf-token', tok).send({ mode: 'remove_unverified' }).expect(409);
+    expect(stop.body.error).toMatchObject({ code: 'COVERAGE_CHANGED', details: { removed: 1, items: [{ id: item.id, label: 'Explanation to s. 901', canAdd: true }] } });
+    expect((await cv.get(`/api/v1/lectures/${lectureId}/coverage`).expect(200)).body).toMatchObject({ covered: 0, counted: 1 });
+    expect((await cv.get(`/api/v1/lectures/${lectureId}`).expect(200)).body.counts).toMatchObject({ yellow: 0, coverage: 1 });
+    await cv.post(`/api/v1/lectures/${lectureId}/download`).set('x-csrf-token', tok).send({ mode: 'remove_unverified' }).expect(200);
+  });
+
   it('a wrong-fact report: her copy goes to the editor; a fixed source re-flags every line on it; the case joins the gold set (F12)', async () => {
     const editorEmail = `ed-${tag}@bt.test`;
     const editor = randomUUID();

@@ -137,6 +137,8 @@ export const LectureSummary = z.object({
   plan: LecturePlan.nullable(),
   counts: z.object({ yellow: z.number().int(), grey: z.number().int(), coverage: z.number().int() }),
   coverageScore: z.number().nullable(),
+  /** "X of Y covered": items covered, and items counted (all but those she left out on purpose). Null before coverage runs. */
+  coverageCounts: z.object({ covered: z.number().int(), counted: z.number().int() }).nullable(),
   partsDone: z.array(z.number().int()),
   errorCode: z.string().nullable(),
   createdAt: z.string(),
@@ -210,14 +212,27 @@ export const CoverageItem = z.object({
   reason: z.string().nullable(),
   /** The Act's own words for a missing proviso, exception, explanation or clause, so she sees exactly what is left out. */
   text: z.string().nullable(),
+  /** "Add this for me" can put its words on a slide (a missing statute part with its own words; not a leading case). */
+  canAdd: z.boolean().default(false),
 });
 export const CoverageResponse = z.object({
   score: z.number().nullable(),
+  /** Items covered, and items counted (left-out-by-her excluded), so the panel says "3 of 5 covered", not a bare %. */
+  covered: z.number().int(),
+  counted: z.number().int(),
   groups: z.array(z.object({ sectionKey: z.string(), title: z.string(), missing: z.number().int(), total: z.number().int(), items: z.array(CoverageItem) })),
   leftOut: z.array(CoverageItem),
   notFound: z.array(z.object({ partIndex: z.number().int(), question: z.string() })),
 });
 export type CoverageResponse = z.infer<typeof CoverageResponse>;
+
+/** POST /coverage/:id/add: the Act's own words for a missing item, put on the slide that teaches its section. */
+export const CoverageAdded = z.object({ slideId: z.uuid(), lineKey: z.string() });
+export type CoverageAdded = z.infer<typeof CoverageAdded>;
+
+/** `details.items` of a 409 COVERAGE_CHANGED: items that removing the unverified lines left uncovered. */
+export const CoverageChangedItem = z.object({ id: z.uuid(), label: z.string(), sectionKey: z.string(), canAdd: z.boolean() });
+export type CoverageChangedItem = z.infer<typeof CoverageChangedItem>;
 
 /**
  * One reply format for writer.part and writer.repair. The output schema is part of the cached prefix, so the two

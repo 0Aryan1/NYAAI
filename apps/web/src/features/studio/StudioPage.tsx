@@ -158,7 +158,7 @@ export function StudioPage() {
         )}
         <button type="button" onClick={() => setPanel('coverage')} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-flag-coverage hover:bg-flag-coverage-bg">
           <ListChecks className="size-4" aria-hidden />
-          Coverage {lec.coverageScore !== null ? `${Math.round(lec.coverageScore * 100)}%` : ''}
+          Coverage{lec.coverageCounts && lec.coverageCounts.counted > 0 ? ` ${lec.coverageCounts.covered} of ${lec.coverageCounts.counted}` : ''}
           {lec.counts.coverage > 0 && ` · ${lec.counts.coverage} ${lec.counts.coverage === 1 ? 'note' : 'notes'}`}
         </button>
         {lec.status === 'building' && <span className="text-muted">Still preparing: slides appear as each part is finished.</span>}
@@ -291,7 +291,15 @@ export function StudioPage() {
                 <p className="text-sm text-muted">Click a small number on the slide to see the exact words it rests on, and the checks they passed.</p>
               )
             ) : (
-              <CoveragePanel lectureId={id} />
+              <CoveragePanel
+                lectureId={id}
+                onAdded={(slideId, lineKey) => {
+                  const i = slides.findIndex((x) => x.id === slideId);
+                  if (i >= 0) go(i);
+                  setActiveLine(lineKey);
+                  requestAnimationFrame(() => document.getElementById(`line-${lineKey}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+                }}
+              />
             )}
           </div>
         </aside>

@@ -3,6 +3,7 @@
  * what was checked). Runs in her transaction (RLS).
  */
 import type pg from 'pg';
+import type { CoverageChangedItem } from '@nyaai/shared';
 import { AppError } from '../../errors.ts';
 import { refreshCounts, saveSlideEdit } from '../edit/index.ts';
 import { loadStudioSlides } from '../studio/index.ts';
@@ -14,7 +15,7 @@ export async function exportPptx(
   who: { userId: string; collegeId: string },
   lectureId: string,
   opts: { mode: 'with_flags' | 'remove_unverified'; acknowledgeOpen: boolean; today: string },
-): Promise<{ file: Buffer; fileName: string; removed: number }> {
+): Promise<{ file: Buffer; fileName: string; removed: number } | { coverageChanged: CoverageChangedItem[]; removed: number }> {
   const l = (
     await c.query<{ topic: string; status: string; length_min: number; course_name: string | null; position: number | null }>(
       `select l.topic, l.status, l.length_min, c.name as course_name, u.position
@@ -40,7 +41,10 @@ export async function exportPptx(
       removed += drop;
       await saveSlideEdit(c, who, s.id, { version: s.version, title: s.title, lines: keep(s.lines), notes: keep(s.notes) }, 'remove_unverified');
     }
-    await refreshCounts(c, lectureId);
+    // LLD §8.5 step 6: when the removal leaves items uncovered, she sees them before any file is made. The removal
+    // itself is kept (the caller commits, then answers 409 COVERAGE_CHANGED); the next Download builds the file.
+    const changed = await refreshCounts(c, lectureId);
+    if (changed.length) return { coverageChanged: changed, removed };
     slides = await loadStudioSlides(c, lectureId);
   }
 

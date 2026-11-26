@@ -12,16 +12,19 @@ import { randomBytes } from 'node:crypto';
 import type pg from 'pg';
 import { codeChecks, decide, looksLegal, passedCode, type CheckResult, type CheckSource, type ClaimInput, type ClaimType, type MappingRow } from '@nyaai/checker-rules';
 import { understandQuery } from '@nyaai/legal';
-import type { EditLine, EditSlide } from '@nyaai/shared';
+import type { CoverageChangedItem, EditLine, EditSlide } from '@nyaai/shared';
 import { AppError } from '../../errors.ts';
 import { checkClaims } from '../build/checking.ts';
 import type { Gateway } from '../llm-gateway/index.ts';
 import { loadPieces, sourceDetails } from '../search/index.ts';
 import type { UsageSink } from '../usage.ts';
 import type { LineNode } from '../studio/index.ts';
+import { canAddFor, rerunCoverage } from '../coverage/index.ts';
 
 export const CHANGED = 'Changed by you: being checked against the source';
 export const NOT_FOUND = 'Not found in the library, please verify';
+/** C9/C10 for a line NYAAI added word for word from the Act: the quote is the source, so no AI reading is needed. */
+export const VERBATIM = 'The Act’s own words, quoted in full; added by NYAAI from the source';
 const EXAMPLE_NAMES = 'Your example names a case or section not found in the library; please verify';
 
 interface Who {
@@ -333,8 +336,59 @@ export async function restoreSlide(c: pg.PoolClient, who: Who, slideId: string, 
   return slide.lecture_id;
 }
 
-/** Live yellow/grey counts are computed on read; the stored ones are kept roughly current for lists. */
-export async function refreshCounts(c: pg.PoolClient, lectureId: string): Promise<void> {
+/**
+ * POST /coverage/:id/add ("Add this for me"): a missing proviso, exception, explanation or clause goes on the slide
+ * that already teaches its section (the last slide when none does), as the Act's own words in quotation marks, with
+ * the section as its source. The code checks run as on any line; only when every one passes is the quote supported,
+ * since a word-for-word quote needs no AI reading (C9/C10). Otherwise the line is yellow with the reason.
+ */
+export async function addCoverageLine(c: pg.PoolClient, who: Who, itemId: string): Promise<{ lectureId: string; slideId: string; lineKey: string }> {
+  const item = (
+    await c.query<{ lecture_id: string; item_kind: string; item_ref: string | null; item_label: string | null; item_text: string | null; state: string; section_key: string }>(
+      'select lecture_id, item_kind, item_ref, item_label, item_text, state, section_key from coverage_items where id = $1',
+      [itemId],
+    )
+  ).rows[0];
+  if (!item || item.state !== 'missing' || !canAddFor(item)) throw new AppError('NOT_FOUND', 'That item is not open, or it needs your own teaching (a leading case).');
+  const chunkId = item.item_ref!;
+  const home = (
+    await c.query<{ id: string; source_label: string | null }>(
+      `select s.id, ci.source_label from citations ci join slides s on s.id = ci.slide_id
+        where ci.lecture_id = $1 and ci.chunk_id = $2 and ci.check_status <> 'removed' order by s.position, ci.created_at limit 1`,
+      [item.lecture_id, chunkId],
+    )
+  ).rows[0];
+  const slideId = home?.id ?? (await c.query<{ id: string }>('select id from slides where lecture_id = $1 order by position desc limit 1', [item.lecture_id])).rows[0]?.id;
+  if (!slideId) throw new AppError('NOT_FOUND', 'This lecture has no slides yet.');
+  const src = (await sourcesFor(c, [chunkId])).get(chunkId);
+  if (!src) throw new AppError('NOT_FOUND', 'The section this item comes from is no longer in the library.');
+
+  const slide = await loadSlide(c, slideId);
+  const words = item.item_text!.trim().replace(/\s+/g, ' ');
+  const text = `${item.item_label ?? item.section_key}: “${words}”`;
+  const claim: ClaimInput = { text, type: 'quote', tag: src.tag, span: words };
+  const out = codeChecks(claim, new Map([[src.tag, src]]), await mappings(c));
+  const verbatim: CheckResult = { name: 'C9', result: 'pass', detail: VERBATIM };
+  const results = passedCode(out.results) ? [...out.results, verbatim, ...(out.risk === 'high' ? [{ ...verbatim, name: 'C10' as const }] : [])] : out.results;
+  const d = decide(results);
+  const lineKey = newKey();
+  await c.query(
+    `insert into citations (college_id, owner_id, lecture_id, slide_id, line_key, claim_text, claim_type, risk, source_id, chunk_id, span_text, span_start, span_end,
+                            check_status, checks, flag_kind, flag_reason, tag, source_label, part_index)
+     values ($1, $2, $3, $4, $5, $6, 'quote', $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, (select part_index from slides where id = $4))`,
+    [who.collegeId, who.userId, item.lecture_id, slideId, lineKey, text, out.risk, src.sourceId, out.chunkId ?? chunkId, words, out.spanStart, out.spanEnd, d.status, JSON.stringify(results), d.flag, d.reason, src.tag, home?.source_label ?? src.header],
+  );
+  const lines = (slide.body.content ?? []).map((n) => ({ lineKey: n.attrs?.lineKey ?? newKey(), kind: n.attrs?.kind ?? 'teaching', yourExample: n.attrs?.yourExample === true, edited: n.attrs?.edited === true, text: lineText(n) }));
+  lines.push({ lineKey, kind: 'claim', yourExample: false, edited: true, text });
+  await writeVersion(c, who, slide, { title: slide.title, body: doc(lines), notes: slide.notes }, 'edit');
+  return { lectureId: item.lecture_id, slideId, lineKey };
+}
+
+/**
+ * Live yellow/grey counts are computed on read; the stored ones are kept roughly current for lists. Coverage is
+ * matched again too (LLD §8.5 step 6); the items a change left uncovered are returned.
+ */
+export async function refreshCounts(c: pg.PoolClient, lectureId: string): Promise<CoverageChangedItem[]> {
   await c.query(
     `with lines as (
        select ci.slide_id, ci.line_key, bool_or(ci.check_status = 'open') yellow, bool_or(ci.flag_kind = 'grey') grey
@@ -343,6 +397,7 @@ export async function refreshCounts(c: pg.PoolClient, lectureId: string): Promis
       where id = $1`,
     [lectureId],
   );
+  return rerunCoverage(c, lectureId);
 }
 
 /**

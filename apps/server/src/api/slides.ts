@@ -93,6 +93,13 @@ export function slidesRouter(checkQueue?: Queue<CheckJobData>) {
     const body = DownloadRequest.parse(req.body);
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
     const out = await req.db!((c) => exportPptx(c, req.identity!, id, { ...body, today }));
+    if ('coverageChanged' in out) {
+      // Thrown after the commit, so the removed lines stay removed (each slide's Undo brings one back).
+      throw new AppError('COVERAGE_CHANGED', `Removing the unverified lines left ${out.coverageChanged.length === 1 ? 'one part' : `${out.coverageChanged.length} parts`} of the sections you teach uncovered. Add them, or leave them out, then download again.`, {
+        removed: out.removed,
+        items: out.coverageChanged,
+      });
+    }
     res.setHeader('content-type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     res.setHeader('content-disposition', `attachment; filename="${out.fileName}"`);
     res.setHeader('x-removed-lines', String(out.removed));

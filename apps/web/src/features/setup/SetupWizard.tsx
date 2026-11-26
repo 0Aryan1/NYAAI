@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
+import { NewCourseForm } from '@/features/courses/CourseList';
 import { SETUP_STEPS, STYLE_QUESTIONS, type Me, type SetupStepName, type StyleRequest } from '@nyaai/shared';
 import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { queryClient } from '@/app/queryClient';
@@ -18,7 +19,7 @@ const TITLES: Record<SetupStepName, string> = {
 
 /**
  * Setup wizard (F1, ACC-2; LLD §12.3). Consent first, then the five steps. Every step saves on Next, so she can
- * leave and come back to the same place. Old slides, template and courses are placeholders until Day 4.
+ * leave and come back to the same place. Old slides and template are placeholders until CNLU's templates arrive.
  */
 export function SetupWizard() {
   const { step = 'consent' } = useParams();
@@ -82,15 +83,7 @@ export function SetupWizard() {
           back={back}
         />
       )}
-      {name === 'courses' && (
-        <Placeholder
-          title="Your courses"
-          body="Add the courses you teach this semester, with their lecture plan. Course plans open in the next update; you can still prepare one-off lectures."
-          nextLabel="Finish setup"
-          onNext={() => advance(api.finishSetup)}
-          back={back}
-        />
-      )}
+      {name === 'courses' && <CoursesStep onNext={() => advance(api.finishSetup)} back={back} />}
     </main>
   );
 }
@@ -288,5 +281,69 @@ function Placeholder({ title, body, onNext, back, nextLabel = 'Skip for now' }: 
     <StepFrame title={title} back={back} onSubmit={onNext} nextLabel={nextLabel}>
       <p className="text-sm text-muted">{body}</p>
     </StepFrame>
+  );
+}
+
+/**
+ * Step 6, courses (COURSE-1, COURSE-2): the same form as the Courses screen, from her syllabus file or a pasted list.
+ * She can add several, or none and finish; one-off lectures need no course. (Not a StepFrame: the course form is a
+ * form of its own, and forms cannot nest.)
+ */
+function CoursesStep({ onNext, back }: { onNext: () => Promise<void>; back?: () => void }) {
+  const list = useQuery({ queryKey: queryKeys.courses, queryFn: api.courses });
+  const courses = list.data?.courses ?? [];
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const finish = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await onNext();
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : 'Could not save. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="space-y-4">
+      <section className="rounded-card border border-border bg-surface p-6">
+        <h1 className="mb-1 text-xl font-semibold">Your courses</h1>
+        <p className="text-sm text-muted">
+          Add the courses you teach this semester. Upload your syllabus and NYAAI lists its lectures for you to check; a lecture in a course opens with a recap of the last
+          class. You can also do this later on the Courses screen.
+        </p>
+        {courses.length > 0 && (
+          <ul aria-label="Your courses" className="mt-4 divide-y divide-border rounded-card border border-border text-sm">
+            {courses.map((c) => (
+              <li key={c.id} className="flex items-center justify-between px-3 py-2">
+                <span className="font-medium">{c.name}</span>
+                <span className="text-muted">
+                  {c.lectures} {c.lectures === 1 ? 'lecture' : 'lectures'} planned
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <NewCourseForm title={courses.length ? 'Another course' : 'A course'} onCreated={() => void list.refetch()} />
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex items-center justify-between">
+        {back ? (
+          <Button variant="ghost" onClick={back}>
+            Back
+          </Button>
+        ) : (
+          <span />
+        )}
+        <Button variant="primary" disabled={busy} onClick={() => void finish()}>
+          {busy ? 'Saving…' : courses.length ? 'Finish setup' : 'Finish without a course'}
+        </Button>
+      </div>
+    </div>
   );
 }

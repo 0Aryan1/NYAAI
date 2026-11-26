@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CircleHelp, Download, X } from 'lucide-react';
-import type { LectureSummary } from '@nyaai/shared';
+import { CoverageChangedItem, type LectureSummary } from '@nyaai/shared';
 import { api, ApiRequestError } from '@/shared/api/client';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
@@ -32,6 +32,20 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // 409 COVERAGE_CHANGED (LLD §8.5 step 6): removing the unverified lines left these items uncovered. The removal is
+  // kept; she adds or leaves out each one, then downloads again.
+  const [changed, setChanged] = useState<{ removed: number; items: (CoverageChangedItem & { answer?: 'added' | 'left_out' })[] } | null>(null);
+  const answer = async (item: CoverageChangedItem, how: 'added' | 'left_out') => {
+    setError(null);
+    try {
+      if (how === 'added') await api.addCoverage(item.id);
+      else await api.leaveOut(item.id);
+      setChanged((c) => c && { ...c, items: c.items.map((x) => (x.id === item.id ? { ...x, answer: how } : x)) });
+      void qc.invalidateQueries({ queryKey: ['lecture', lecture.id] });
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : 'That did not work. Try again.');
+    }
+  };
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     dialog.current?.showModal();
@@ -46,12 +60,16 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
       setDone(r.removed ? `Downloaded ${r.fileName}. ${r.removed} unverified ${r.removed === 1 ? 'line was' : 'lines were'} removed from the lecture; Undo on a slide brings a line back.` : `Downloaded ${r.fileName}.`);
       if (r.removed) void qc.invalidateQueries({ queryKey: ['lecture', lecture.id] });
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'The download did not work. Try again.');
+      if (err instanceof ApiRequestError && err.body?.error.code === 'COVERAGE_CHANGED') {
+        const items = CoverageChangedItem.array().safeParse(err.body.error.details?.items);
+        setChanged({ removed: Number(err.body.error.details?.removed ?? 0), items: items.success ? items.data : [] });
+        void qc.invalidateQueries({ queryKey: ['lecture', lecture.id] });
+      } else setError(err instanceof ApiRequestError ? err.message : 'The download did not work. Try again.');
     } finally {
       setBusy(false);
     }
   };
-  const ready = !open || mode === 'remove_unverified' || seen;
+  const ready = changed ? changed.items.every((i) => i.answer) : !open || mode === 'remove_unverified' || seen;
 
   return (
     <dialog ref={dialog} onClose={onClose} aria-labelledby="dl-title" className="m-auto w-full max-w-lg rounded-card border border-border bg-surface p-0 text-text shadow-dialog backdrop:bg-black/40">
@@ -66,6 +84,36 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
       <div className="space-y-4 px-6 py-5 text-sm">
         {done ? (
           <p>{done}</p>
+        ) : changed ? (
+          <>
+            <p>
+              {changed.removed} unverified {changed.removed === 1 ? 'line was' : 'lines were'} removed from the lecture. That left{' '}
+              {changed.items.length === 1 ? 'this part' : 'these parts'} of the sections you teach uncovered:
+            </p>
+            <ul className="space-y-2">
+              {changed.items.map((i) => (
+                <li key={i.id} className="flex items-center justify-between gap-2 rounded-control bg-flag-coverage-bg px-3 py-2">
+                  <span className="font-medium">{i.label}</span>
+                  {i.answer ? (
+                    <span className="text-xs text-muted">{i.answer === 'added' ? 'Added to its slide' : 'Left out'}</span>
+                  ) : (
+                    <span className="flex shrink-0 gap-1">
+                      {i.canAdd && (
+                        <Button size="sm" variant="ghost" onClick={() => void answer(i, 'added')}>
+                          Add this for me
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => void answer(i, 'left_out')}>
+                        Leave out
+                      </Button>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted">Undo on a slide brings a removed line back.</p>
+            {error && <p className="text-danger">{error}</p>}
+          </>
         ) : (
           <>
             <p className="text-muted">Speaker notes carry your notes and every source with its exact words. The slides the class sees stay clean.</p>

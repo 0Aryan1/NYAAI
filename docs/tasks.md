@@ -93,7 +93,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Lecture cost: L01 US$0.67, L02 US$0.87 (8 parts) against the US$0.59 target; writer.part is ~85% of it
 - [ ] Repair sometimes empties a slide (L01 "BGS SGS Soma v. NHPC" slide kept one question): refill or merge thin slides
 - [ ] Before the VC demo: expert confirms case status and "Labels checked" for the demo topics' cases (grey on every case line until then)
-- [ ] Setup step 6 (courses) still a placeholder: point it at the Courses screen
+- [x] Setup step 6 (courses): the Courses screen's form (syllabus upload or pasted list) inside setup; add several or none; J3 adds one (2026-11-27)
 - [ ] "May need update" badge on later lectures when an earlier one is edited (F8.6), with Studio editing
 
 ## Added 2026-11-22: expert screens, editing, download, UI cleanup (in the suggested order)
@@ -101,7 +101,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] UI cleanup: shell (working screens only, account menu), Studio (header, status bar, 16:9 slide, notes, Source/Coverage tabs), library (to-do filter, plain status line, folded citations), course plan (row menu)
 - [x] Slide editing (STUDIO-2, -4, -6, -7): edit, remove, add a line or note, your example (+ example bank), mark verified, undo/restore with sources; code checks at once, `check.lines` job for C9/C10; migration 0009
 - [x] PowerPoint download (PPT-1 to PPT-4): base design, footnotes, notes with sources and flags, hidden "Points to verify" slide, "(cont.)" splitting, Download dialog with "I have seen them" or "Remove unverified lines"
-- [ ] Coverage re-run after edits and after "Remove unverified lines" (COVERAGE_CHANGED stop)
+- [x] Coverage re-run after every edit, verify, example, restore and "Remove unverified lines"; a removal that uncovers an item stops the download with 409 COVERAGE_CHANGED and the dialog lists it with Add and Leave out (2026-11-27)
 - [ ] An edited line with no source: search the lecture's sources and the library for a match (LLD §8.6)
 - [ ] Her own template (ACC-6) with `pptx-automizer` once CNLU's templates arrive
 - [ ] "Rewrite this part" (needs credits), coach, wrong-fact report button (ADM-2)
@@ -113,8 +113,8 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Try the research stage on a real lecture (needs credits) and compare coverage and yellow counts with L02
 - [x] Source standing: sources ordered by relevance, then authority (court, bench, official copy, the court's own reasoning, expert status); relevance saved on each citation (migration 0011); "Why this source" in the Source tab
 - [ ] Library: check the bench size of the 5 judgments stored as 1, 4 or 6 judges (e.g. BALCO is stored as 4; it was a 5-judge Constitution Bench); bench size comes from automatic reading of the judges' names
-- [ ] Coverage tab: "X of Y covered" instead of a bare % (L01 showed 0% for 0 of 1)
-- [ ] Coverage note "Add this for me" (put the item's own words on a slide, linked to its source) and a coverage re-run after edits
+- [x] Coverage tab and Studio header: "X of Y covered" instead of a bare % (2026-11-27)
+- [x] Coverage note "Add this for me" (2026-11-27): the Act's own words in quotation marks on the slide that cites its section, the section as its source, code checks C1–C8; a word-for-word quote needs no AI reading (C9/C10 recorded as passed); not offered for leading cases
 - [x] One case, one source (migration 0012): an official copy that replaces a Kanoon text keeps the Kanoon copy on record; before a Kanoon download the lookup checks every held link, then the case (parties, decision date, court); a "maybe" is loaded and the editor asks "same case?" on the review screen (approval waits for the answer); `pnpm library relink` restored the Kanoon link of 15 official copies (from storage, nothing fetched)
 - [x] Teacher's own notes, Option A (migration 0013): "My notes" page and "Use your own notes" on Prepare (nothing ticked by default; a document uploaded there is ticked); Word, PDF or text read by the worker as her (`ingest.upload`), one private chunk per heading block, "Your notes: …" labels; a lecture searches only the attached notes (search filter `notes`), each attached note is always used, any other private source is dropped (`onlyAttached`); newer version replaces older; remove takes it out at once; C6: her notes support examples and facts only, never a statement of law; writer v7
 - [ ] Notes: try a real build with an attached note (needs credits)
@@ -153,9 +153,9 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] axe-core inside the Playwright E2E (J1, J3): every screen the journeys visit, WCAG 2.0/2.1/2.2 A and AA
 - [x] E2E J1 and J3 green (2026-11-25): Playwright on the installed Chrome, own ports (API 4100, web 5174) and queue prefix `e2e`, scripted fake AI (`E2E_FAKE_AI`, refused in production) on the real library, a throwaway teacher per run removed by `forget_teacher`
 - [x] Connection drops (2026-11-25): offline banner on every screen; a Studio edit that cannot reach the server is kept on the slide ("N slides not saved yet", "Try now") and saved by itself when the connection is back (or every 15 s); several offline changes to one slide go as one save; leaving with changes waiting asks first; verify, example and undo say plainly she is offline; covered in J1 (connection cut, edit, back, reload)
-- [ ] A page that hits the per-teacher rate limit (429) shows the general "could not be loaded" message: say "Too many requests; wait a minute" instead (sign-in limit 5/min is also a setting now, `SIGNIN_LIMIT_PER_MIN`)
+- [x] A refused request (429) shows one banner on every screen, "Too many requests… wait a minute (until about HH:MM)", for a minute; queries do not retry a 429 (2026-11-27) (sign-in limit 5/min is also a setting now, `SIGNIN_LIMIT_PER_MIN`)
 - [ ] Pilot live (needs the domain, Google OAuth client, CNLU data-residency sign-off)
-- [ ] E2E gaps: coach activity (week 2), her own template, old slides / template / courses steps in setup are still placeholders; run the journeys in CI once CI has Postgres, Redis and S3
+- [ ] E2E gaps: coach activity (week 2), her own template, old slides / template steps in setup are still placeholders; run the journeys in CI once CI has Postgres, Redis and S3
 
 ## Day 7: With teachers
 - [ ] Teachers repeat the end-to-end video on their own topics
