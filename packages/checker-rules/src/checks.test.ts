@@ -100,6 +100,18 @@ describe('planted errors are flagged by code', () => {
     expect(codeChecks(c, sources, []).results.find((r) => r.name === 'C5')).toMatchObject({ result: 'fail', detail: 'Mapping not confirmed' });
     const changed: MappingRow = { oldAct: 'IPC', newAct: 'BNS', relation: 'substantively_changed', oldSections: ['420'], newSections: ['318'], signed: true };
     expect(codeChecks(c, sources, [changed]).results.find((r) => r.name === 'C5')).toMatchObject({ result: 'fail', detail: 'Not an equivalent: substantively changed' });
+    // Unsigned: not used, however right it looks.
+    expect(codeChecks(c, sources, [{ ...changed, relation: 'renumbered', signed: false }]).results.find((r) => r.name === 'C5')).toMatchObject({ result: 'fail', detail: 'Mapping not confirmed' });
+    expect(codeChecks(c, sources, [{ ...changed, relation: 'renumbered' }]).results.find((r) => r.name === 'C5')).toMatchObject({ result: 'pass' });
+  });
+  it('C5: a signed "no direct equivalent" row matches on the old section alone, and refuses "equivalent"', () => {
+    const none: MappingRow = { oldAct: 'IPC', newAct: 'BNS', relation: 'no_direct_equivalent', oldSections: ['377'], newSections: [], signed: true };
+    const said = (text: string) => codeChecks(claim({ type: 'mapping', text }), sources, [none]).results.find((r) => r.name === 'C5');
+    expect(said('Section 377 IPC has no direct equivalent in the BNS.')).toMatchObject({ result: 'pass' });
+    expect(said('Section 377 IPC is not the same as any BNS provision.')).toMatchObject({ result: 'pass' });
+    expect(said('Section 377 IPC is equivalent to the BNS provision.')).toMatchObject({ result: 'fail', detail: 'Not an equivalent: no direct equivalent' });
+    expect(said('Section 377 IPC has no direct equivalent, but the BNS provision is the same as it.')).toMatchObject({ result: 'fail' });
+    expect(codeChecks(claim({ type: 'mapping', text: 'Section 377 IPC has no direct equivalent in the BNS.' }), sources, [{ ...none, signed: false }]).results.find((r) => r.name === 'C5')).toMatchObject({ result: 'fail', detail: 'Mapping not confirmed' });
   });
   it('C6: news cannot support law', () => {
     const news = new Map([['S1', { ...s56, sourceType: 'news' }]]);

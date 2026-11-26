@@ -44,6 +44,9 @@ import {
   LibraryGap,
   GapLookupResponse,
   TopicCases,
+  LawMapping,
+  LawMappingList,
+  type SaveLawMapping,
   TopicMap,
   ExploreAnswer,
   type ExploreAsk,
@@ -108,6 +111,22 @@ async function downloadDeck(lectureId: string, body: DownloadRequest): Promise<{
   }
   const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'lecture.pptx';
   return { blob: await res.blob(), fileName: name, removed: Number(res.headers.get('x-removed-lines') ?? 0) };
+}
+
+/** POST /research/:id/export: the brief as Word or PDF, with its flags written in (RES-5). */
+async function exportBrief(runId: string, format: 'docx' | 'pdf'): Promise<{ blob: Blob; fileName: string; toVerify: number }> {
+  const res = await fetch(`/api/v1/research/${runId}/export`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken() },
+    body: JSON.stringify({ format }),
+  });
+  if (!res.ok) {
+    const err = ApiError.safeParse(await res.json().catch(() => null));
+    throw new ApiRequestError(res.status, err.success ? err.data : null);
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? `research.${format}`;
+  return { blob: await res.blob(), fileName: name, toVerify: Number(res.headers.get('x-lines-to-verify') ?? 0) };
 }
 
 /** Upload a judgment PDF as the request body; its details travel in the query string (POST /library/uploads/judgment). */
@@ -184,6 +203,12 @@ export const api = {
   libraryGaps: (state: 'waiting' | 'answered' | 'all') => call('GET', `/library/gaps?state=${state}`, { parse: (v) => LibraryGapList.parse(v) }),
   lookupGap: (id: string) => call('POST', `/library/gaps/${id}/lookup`, { parse: (v) => GapLookupResponse.parse(v) }),
   updateGap: (id: string, body: { state: 'open' | 'resolved' | 'wont_fill'; note?: string }) => call('PATCH', `/library/gaps/${id}`, { body, parse: (v) => LibraryGap.parse(v) }),
+  lawMappings: (show: 'unsigned' | 'all') => call('GET', `/library/mappings?show=${show}`, { parse: (v) => LawMappingList.parse(v) }),
+  addLawMapping: (body: SaveLawMapping) => call('POST', '/library/mappings', { body, parse: (v) => LawMapping.parse(v) }),
+  editLawMapping: (id: string, body: SaveLawMapping) => call('PATCH', `/library/mappings/${id}`, { body, parse: (v) => LawMapping.parse(v) }),
+  signLawMapping: (id: string) => call('POST', `/library/mappings/${id}/sign`, { parse: (v) => LawMapping.parse(v) }),
+  unsignLawMapping: (id: string) => call('DELETE', `/library/mappings/${id}/sign`, { parse: (v) => LawMapping.parse(v) }),
+  removeLawMapping: (id: string) => call<void>('DELETE', `/library/mappings/${id}`),
   topicCases: (show: 'unconfirmed' | 'all') => call('GET', `/library/topics?show=${show}`, { parse: (v) => TopicCases.parse(v) }),
   confirmTopicCase: (conceptId: string, sourceId: string) => call<void>('POST', `/library/topics/${conceptId}/cases/${sourceId}/confirm`),
   unconfirmTopicCase: (conceptId: string, sourceId: string) => call<void>('DELETE', `/library/topics/${conceptId}/cases/${sourceId}/confirm`),
@@ -216,6 +241,7 @@ export const api = {
   citationSource: (id: string) => call('GET', `/citations/${id}/source`, { parse: (v) => CitationSource.parse(v) }),
   coverage: (id: string) => call('GET', `/lectures/${id}/coverage`, { parse: (v) => CoverageResponse.parse(v) }),
   leaveOut: (itemId: string) => call<void>('POST', `/coverage/${itemId}/leave-out`),
+  stillRight: (lectureId: string) => call<void>('DELETE', `/lectures/${lectureId}/may-need-update`),
   addCoverage: (itemId: string) => call('POST', `/coverage/${itemId}/add`, { parse: (v) => CoverageAdded.parse(v) }),
   // Library editor review (role E)
   reviewJudgments: () => call('GET', '/library/judgments', { parse: (v) => ReviewJudgmentList.parse(v) }),
@@ -238,6 +264,7 @@ export const api = {
   markTaught: (lectureId: string, taughtOn: string) => call('POST', `/lectures/${lectureId}/taught`, { body: { taughtOn }, parse: (v) => MarkTaughtResponse.parse(v) }),
   undoTaught: (lectureId: string) => call<void>('DELETE', `/lectures/${lectureId}/taught`),
   downloadDeck,
+  exportBrief,
   saveSlide: (id: string, body: EditSlide) => call('PATCH', `/slides/${id}`, { body, parse: (v) => SlideWriteResponse.parse(v) }),
   verifyLine: (id: string, lineKey: string) => call('POST', `/slides/${id}/verify`, { body: { lineKey }, parse: (v) => SlideWriteResponse.parse(v) }),
   addExample: (id: string, text: string, save: boolean) => call('POST', `/slides/${id}/examples`, { body: { text, save }, parse: (v) => SlideWriteResponse.parse(v) }),
@@ -251,6 +278,7 @@ export const queryKeys = {
   notes: ['notes'] as const,
   concepts: (q: string) => ['explore', 'concepts', q] as const,
   topicCases: (show: string) => ['review', 'topics', show] as const,
+  lawMappings: (show: string) => ['review', 'mappings', show] as const,
   gaps: (state: string) => ['review', 'gaps', state] as const,
   research: ['research'] as const,
   researchRun: (id: string) => ['research', id] as const,

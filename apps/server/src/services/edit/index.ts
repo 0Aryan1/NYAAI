@@ -236,7 +236,27 @@ async function writeVersion(c: pg.PoolClient, who: Who, slide: SlideRow, next: {
     { title: slide.title, body: slide.body, notes: slide.notes },
     { title: next.title, body: next.body, notes: next.notes },
   ]);
+  await flagDependents(c, slide.lecture_id);
   return version;
+}
+
+/**
+ * HLD F8.6: a change to a taught lecture may leave later lectures of the course out of date. Those prepared after it
+ * was taught used its course memory (recap, terms, cases, running example), so each gets "may need update", naming
+ * the lecture that changed. A lecture prepared before it was taught never read it, and is left alone.
+ */
+async function flagDependents(c: pg.PoolClient, lectureId: string): Promise<void> {
+  await c.query(
+    `update lectures b
+        set may_need_update_since = coalesce(b.may_need_update_since, now()),
+            may_need_update_from = case when $1::uuid = any(b.may_need_update_from) then b.may_need_update_from else b.may_need_update_from || $1::uuid end
+       from lectures a join course_units ua on ua.id = a.unit_id
+       join course_units ub on ub.course_id = ua.course_id
+      where a.id = $1 and a.status = 'taught' and ua.status = 'taught' and ua.taught_on is not null
+        and ub.position > ua.position and ub.lecture_id = b.id
+        and b.status in ('ready', 'taught') and (b.ready_at at time zone 'Asia/Kolkata')::date >= ua.taught_on`, // taught_on is a date in India
+    [lectureId],
+  );
 }
 
 /** PATCH /slides/:id (LLD §8.6). Returns the lecture and the citations left for the background check. */

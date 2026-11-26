@@ -87,7 +87,7 @@ export const CourseUnitView = z.object({
   taughtOn: z.string().nullable(),
   prerequisites: z.array(z.uuid()),
   /** The unit's latest lecture. */
-  lecture: z.object({ id: z.uuid(), status: z.string(), topic: z.string() }).nullable(),
+  lecture: z.object({ id: z.uuid(), status: z.string(), topic: z.string(), mayNeedUpdate: z.boolean().default(false) }).nullable(),
   /** Sources found for it in the background (DATA-3); null when never checked. */
   sources: UnitSources.nullable(),
   /** What the class learnt, once taught (COURSE-4). */

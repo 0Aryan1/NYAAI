@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ChevronLeft, ChevronRight, CircleHelp, CloudOff, Download, ListChecks, Loader2, Undo2 } from 'lucide-react';
-import type { StudioSlide } from '@nyaai/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, ChevronLeft, ChevronRight, CircleHelp, CloudOff, Download, ListChecks, Loader2, RefreshCw, Undo2 } from 'lucide-react';
+import type { LectureSummary, StudioSlide } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { useEventStream } from '@/shared/hooks/useEventStream';
 import { useOnline } from '@/shared/hooks/useOnline';
@@ -138,6 +138,8 @@ export function StudioPage() {
           </Button>
         </div>
       </header>
+
+      {lec.mayNeedUpdate && <MayNeedUpdate lectureId={id} note={lec.mayNeedUpdate} />}
 
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-bg px-6 py-2 text-sm" aria-label="Points to check">
         <button
@@ -331,6 +333,38 @@ function StudioSkeleton() {
           <Skeleton className="h-24 w-full" />
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * HLD F8.6: an earlier taught lecture of the course changed after this one was prepared, so its recap, terms or cases
+ * may be out of step. She looks, then either edits (or prepares again) or says it is still right.
+ */
+function MayNeedUpdate({ lectureId, note }: { lectureId: string; note: NonNullable<LectureSummary['mayNeedUpdate']> }) {
+  const qc = useQueryClient();
+  const clear = useMutation({
+    mutationFn: () => api.stillRight(lectureId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.lecture(lectureId) }),
+  });
+  return (
+    <div role="status" className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-flag-yellow-bg px-6 py-2 text-sm">
+      <RefreshCw className="size-4 shrink-0 text-flag-yellow" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="font-medium">May need update: </span>
+        {note.from.map((f, i) => (
+          <span key={f.lectureId}>
+            {i > 0 && ', '}
+            <Link to={`/lectures/${f.lectureId}`} className="underline hover:text-text">
+              {f.label}
+            </Link>
+          </span>
+        ))}{' '}
+        {note.from.length === 1 ? 'was' : 'were'} changed after this lecture was prepared. Its recap, terms or cases may no longer match.
+      </span>
+      <Button size="sm" variant="ghost" disabled={clear.isPending} onClick={() => clear.mutate()}>
+        It’s still right
+      </Button>
     </div>
   );
 }

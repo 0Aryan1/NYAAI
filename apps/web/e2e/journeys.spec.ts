@@ -212,6 +212,25 @@ test.describe.serial('teacher journeys', () => {
     await page.getByRole('button', { name: 'Prepare', exact: true }).click();
     await page.waitForURL((u) => /\/lectures\/[0-9a-f-]{36}$/.test(u.pathname) && !lectureUrl.endsWith(u.pathname), { timeout: 180_000 });
     await expect(page.getByRole('button', { name: /Recap of last class/ }).first()).toBeVisible();
+    const secondLecture = page.url();
+
+    // 11. F8.6: she changes the taught L01; L02 read its course memory, so it "may need update" until she says it is fine.
+    await page.goto(lectureUrl);
+    await page.getByRole('button', { name: /What .* means/ }).first().click();
+    const l1Line = page.locator('.group').filter({ has: page.getByRole('button', { name: 'Edit this line', includeHidden: true }) }).first();
+    await l1Line.hover();
+    await l1Line.getByRole('button', { name: 'Edit this line' }).click();
+    await page.getByRole('textbox', { name: 'Edit this line' }).fill('Changed after class: frustration needs a supervening event.');
+    await page.getByRole('textbox', { name: 'Edit this line' }).press('Enter');
+    await expect(page.getByText('All changes saved')).toBeVisible();
+    await page.goto(courseUrl);
+    await expect(page.getByText('May need update')).toBeVisible();
+    await page.goto(secondLecture);
+    const banner = page.getByRole('status').filter({ hasText: 'May need update' });
+    await expect(banner).toContainText('L01');
+    await axe(page, 'Studio: may need update');
+    await banner.getByRole('button', { name: 'It’s still right' }).click();
+    await expect(banner).toBeHidden();
   });
 
   test('ADM-2 / LIB-1: she reports a wrong fact; the library editor answers; she sees the answer on the line', async ({ page }) => {
@@ -247,6 +266,26 @@ test.describe.serial('teacher journeys', () => {
     await card.getByLabel('Note for the teacher (optional)').fill('Checked against the official text.');
     await card.getByRole('button', { name: 'Send answer' }).click();
     await expect(card.getByRole('status')).toContainText('Answered');
+
+    // LIB-1: she adds an old → new criminal law row; it is not used until she signs it (asked once more); then removed.
+    await page.getByRole('link', { name: 'Old → new law' }).click();
+    await expect(page.getByRole('heading', { name: 'Old and new criminal law' })).toBeVisible();
+    await axe(page, 'Library: old and new law');
+    const sec = String(9000 + Math.floor(Math.random() * 999));
+    await page.getByLabel(/^Old sections/).fill(`${sec}ZQ`);
+    await page.getByLabel('New sections').fill(`${sec}ZR`);
+    await page.getByLabel('Note').fill('E2E test row: renumbered.');
+    await page.getByLabel('Official source').fill('https://www.mha.gov.in/en/commoncontent/new-criminal-laws');
+    await page.getByRole('button', { name: 'Add the row' }).click();
+    const mrow = page.getByRole('listitem').filter({ hasText: 'E2E test row' });
+    await expect(mrow).toContainText('Not signed: not used');
+    await mrow.getByRole('button', { name: 'Sign' }).click();
+    await mrow.getByRole('button', { name: 'Yes, sign' }).click();
+    await page.getByRole('tab', { name: /All/ }).click();
+    await expect(page.getByRole('listitem').filter({ hasText: 'E2E test row' })).toContainText('Signed by');
+    await page.getByRole('listitem').filter({ hasText: 'E2E test row' }).getByRole('button', { name: 'Remove' }).click();
+    await page.getByRole('button', { name: 'Yes, remove' }).click();
+    await expect(page.getByRole('listitem').filter({ hasText: 'E2E test row' })).toHaveCount(0);
 
     // Back as the teacher: the answer is on her line.
     await page.context().clearCookies();
@@ -319,6 +358,14 @@ test.describe.serial('teacher journeys', () => {
     await page.getByRole('link', { name: 'My research' }).click();
     await expect(page.getByRole('link', { name: /set aside an arbitral award/ })).toBeVisible();
     await page.getByRole('link', { name: /set aside an arbitral award/ }).click();
+
+    // RES-5: the brief as Word and as PDF, named from the question.
+    const [word] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Word' }).click()]);
+    expect(word.suggestedFilename()).toMatch(/^Research_When_Can_A_Court_Set_Aside_An_Arbitral_\d{4}-\d{2}-\d{2}\.docx$/);
+    await expect(page.getByRole('status').filter({ hasText: /^Saved Research_/ })).toBeVisible();
+    const [pdf] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'PDF' }).click()]);
+    expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);
+
     await page.getByRole('button', { name: 'Turn into a lecture' }).click();
     await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
     await expect(page.getByRole('combobox')).toHaveValue(/set aside an arbitral award/);

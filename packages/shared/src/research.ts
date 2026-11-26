@@ -102,3 +102,7 @@ export const ResearchList = z.object({
   runs: z.array(z.object({ id: z.uuid(), question: z.string(), status: ResearchStatus, createdAt: z.string(), yellow: z.number().int() })),
 });
 export type ResearchList = z.infer<typeof ResearchList>;
+
+/** POST /research/:id/export (RES-5). */
+export const ExportBrief = z.object({ format: z.enum(['docx', 'pdf']) });
+export type ExportBrief = z.infer<typeof ExportBrief>;

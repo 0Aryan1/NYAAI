@@ -98,6 +98,8 @@ const QUOTED = /[“"]([^”"]{12,})[”"]/g;
 const OLD_LAW = /\b(IPC|Indian Penal Code|CrPC|Cr\.P\.C\.|Code of Criminal Procedure|Indian Evidence Act|Evidence Act)\b/i;
 const NEW_LAW = /\b(BNS|Bharatiya Nyaya Sanhita|BNSS|Bharatiya Nagarik Suraksha Sanhita|BSA|Bharatiya Sakshya Adhiniyam)\b/i;
 const EQUIVALENT = /\b(equivalent|corresponds? to|same as|replaced by|re-?enacted as|identical)\b/i;
+/** "has no direct equivalent", "is not the same as": saying it is NOT equivalent is what such a row asks for. */
+const NOT_EQUIVALENT = /\b(?:no|not|without|never)\s+(?:(?:a|an|any|the|really|quite|exactly)\s+)*(?:direct\s+|exact\s+|true\s+)?(?:equivalent|counterpart|identical|the\s+same(?:\s+as)?|same\s+as|correspond(?:s|ing)?(?:\s+to)?)\b/gi;
 const NEWS_WORDING = /^\s*(?:it was reported|it has been reported|reports say|according to (?:news )?reports)\b/i;
 
 const lower = (s: string) => normaliseForSpan(s).toLowerCase();
@@ -158,9 +160,13 @@ function mappingCheck(claim: ClaimInput, mappings: MappingRow[]): CheckResult {
   const crossesLaws = OLD_LAW.test(claim.text) && NEW_LAW.test(claim.text);
   if (claim.type !== 'mapping' && !crossesLaws) return { name: 'C5', result: 'skipped', detail: null };
   const secs = [...claim.text.matchAll(SECTION_REF)].map((m) => m[1]!.toUpperCase());
-  const row = mappings.find((r) => secs.some((s) => r.oldSections.includes(s)) && secs.some((s) => r.newSections.includes(s)));
+  // A row matches when the line names a section on each side; a "no direct equivalent" row has no new side, so its
+  // old section alone is enough.
+  const row =
+    mappings.find((r) => secs.some((s) => r.oldSections.includes(s)) && secs.some((s) => r.newSections.includes(s))) ??
+    mappings.find((r) => r.relation === 'no_direct_equivalent' && r.signed && secs.some((s) => r.oldSections.includes(s)));
   if (!row || !row.signed) return result('C5', false, 'Mapping not confirmed');
-  if ((row.relation === 'substantively_changed' || row.relation === 'no_direct_equivalent') && EQUIVALENT.test(claim.text)) {
+  if ((row.relation === 'substantively_changed' || row.relation === 'no_direct_equivalent') && EQUIVALENT.test(claim.text.replace(NOT_EQUIVALENT, ' '))) {
     return result('C5', false, row.relation === 'substantively_changed' ? 'Not an equivalent: substantively changed' : 'Not an equivalent: no direct equivalent');
   }
   return result('C5', true, null);

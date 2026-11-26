@@ -277,6 +277,39 @@ describe.skipIf(!up)('course series (integration, fake Claude)', () => {
     expect(slides[0]!.layout).toBe('recap');
   });
 
+  it('editing the taught lecture 1 marks lecture 2 "may need update"; she can say it is still right (F8.6)', async () => {
+    const l1 = built[0]!.data.lectureId;
+    const l2 = built[1]!.data.lectureId;
+    expect((await agent.get(`/api/v1/lectures/${l2}`).expect(200)).body.mayNeedUpdate).toBeNull();
+    // Lecture 2 itself changing marks nothing (no taught lecture after it read it).
+    type Slide = { id: string; version: number; title: string; lines: { lineKey: string; text: string; kind: string }[]; notes: { lineKey: string; text: string; kind: string }[] };
+    const edit = async (lectureId: string) => {
+      const s = ((await agent.get(`/api/v1/lectures/${lectureId}/slides`).expect(200)).body.slides as Slide[])[0]!;
+      const keep = (l: Slide['lines']) => l.map((x) => ({ lineKey: x.lineKey, text: x.text, kind: x.kind }));
+      await agent.patch(`/api/v1/slides/${s.id}`).set('x-csrf-token', csrf).send({ version: s.version, title: `${s.title} (revised)`, lines: keep(s.lines), notes: keep(s.notes) }).expect(200);
+    };
+    await edit(l2);
+    expect((await agent.get(`/api/v1/lectures/${l1}`).expect(200)).body.mayNeedUpdate).toBeNull();
+
+    await edit(l1);
+    const lec = (await agent.get(`/api/v1/lectures/${l2}`).expect(200)).body;
+    expect(lec.mayNeedUpdate).toMatchObject({ since: expect.any(String), from: [{ lectureId: l1, label: 'L01 okapi ' + w + ' browsing' }] });
+    const course = (await agent.get(`/api/v1/courses/${courseId}`).expect(200)).body as { units: { lecture: { id: string; mayNeedUpdate: boolean } | null }[] };
+    expect(course.units.find((u) => u.lecture?.id === l2)!.lecture!.mayNeedUpdate).toBe(true);
+    expect(course.units.find((u) => u.lecture?.id === l1)!.lecture!.mayNeedUpdate).toBe(false);
+    // A second edit keeps one entry.
+    await edit(l1);
+    expect((await agent.get(`/api/v1/lectures/${l2}`).expect(200)).body.mayNeedUpdate.from).toHaveLength(1);
+
+    await agent.delete(`/api/v1/lectures/${l2}/may-need-update`).set('x-csrf-token', csrf).expect(204);
+    expect((await agent.get(`/api/v1/lectures/${l2}`).expect(200)).body.mayNeedUpdate).toBeNull();
+    // A rebuild clears it too.
+    await edit(l1);
+    await owner.query("update lectures set status = 'failed' where id = $1", [l2]);
+    await buildLecture(built[1]!.data, buildDeps());
+    expect((await agent.get(`/api/v1/lectures/${l2}`).expect(200)).body.mayNeedUpdate).toBeNull();
+  });
+
   it('series checks are suggestions; undoing "taught" clears the memory', async () => {
     await agent.post(`/api/v1/lectures/${built[1]!.data.lectureId}/taught`).set('x-csrf-token', csrf).send({ taughtOn: '2026-11-27' }).expect(200);
     const { checks } = (await agent.get(`/api/v1/courses/${courseId}/series-checks`).expect(200)).body as { checks: { kind: string; unitId: string }[] };

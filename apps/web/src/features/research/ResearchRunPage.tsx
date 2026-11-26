@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ArrowLeft, Check, Circle, CircleHelp, Loader2, Presentation } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, Circle, CircleHelp, FileDown, Loader2, Presentation } from 'lucide-react';
 import type { BriefLine, EvidenceRow, ResearchRunView } from '@nyaai/shared';
-import { api, queryKeys } from '@/shared/api/client';
+import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { saveFile } from '@/shared/lib/save-file';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
 import { Pill } from '@/shared/ui/pill';
@@ -70,6 +71,22 @@ export function ResearchRunPage() {
   });
   const [open, setOpen] = useState<string | null>(null);
   const [sort, setSort] = useState<'order' | 'relation' | 'court' | 'date'>('order');
+  // RES-5: Word or PDF, made by the server from the brief as checked; lines to verify are marked in the file.
+  const [exporting, setExporting] = useState<'docx' | 'pdf' | null>(null);
+  const [exportNote, setExportNote] = useState<string | null>(null);
+  const exportAs = async (format: 'docx' | 'pdf') => {
+    setExporting(format);
+    setExportNote(null);
+    try {
+      const r = await api.exportBrief(runId, format);
+      saveFile(r.blob, r.fileName);
+      setExportNote(r.toVerify ? `Saved ${r.fileName}. ${r.toVerify} ${r.toVerify === 1 ? 'line is' : 'lines are'} marked “Please verify” in it.` : `Saved ${r.fileName}.`);
+    } catch (err) {
+      setExportNote(err instanceof ApiRequestError ? err.message : 'The file could not be made. Try again.');
+    } finally {
+      setExporting(null);
+    }
+  };
   const run = q.data;
   const evidence = useMemo(() => {
     const rows = [...(run?.brief?.evidence ?? [])];
@@ -103,12 +120,31 @@ export function ResearchRunPage() {
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <h1 className="max-w-3xl text-2xl font-semibold leading-snug">{run.question}</h1>
           {run.status === 'ready' && (
-            <Button variant="primary" onClick={() => void navigate(`/?topic=${encodeURIComponent(run.question.slice(0, 200))}`)}>
-              <Presentation className="size-4" aria-hidden />
-              Turn into a lecture
-            </Button>
+            <span className="flex flex-wrap gap-2">
+              {run.brief && (run.brief.shortAnswer.length > 0 || run.brief.keyPoints.length > 0) && (
+                <>
+                  <Button disabled={exporting !== null} onClick={() => void exportAs('docx')} title="Lines to verify are marked in the file, with a closing list">
+                    <FileDown className="size-4" aria-hidden />
+                    {exporting === 'docx' ? 'Preparing…' : 'Word'}
+                  </Button>
+                  <Button disabled={exporting !== null} onClick={() => void exportAs('pdf')} title="Lines to verify are marked in the file, with a closing list">
+                    <FileDown className="size-4" aria-hidden />
+                    {exporting === 'pdf' ? 'Preparing…' : 'PDF'}
+                  </Button>
+                </>
+              )}
+              <Button variant="primary" onClick={() => void navigate(`/?topic=${encodeURIComponent(run.question.slice(0, 200))}`)}>
+                <Presentation className="size-4" aria-hidden />
+                Turn into a lecture
+              </Button>
+            </span>
           )}
         </div>
+        {exportNote && (
+          <p role="status" className="mt-2 text-sm text-muted">
+            {exportNote}
+          </p>
+        )}
         <p className="mt-1 text-sm text-muted">
           {run.scope.comparative ? 'Comparative' : 'India only'}
           {(run.scope.fromYear || run.scope.toYear) && ` · judgments ${run.scope.fromYear ?? 'any year'}–${run.scope.toYear ?? 'now'}`}

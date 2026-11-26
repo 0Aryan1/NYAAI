@@ -1,3 +1,4 @@
+import type { MappingRelation } from '@nyaai/shared';
 import type { JobsOptions } from 'bullmq';
 
 /** Queue names from LLD §5. Job payloads carry ids only, never private text (HLD D4). */
@@ -32,12 +33,20 @@ export interface IngestJobData {
   collegeId?: string;
 }
 
-/** ops.delete_user_data: the teacher who asked (she is the only one it may act for). */
+/**
+ * ops.delete_user_data: the teacher who asked (she is the only one it may act for).
+ * ops.mapping_changed: the library editor who changed a signed law-mapping row (`userId`, `collegeId`), and the row
+ * as it was when lines relied on it: section numbers and relation only, never a teacher's words.
+ */
 export interface OpsJobData {
   userId?: string;
   collegeId?: string;
   requestedAt?: string;
+  mapping?: { oldSections: string[]; newSections: string[]; relation: MappingRelation; change: 'changed' | 'unsigned' | 'removed' };
 }
+
+/** ops.mapping_changed: retried, so a line never keeps a green it no longer has. */
+export const MAPPING_JOB_OPTIONS: JobsOptions = { attempts: 5, backoff: { type: 'exponential', delay: 10_000 }, removeOnComplete: 200, removeOnFail: 500 };
 
 /** build.lecture: ids only; the teacher's identity is set with SET LOCAL from these (LLD §5.1). */
 export interface BuildJobData {

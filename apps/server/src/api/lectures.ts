@@ -115,6 +115,7 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
           yellow_open: number; grey_open: number; coverage_open: number; coverage_score: string | null; parts_done: number[]; error_code: string | null; created_at: Date; ready_at: Date | null;
           taught: string | null; course_id: string | null; course_name: string | null; unit_id: string | null; position: number | null;
           live_yellow: number; live_grey: number; cov_covered: number; cov_counted: number;
+          may_need_update_since: Date | null; update_from: { id: string; position: number | null; topic: string }[] | null;
         }>(
           // Yellow and grey per line, with case status read live (see lineFrom).
           `with lines as (
@@ -128,7 +129,9 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
                   (select count(*)::int from lines where yellow) live_yellow,
                   (select count(*)::int from lines where grey and not yellow) live_grey,
                   (select count(*)::int from coverage_items ci where ci.lecture_id = l.id and ci.item_kind <> 'left_out' and ci.state = 'covered') cov_covered,
-                  (select count(*)::int from coverage_items ci where ci.lecture_id = l.id and ci.item_kind <> 'left_out' and ci.state <> 'left_out_by_teacher') cov_counted
+                  (select count(*)::int from coverage_items ci where ci.lecture_id = l.id and ci.item_kind <> 'left_out' and ci.state <> 'left_out_by_teacher') cov_counted,
+                  (select json_agg(json_build_object('id', e.id, 'position', eu.position, 'topic', e.topic) order by eu.position)
+                     from lectures e left join course_units eu on eu.id = e.unit_id where e.id = any(l.may_need_update_from)) update_from
              from lectures l left join courses c on c.id = l.course_id left join course_units u on u.id = l.unit_id
             where l.id = $1`,
           [id],
@@ -147,6 +150,9 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
         counts: { yellow: row.status === 'building' ? row.yellow_open : row.live_yellow, grey: row.status === 'building' ? row.grey_open : row.live_grey, coverage: row.coverage_open },
         coverageScore: row.coverage_score === null ? null : Number(row.coverage_score),
         coverageCounts: row.coverage_score === null ? null : { covered: row.cov_covered, counted: row.cov_counted },
+        mayNeedUpdate: row.may_need_update_since
+          ? { since: row.may_need_update_since.toISOString(), from: (row.update_from ?? []).map((e) => ({ lectureId: e.id, label: `${e.position ? `${lectureNo(e.position)} ` : ''}${e.topic}` })) }
+          : null,
         partsDone: row.parts_done,
         errorCode: row.error_code,
         createdAt: row.created_at.toISOString(),
@@ -286,6 +292,14 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
         notFound: plan.plan?.notFound ?? [],
       }),
     );
+  });
+
+  // "It's still right": she has looked, and the lecture needs no change after the earlier one was edited (F8.6).
+  r.delete('/lectures/:id/may-need-update', async (req, res) => {
+    const id = Id.parse(req.params.id);
+    const n = await req.db!(async (c) => (await c.query("update lectures set may_need_update_since = null, may_need_update_from = '{}' where id = $1", [id])).rowCount);
+    if (!n) throw new AppError('NOT_FOUND', 'We could not find that lecture.');
+    res.status(204).end();
   });
 
   // "Add this for me": the Act's own words for a missing item, on the slide that teaches its section.

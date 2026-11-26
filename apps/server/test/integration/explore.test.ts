@@ -179,7 +179,8 @@ describe.skipIf(!up)('Explore (integration)', () => {
   });
 
   it('a question the library cannot answer says so, and the library team gets the question', async () => {
-    const r = (await agent.post('/api/v1/explore/ask').set('x-csrf-token', csrf).send({ question: `What did the ${w} quokka tribunal decide about moonlight?` }).expect(200)).body;
+    // Nonsense words only: a real word ("tribunal") let the fake search find the growing ADR library.
+    const r = (await agent.post('/api/v1/explore/ask').set('x-csrf-token', csrf).send({ question: `Did the ${w} quokka moonbeam zephyr xylophone glimmer?` }).expect(200)).body;
     expect(r).toMatchObject({ outcome: 'not_found', lines: [], libraryTold: true });
     expect((await owner.query('select count(*)::int n from library_gaps where question ilike $1', [`%${w} quokka%`])).rows[0].n).toBe(1);
   });

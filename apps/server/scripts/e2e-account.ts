@@ -34,6 +34,8 @@ try {
       });
     }
     await owner.query('delete from invite_allowlist where email = $1', [email]);
+    // Mapping rows the editor journey made (its notes start "E2E test row"), in case the journey stopped early.
+    await owner.query("delete from law_mappings where note like 'E2E test row%'");
     console.log(`removed ${email}`);
   } else {
     throw new Error('usage: create|remove <email>');

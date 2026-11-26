@@ -71,6 +71,7 @@ export const router = createBrowserRouter([
       { path: 'build/:lectureId', element: <BuildPage /> },
       // The Studio is the heaviest screen: its own chunk, loaded on demand (LLD §11.1).
       { path: 'library/gaps', lazy: async () => ({ Component: (await import('@/features/library/GapsPage')).GapsPage }) },
+      { path: 'library/mappings', lazy: async () => ({ Component: (await import('@/features/library/MappingsPage')).MappingsPage }) },
       { path: 'library/topics', lazy: async () => ({ Component: (await import('@/features/library/TopicsReviewPage')).TopicsReviewPage }) },
       { path: 'library/reports', lazy: async () => ({ Component: (await import('@/features/library/ReportsQueuePage')).ReportsQueuePage }) },
       { path: 'library', lazy: async () => ({ Component: (await import('@/features/library/LibraryReviewPage')).LibraryReviewPage }) },

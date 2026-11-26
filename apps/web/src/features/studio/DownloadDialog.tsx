@@ -4,21 +4,10 @@ import { AlertTriangle, CircleHelp, Download, X } from 'lucide-react';
 import { CoverageChangedItem, type LectureSummary } from '@nyaai/shared';
 import { api, ApiRequestError } from '@/shared/api/client';
 import { cn } from '@/shared/lib/utils';
+import { saveFile } from '@/shared/lib/save-file';
 import { Button } from '@/shared/ui/button';
 
 type Mode = 'with_flags' | 'remove_unverified';
-
-/** Saves a downloaded file under the name the server gave it. */
-function save(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 /**
  * Download (PPT-1 to PPT-4). With open points she either confirms she has seen them (they are written into each
@@ -56,7 +45,7 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
     setError(null);
     try {
       const r = await api.downloadDeck(lecture.id, { mode, acknowledgeOpen: seen });
-      save(r.blob, r.fileName);
+      saveFile(r.blob, r.fileName);
       setDone(r.removed ? `Downloaded ${r.fileName}. ${r.removed} unverified ${r.removed === 1 ? 'line was' : 'lines were'} removed from the lecture; Undo on a slide brings a line back.` : `Downloaded ${r.fileName}.`);
       if (r.removed) void qc.invalidateQueries({ queryKey: ['lecture', lecture.id] });
     } catch (err) {

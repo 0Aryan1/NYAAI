@@ -144,6 +144,8 @@ export const LectureSummary = z.object({
   createdAt: z.string(),
   readyAt: z.string().nullable(),
   taughtOn: z.string().nullable(),
+  /** HLD F8.6: an earlier taught lecture of the course was changed after this one was prepared. */
+  mayNeedUpdate: z.object({ since: z.string(), from: z.array(z.object({ lectureId: z.uuid(), label: z.string() })) }).nullable(),
   /** The course and the lecture's place in its plan (null for a one-off). */
   course: z.object({ id: z.uuid(), name: z.string(), unitId: z.uuid().nullable(), position: z.number().int().nullable() }).nullable(),
 });

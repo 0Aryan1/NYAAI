@@ -134,6 +134,11 @@ export function CoursePlanPage() {
                       Open lecture
                     </Link>
                   )}
+                  {u.lecture?.mayNeedUpdate && (
+                    <Pill tone="yellow" title="An earlier lecture it builds on was changed after this one was prepared">
+                      May need update
+                    </Pill>
+                  )}
                   {!u.lecture && u.status === 'planned' && u.sources && <SourcesNote s={u.sources} />}
                   {u.prerequisites.length > 0 && (
                     <span className="inline-flex items-center gap-1">

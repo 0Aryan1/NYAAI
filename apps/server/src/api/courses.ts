@@ -52,8 +52,8 @@ async function detail(c: pg.PoolClient, id: string) {
   );
   const lectures = new Map(
     (
-      await c.query<{ id: string; status: string; topic: string }>(
-        'select id, status, topic from lectures where id = any($1::uuid[])',
+      await c.query<{ id: string; status: string; topic: string; mayNeedUpdate: boolean }>(
+        'select id, status, topic, may_need_update_since is not null as "mayNeedUpdate" from lectures where id = any($1::uuid[])',
         [units.map((u) => u.lectureId).filter(Boolean)],
       )
     ).rows.map((l) => [l.id, l]),

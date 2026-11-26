@@ -287,3 +287,64 @@ export const TopicCases = z.object({
   unconfirmed: z.number().int(),
 });
 export type TopicCases = z.infer<typeof TopicCases>;
+
+/* ---------------------------------------------------------------------------------------------------------------
+ * Old ↔ new criminal law mapping (DATA-6, HLD 5.2 g, LIB-1). Many-to-many; each row has a relation, a note and its
+ * official source, and is used by the checker (C5) only once a named criminal-law expert has signed it. Changing a
+ * signed row removes the signature, so every row in use is one an expert saw as it is.
+ * ------------------------------------------------------------------------------------------------------------- */
+
+export const MAPPING_PAIRS = [
+  { old: 'Indian Penal Code, 1860', new: 'Bharatiya Nyaya Sanhita, 2023', label: 'IPC → BNS' },
+  { old: 'Code of Criminal Procedure, 1973', new: 'Bharatiya Nagarik Suraksha Sanhita, 2023', label: 'CrPC → BNSS' },
+  { old: 'Indian Evidence Act, 1872', new: 'Bharatiya Sakshya Adhiniyam, 2023', label: 'Evidence Act → BSA' },
+] as const;
+
+export const MappingRelation = z.enum(['same', 'renumbered', 'merged', 'split', 'substantively_changed', 'no_direct_equivalent']);
+export type MappingRelation = z.infer<typeof MappingRelation>;
+
+/** "s. 420", "420", "Section 53A" → "420", "53A". */
+const SectionNo = z
+  .string()
+  .trim()
+  .transform((s) => s.replace(/^(?:s|sec|section)\.?\s*/i, '').toUpperCase())
+  .pipe(z.string().regex(/^\d{1,4}[A-Z]{0,3}(?:\(\d{1,3}[A-Z]?\))?$/, 'A section number, like 420 or 53A'));
+
+export const SaveLawMapping = z
+  .object({
+    pair: z.enum(['IPC → BNS', 'CrPC → BNSS', 'Evidence Act → BSA']),
+    relation: MappingRelation,
+    oldSections: z.array(SectionNo).min(1).max(20),
+    newSections: z.array(SectionNo).max(20),
+    note: z.string().trim().min(3).max(1000),
+    /** The official comparison table or gazette it comes from. */
+    sourceUrl: z.url().max(500),
+  })
+  .superRefine((m, ctx) => {
+    const bad = (message: string) => ctx.addIssue({ code: 'custom', message, path: ['newSections'] });
+    if (m.relation === 'no_direct_equivalent') {
+      if (m.newSections.length) bad('"No direct equivalent" has no new section.');
+    } else if (!m.newSections.length) bad('Add the new section, or choose "No direct equivalent".');
+    if (m.relation === 'merged' && m.oldSections.length < 2) ctx.addIssue({ code: 'custom', message: '"Merged" needs two or more old sections.', path: ['oldSections'] });
+    if (m.relation === 'split' && m.newSections.length < 2) bad('"Split" needs two or more new sections.');
+    if ((m.relation === 'same' || m.relation === 'renumbered') && (m.oldSections.length > 1 || m.newSections.length > 1)) bad('"Same" and "Renumbered" link one section to one section; use Merged or Split.');
+  });
+export type SaveLawMapping = z.infer<typeof SaveLawMapping>;
+
+export const LawMapping = z.object({
+  id: z.uuid(),
+  pair: z.string(),
+  oldAct: z.string(),
+  newAct: z.string(),
+  relation: MappingRelation,
+  oldSections: z.array(z.string()),
+  newSections: z.array(z.string()),
+  note: z.string(),
+  sourceUrl: z.string(),
+  signedBy: z.string().nullable(),
+  signedAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type LawMapping = z.infer<typeof LawMapping>;
+export const LawMappingList = z.object({ mappings: z.array(LawMapping), unsigned: z.number().int() });
+export type LawMappingList = z.infer<typeof LawMappingList>;

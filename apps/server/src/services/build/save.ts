@@ -165,7 +165,7 @@ export async function finaliseLecture(
 
   await c.query(
     `update lectures set yellow_open = $2, grey_open = $3, coverage_open = $4, coverage_score = $5, cost_micro_usd = $6,
-            status = 'ready', ready_at = now(), error_code = null where id = $1`,
+            status = 'ready', ready_at = now(), error_code = null, may_need_update_since = null, may_need_update_from = '{}' where id = $1`,
     [lectureId, yellow, grey, coverage, score, cost],
   );
   return { yellow, grey, coverage, score, costMicroUsd: cost };

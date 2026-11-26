@@ -19,6 +19,8 @@ import { parseConfig } from '../../src/config.ts';
 import { createFakeGateway } from '../../src/services/llm-gateway/fake.ts';
 import type { Gateway, GatewayRequest } from '../../src/services/llm-gateway/index.ts';
 import { runResearch } from '../../src/services/research/index.ts';
+import JSZip from 'jszip';
+import { extractText } from 'unpdf';
 import { EMBED_DIMS, toVector, type Voyage } from '../../src/services/voyage/index.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -126,7 +128,7 @@ describe.skipIf(!up)('quick Research (integration)', () => {
     const gaps = (await owner.query<{ id: string }>('select id from library_gaps where question ilike $1', [`%${w}%`])).rows.map((r) => r.id);
     await owner.query('delete from review_queue where ref_id = any($1::uuid[])', [gaps]);
     await owner.query('delete from library_gaps where id = any($1::uuid[])', [gaps]);
-    for (const t of ['evidence_items', 'research_questions', 'research_runs', 'usage', 'teacher_profiles', 'consents', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
+    for (const t of ['product_events', 'evidence_items', 'research_questions', 'research_runs', 'usage', 'teacher_profiles', 'consents', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
     await owner.query('delete from colleges where id = $1', [college]);
     await Promise.all([owner.end(), app.end(), worker.end(), redis.quit()]);
   });
@@ -200,6 +202,33 @@ describe.skipIf(!up)('quick Research (integration)', () => {
     const view = (await t.agent.get(`/api/v1/research/${r.body.id}`).expect(200)).body;
     expect(view.brief.keyPoints).toEqual([expect.objectContaining({ text: 'An otter must always swim.', flag: 'yellow', reason: 'These words are not in the source' })]);
     expect(view.counts.yellow).toBe(1);
+
+    // RES-5: Word and PDF carry the flag: a note on the line, and the closing "Please verify" list.
+    const binary = (res: request.Response, cb: (err: Error | null, body: Buffer) => void) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (d: Buffer) => chunks.push(d));
+      res.on('end', () => cb(null, Buffer.concat(chunks)));
+    };
+    const docx = await t.agent.post(`/api/v1/research/${r.body.id}/export`).set('x-csrf-token', t.csrf).send({ format: 'docx' }).buffer(true).parse(binary).expect(200);
+    expect(docx.headers['content-disposition']).toMatch(/attachment; filename="Research_Must_An_Otter_\w+_Always_Swim_In_The_\d{4}-\d{2}-\d{2}\.docx"/);
+    expect(docx.headers['x-lines-to-verify']).toBe('1');
+    const zip = await JSZip.loadAsync(docx.body as Buffer);
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('An otter must always swim.');
+    expect(xml).toContain('Please verify (1)');
+    expect(xml).toMatch(/<w:footnoteReference w:id="1"\/>/);
+    expect(await zip.file('word/footnotes.xml')!.async('string')).toContain('Please verify: These words are not in the source');
+
+    const pdf = await t.agent.post(`/api/v1/research/${r.body.id}/export`).set('x-csrf-token', t.csrf).send({ format: 'pdf' }).buffer(true).parse(binary).expect(200);
+    expect(pdf.headers['content-type']).toBe('application/pdf');
+    const { text } = await extractText(new Uint8Array(pdf.body as Buffer), { mergePages: true });
+    expect(text).toContain('An otter must always swim.');
+    expect(text).toContain('Please verify (1)');
+    expect(text).toContain('These words are not in the source');
+    // Hers alone, and only when ready.
+    const o = await signIn(`o-${tag}@rs.test`, 6);
+    await o.agent.post(`/api/v1/research/${r.body.id}/export`).set('x-csrf-token', o.csrf).send({ format: 'pdf' }).expect(404);
+    await t.agent.post(`/api/v1/research/${r.body.id}/export`).set('x-csrf-token', t.csrf).send({ format: 'rtf' }).expect(400);
   });
 
   it('a question the library cannot answer: an honest empty brief, and the library team hears of it', async () => {
