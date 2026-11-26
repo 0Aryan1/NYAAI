@@ -138,7 +138,9 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Expert: confirm the 72 leading-case links on the Topics screen (only confirmed links make a case must-cover in a lecture)
 - [ ] 25 topics still have no leading case (e.g. Interim measures, Kompetenz-kompetenz, Conciliation, Trust, Charge, Forfeiture of lease): the expert names them, then they are loaded and linked
 - [ ] EXP-3 What's new, EXP-5 reading list, EXP-7 topic brief / tutorial problems (Should items)
-- [ ] Quick Research (RES-1, RES-3, RES-4, RES-6)
+- [x] Quick Research (RES-1, RES-3, RES-4, RES-6; 2026-11-26): Research page (question, India only / comparative, judgment years); `research.run` job on the `research` queue: `research.plan` (3–5 sub-questions) → gather each (library + gap lookup) → evidence (each sub-question's best first, ≤ 8, years applied) → `research.write` from the evidence only (short answer, key points, conflicts, open questions, not found, supports/limits/conflicts per row) → every line through the ten checks (shared `checkLines`); live progress; evidence table (exact words highlighted, status no stronger than confirmed, sortable); My research; Turn into a lecture; consent and budget gates; unit, integration (planted wrong quote caught) and browser journey
+- [ ] Research with real AI (needs credits): quality and cost of 5 runs; target about 2 minutes (RES-6)
+- [ ] Research, Should items: edit the sub-questions before a thorough run (RES-2), Word/PDF export (RES-5), sources to a reading list (EXP-5)
 - [ ] Done when: full gold + red-team + planted sets pass
 
 ## Day 6: Privacy, deletion, deploy

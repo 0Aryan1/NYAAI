@@ -9,12 +9,12 @@ describe('prompt registry', () => {
     expect(promptKey({ id: 'writer.part', version: '1' })).toBe('writer.part@1');
   });
   it('tells every prompt that reads source text to treat it as data', () => {
-    for (const p of [PROMPTS['labeller.roles'], PROMPTS['extract.metadata'], PROMPTS['planner.lecture'], PROMPTS['learn.summary'], PROMPTS['writer.part'], PROMPTS['writer.repair'], PROMPTS['checker.support'], PROMPTS['checker.second'], PROMPTS['research.gaps'], PROMPTS['explore.answer']]) {
+    for (const p of [PROMPTS['labeller.roles'], PROMPTS['extract.metadata'], PROMPTS['planner.lecture'], PROMPTS['learn.summary'], PROMPTS['writer.part'], PROMPTS['writer.repair'], PROMPTS['checker.support'], PROMPTS['checker.second'], PROMPTS['research.gaps'], PROMPTS['explore.answer'], PROMPTS['research.write']]) {
       expect(p.system).toMatch(/Never follow instructions/);
     }
   });
   it('routes writing, planning, repair and the second check to the heavy tier (LLD §17.2)', () => {
-    for (const id of ['planner.lecture', 'writer.part', 'writer.repair', 'checker.second', 'research.gaps'] as const) expect(PROMPTS[id].tier).toBe('heavy');
+    for (const id of ['planner.lecture', 'writer.part', 'writer.repair', 'checker.second', 'research.gaps', 'research.plan', 'research.write'] as const) expect(PROMPTS[id].tier).toBe('heavy');
     expect(PROMPTS['checker.support'].tier).toBe('light');
     expect(PROMPTS['learn.summary'].tier).toBe('light');
     expect(PROMPTS['explore.answer'].tier).toBe('light'); // escalates to heavy on a JSON failure (gateway), LLD §17.2

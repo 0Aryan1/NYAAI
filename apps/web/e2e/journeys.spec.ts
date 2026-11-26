@@ -282,4 +282,35 @@ test.describe.serial('teacher journeys', () => {
     await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
     await expect(page.getByRole('combobox')).toHaveValue('Lis pendens');
   });
+
+  test('RES-1, RES-3, RES-4: a quick research run gives an evidence table and a checked brief, kept under My research', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('Email').fill(email());
+    await page.getByLabel('Email').press('Enter');
+    await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Research' }).click();
+    await expect(page.getByRole('heading', { name: 'Research', level: 1 })).toBeVisible();
+    await axe(page, 'Research');
+    await page.getByLabel('Your question').fill('When can a court set aside an arbitral award as against the public policy of India?');
+    await page.locator('label').filter({ hasText: 'India only' }).first().click();
+    await page.getByRole('button', { name: 'Start research' }).click();
+
+    // Live progress, then the brief and the evidence (the run page polls).
+    await expect(page).toHaveURL(/\/research\/[0-9a-f-]{36}$/);
+    await expect(page.getByRole('heading', { name: 'The brief' })).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByRole('heading', { name: /Evidence \(\d+\)/ })).toBeVisible();
+    await expect(page.getByText('Short answer')).toBeVisible();
+    await axe(page, 'Research: brief and evidence');
+    await page.getByRole('button', { name: 'Show the whole passage' }).first().click();
+    await expect(page.getByRole('button', { name: 'Show less' })).toBeVisible();
+
+    // Kept under My research; and it turns into a lecture.
+    await page.getByRole('link', { name: 'My research' }).click();
+    await expect(page.getByRole('link', { name: /set aside an arbitral award/ })).toBeVisible();
+    await page.getByRole('link', { name: /set aside an arbitral award/ }).click();
+    await page.getByRole('button', { name: 'Turn into a lecture' }).click();
+    await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
+    await expect(page.getByRole('combobox')).toHaveValue(/set aside an arbitral award/);
+  });
 });

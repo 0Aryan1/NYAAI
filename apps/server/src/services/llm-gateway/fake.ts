@@ -100,6 +100,28 @@ export function createFakeGateway(): Gateway {
           data = { lines: claims.map((c) => ({ text: c.span, kind: 'claim', claims: [{ text: c.span, type: 'rule', tag: c.s.tag, span: c.span }] })), notFound: [] };
           break;
         }
+        case 'research.plan': {
+          const q = /QUESTION: (.*)/.exec(req.task)?.[1] ?? 'the question';
+          // Close to her words: a planner that adds common words would find the library's unrelated books.
+          data = { subQuestions: [q, `Exceptions: ${q}`, `Courts on: ${q}`] };
+          break;
+        }
+        case 'research.write': {
+          const rows = fencedSources(ctx.join('\n'));
+          const quoted = rows
+            .map((s) => ({ s, span: quotable(s.text) }))
+            .filter((x): x is { s: FencedSource; span: string } => !!x.span);
+          const line = (x: { s: FencedSource; span: string }) => ({ text: x.span, kind: 'claim', claims: [{ text: x.span, type: 'rule', tag: x.s.tag, span: x.span }] });
+          data = {
+            shortAnswer: quoted.slice(0, 1).map(line),
+            keyPoints: quoted.slice(1, 4).map(line),
+            conflicts: [],
+            openQuestions: ['Which later judgments narrow this?'],
+            notFound: [],
+            relations: rows.map((s, i) => ({ tag: s.tag, relation: i === 1 ? 'limits' : 'supports' })),
+          };
+          break;
+        }
         case 'research.gaps':
           data = { questions: [] };
           break;

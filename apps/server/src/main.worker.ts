@@ -5,6 +5,7 @@ import { createLogger } from './logger.ts';
 import { createRedis } from './redis.ts';
 import { TIMEZONE, ingestBackoff } from './jobs/queues.ts';
 import { opsProcessor } from './jobs/ops.ts';
+import { researchProcessor } from './jobs/research.ts';
 import { ingestProcessor } from './jobs/ingest.ts';
 import { gatewayFrom, indiaCodeFrom, kanoonFrom, storageFrom, voyageFrom, webSearchFrom } from './services/factory.ts';
 import { usageSink } from './services/usage.ts';
@@ -62,6 +63,11 @@ const workers = [
           'build',
           buildProcessor({ worker, logPool: worker, gateway, voyageFor: (u) => voyageFrom(config, u), lookup, publisher: connection, minScore: config.RERANK_MIN_SCORE, logger }),
           { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 3, lockDuration: 120_000 },
+        ),
+        new Worker(
+          'research',
+          researchProcessor({ worker, logPool: worker, gateway, voyageFor: (u) => voyageFrom(config, u), lookup, minScore: config.RERANK_MIN_SCORE, logger }),
+          { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 2, lockDuration: 120_000 },
         ),
         new Worker('learn', learnProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 2 }),
         new Worker('check', checkProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 8 }),

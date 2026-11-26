@@ -82,6 +82,15 @@ export const BUILD_JOB_OPTIONS: JobsOptions = {
 };
 export const BUILD_TIMEOUT_MS = 8 * 60 * 1000;
 
+/** research.run: one quick Research run (ids only). LLD §5: 4 minutes quick; 2 attempts; resumes after the plan. */
+export interface ResearchJobData {
+  runId: string;
+  ownerId: string;
+  collegeId: string;
+}
+export const RESEARCH_JOB_OPTIONS: JobsOptions = { attempts: 2, backoff: { type: 'exponential', delay: 20_000 }, removeOnComplete: 500, removeOnFail: 500 };
+export const RESEARCH_TIMEOUT_MS = 4 * 60 * 1000;
+
 /** LLD §5: 3 retries with backoff 30 s → 2 min → 8 min; 10-minute timeout is enforced in the processor. */
 export const INGEST_BACKOFF_MS = [30_000, 120_000, 480_000] as const;
 export const INGEST_JOB_OPTIONS: JobsOptions = {

@@ -11,7 +11,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import type pg from 'pg';
-import { decide, looksLegal, type CheckResult, type ClaimInput } from '@nyaai/checker-rules';
+import { decide, looksLegal, type CheckResult, type CheckSource, type ClaimInput } from '@nyaai/checker-rules';
 import { PROMPTS } from '@nyaai/prompts';
 import { ExploreReply, type ConceptList, type ExploreAnswer, type TopicMap } from '@nyaai/shared';
 import { checkClaims, sourcesBlock } from '../build/checking.ts';
@@ -94,6 +94,46 @@ export interface ExploreDeps {
 
 const UNSOURCED = 'No source for this statement';
 
+export interface AnswerLineIn {
+  text: string;
+  kind: 'claim' | 'teaching' | 'question';
+  claims: ClaimInput[] | { text: string; type: string; tag: string; span: string }[];
+}
+
+/**
+ * Lines written from sources (an Explore answer, a Research brief), through the same ten checks as a lecture line:
+ * every claim checked; a line is as good as its weakest claim; a statement of law with no claim is flagged by the
+ * code rule. Also returns the spans quoted from each source tag.
+ */
+export async function checkLines<K extends AnswerLineIn['kind']>(
+  input: { text: string; kind: K; claims: AnswerLineIn['claims'] }[],
+  sources: Map<string, CheckSource>,
+  labels: Map<string, string>,
+  deps: { gateway: Gateway; usage: UsageSink },
+): Promise<{ lines: { text: string; kind: K; status: 'supported' | 'open'; flag: 'yellow' | 'grey' | null; reason: string | null; sources: { tag: string; label: string }[] }[]; spans: Map<string, string[]> }> {
+  const items = input.flatMap((l, li) => l.claims.map((claim, ci) => ({ id: `${li}#${ci}`, claim: claim as ClaimInput })));
+  const checked = await checkClaims(items, sources, [], { gateway: deps.gateway, usage: deps.usage });
+  const byLine = new Map<number, CheckResult[][]>();
+  for (const c of checked) {
+    const li = Number(c.id.split('#')[0]);
+    byLine.set(li, [...(byLine.get(li) ?? []), c.results]);
+  }
+  const spans = new Map<string, string[]>();
+  for (const c of checked) spans.set(c.claim.tag, [...(spans.get(c.claim.tag) ?? []), c.claim.span]);
+  const lines = input.map((l, li) => {
+    const results = byLine.get(li) ?? [];
+    if (!results.length) {
+      const unsourced = l.kind === 'claim' || looksLegal(l.text);
+      return { text: l.text, kind: l.kind, status: unsourced ? ('open' as const) : ('supported' as const), flag: unsourced ? ('yellow' as const) : null, reason: unsourced ? UNSOURCED : null, sources: [] };
+    }
+    const decisions = results.map(decide);
+    const worst = decisions.find((d) => d.status === 'open') ?? decisions.find((d) => d.flag === 'grey') ?? decisions[0]!;
+    const tags = [...new Set(l.claims.map((c) => c.tag))];
+    return { text: l.text, kind: l.kind, status: worst.status, flag: worst.flag, reason: worst.reason, sources: tags.map((t) => ({ tag: t, label: labels.get(t) ?? t })) };
+  });
+  return { lines, spans };
+}
+
 /** A follow-up question, answered from the library and checked like a lecture line (EXP-2). */
 export async function answerQuestion(question: string, conceptName: string | null, deps: ExploreDeps): Promise<ExploreAnswer> {
   const query = conceptName && !question.toLowerCase().includes(conceptName.toLowerCase()) ? `${conceptName}: ${question}` : question;
@@ -108,28 +148,7 @@ export async function answerQuestion(question: string, conceptName: string | nul
   const reply = (await deps.gateway.run({ prompt: PROMPTS['explore.answer'], schema: ExploreReply, context: [sourcesBlock(sources, boundary)], task }, deps.usage)).data;
 
   // The ten checks, on every claim; a legal statement without one is flagged.
-  const items = reply.lines.flatMap((l, li) => l.claims.map((claim, ci) => ({ id: `${li}#${ci}`, claim: claim as ClaimInput })));
-  const checked = await checkClaims(items, sources, [], { gateway: deps.gateway, usage: deps.usage });
-  const byLine = new Map<number, CheckResult[][]>();
-  for (const c of checked) {
-    const li = Number(c.id.split('#')[0]);
-    byLine.set(li, [...(byLine.get(li) ?? []), c.results]);
-  }
-  const spans = new Map<string, string[]>();
-  for (const c of checked) spans.set(c.claim.tag, [...(spans.get(c.claim.tag) ?? []), c.claim.span]);
-
-  const lines = reply.lines.map((l, li) => {
-    const results = byLine.get(li) ?? [];
-    if (!results.length) {
-      const unsourced = l.kind === 'claim' || looksLegal(l.text);
-      return { text: l.text, kind: l.kind, status: unsourced ? ('open' as const) : ('supported' as const), flag: unsourced ? ('yellow' as const) : null, reason: unsourced ? UNSOURCED : null, sources: [] };
-    }
-    // The line is as good as its weakest claim.
-    const decisions = results.map(decide);
-    const worst = decisions.find((d) => d.status === 'open') ?? decisions.find((d) => d.flag === 'grey') ?? decisions[0]!;
-    const tags = [...new Set(l.claims.map((c) => c.tag))];
-    return { text: l.text, kind: l.kind, status: worst.status, flag: worst.flag, reason: worst.reason, sources: tags.map((t) => ({ tag: t, label: labels.get(t) ?? t })) };
-  });
+  const { lines, spans } = await checkLines(reply.lines, sources, labels, { gateway: deps.gateway, usage: deps.usage });
   const used = new Set<string>(lines.flatMap((l) => l.sources.map((s) => s.tag)));
   return {
     outcome: found.outcome,
