@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { OfflineBanner } from '@/shared/ui/offline-banner';
 import { useQuery } from '@tanstack/react-query';
-import { Check, GraduationCap, Home, Library, LogOut, Monitor, Moon, PanelLeft, Sun, NotebookPen, ShieldCheck, Flag, Compass } from 'lucide-react';
+import { Check, GraduationCap, Home, Library, LogOut, Monitor, Moon, PanelLeft, Sun, NotebookPen, ShieldCheck, Flag, Compass, Tags } from 'lucide-react';
 import type { Role } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { applyTheme, readTheme, type ThemeChoice } from '@/shared/lib/theme';
@@ -27,6 +27,7 @@ const NAV: NavItem[] = [
   { to: '/courses', label: 'Courses', icon: GraduationCap, roles: ['teacher'] },
   { to: '/notes', label: 'My notes', icon: NotebookPen, roles: ['teacher'] },
   { to: '/library', label: 'Library', icon: Library, roles: ['library_editor'] },
+  { to: '/library/topics', label: 'Topics', icon: Tags, roles: ['library_editor'] },
   { to: '/library/reports', label: 'Reports', icon: Flag, roles: ['library_editor'] },
 ];
 

@@ -259,3 +259,31 @@ export type ReportQueue = z.infer<typeof ReportQueue>;
 export const ResolveReport = z.object({ outcome: ReportOutcome, note: z.string().trim().max(1000).optional() });
 export type ResolveReport = z.infer<typeof ResolveReport>;
 export const ResolveReportResponse = z.object({ linesFlagged: z.number().int() });
+
+/* ---------------------------------------------------------------------------------------------------------------
+ * Leading cases of each topic (concept_links, kind leading_case): the law expert confirms each link (HLD D28).
+ * Only confirmed links make a case must-cover in a lecture; Explore shows unconfirmed ones with a grey chip.
+ * ------------------------------------------------------------------------------------------------------------- */
+
+export const TopicCases = z.object({
+  topics: z.array(
+    z.object({
+      conceptId: z.uuid(),
+      name: z.string(),
+      subject: z.string(),
+      cases: z.array(
+        z.object({
+          sourceId: z.uuid(),
+          title: z.string(),
+          court: z.string().nullable(),
+          year: z.number().int().nullable(),
+          confirmedAt: z.string().nullable(),
+          confirmedBy: z.string().nullable(),
+        }),
+      ),
+    }),
+  ),
+  /** Links not yet confirmed, across all topics. */
+  unconfirmed: z.number().int(),
+});
+export type TopicCases = z.infer<typeof TopicCases>;

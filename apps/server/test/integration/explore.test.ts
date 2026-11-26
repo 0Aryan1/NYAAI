@@ -190,4 +190,41 @@ describe.skipIf(!up)('Explore (integration)', () => {
     expect(r.body.error.code).toBe('CONSENT_REQUIRED');
     await agent.get(`/api/v1/explore/topic/${concept}`).expect(200); // reading the library stays open
   });
+
+  it("the library editor confirms a topic's leading case (or removes it); Explore and lectures follow", async () => {
+    await agent.get('/api/v1/library/topics').expect(403); // teachers do not confirm
+    const editor = randomUUID();
+    const email = `ed-${tag}@ex.test`;
+    await owner.query("insert into users (id, college_id, email, name, role) values ($1, $2, $3, 'Expert', 'library_editor')", [editor, college, email]);
+    await owner.query('insert into teacher_profiles (owner_id, college_id) values ($1, $2)', [editor, college]);
+    await owner.query("insert into invite_allowlist (college_id, email, role) values ($1, $2, 'library_editor')", [college, email]);
+    const ed = request.agent(http());
+    const login = await ed.post('/api/v1/auth/dev-login').set('x-forwarded-for', `10.89.${tag.charCodeAt(0)}.2`).send({ email }).expect(204);
+    const tok = decodeURIComponent(([] as string[]).concat(login.headers['set-cookie'] ?? []).find((c) => c.startsWith('nyaai_csrf='))!.split(';')[0]!.slice(11));
+
+    const toConfirm = (await ed.get('/api/v1/library/topics').expect(200)).body;
+    const mine = toConfirm.topics.find((t: { conceptId: string }) => t.conceptId === concept);
+    expect(mine.cases.map((c: { title: string }) => c.title)).toEqual([`Egret ${w} v. State`]); // only the unconfirmed one
+    expect(toConfirm.unconfirmed).toBeGreaterThanOrEqual(1);
+
+    await ed.post(`/api/v1/library/topics/${concept}/cases/${caseB}/confirm`).set('x-csrf-token', tok).expect(204);
+    const all = (await ed.get('/api/v1/library/topics?show=all').expect(200)).body.topics.find((t: { conceptId: string }) => t.conceptId === concept);
+    expect(all.cases.find((c: { sourceId: string }) => c.sourceId === caseB)).toMatchObject({ confirmedBy: 'Expert' });
+    const map = (await agent.get(`/api/v1/explore/topic/${concept}`).expect(200)).body;
+    expect(map.leadingCases.every((c: { confirmed: boolean }) => c.confirmed)).toBe(true);
+
+    await ed.delete(`/api/v1/library/topics/${concept}/cases/${caseB}/confirm`).set('x-csrf-token', tok).expect(204);
+    expect((await owner.query("select confirmed_at from concept_links where concept_id = $1 and source_id = $2 and kind = 'leading_case'", [concept, caseB])).rows[0].confirmed_at).toBeNull();
+
+    // Not this topic: the link goes.
+    await ed.delete(`/api/v1/library/topics/${concept}/cases/${caseB}`).set('x-csrf-token', tok).expect(204);
+    expect((await agent.get(`/api/v1/explore/topic/${concept}`).expect(200)).body.leadingCases.map((c: { sourceId: string }) => c.sourceId)).toEqual([caseA]);
+    await ed.delete(`/api/v1/library/topics/${concept}/cases/${caseB}`).set('x-csrf-token', tok).expect(404);
+
+    // Removed by mistake: put back, unconfirmed.
+    await ed.post(`/api/v1/library/topics/${concept}/cases/${caseB}`).set('x-csrf-token', tok).expect(204);
+    expect((await owner.query("select confirmed_at from concept_links where concept_id = $1 and source_id = $2 and kind = 'leading_case'", [concept, caseB])).rows).toEqual([{ confirmed_at: null }]);
+    await ed.post(`/api/v1/library/topics/${concept}/cases/${randomUUID()}`).set('x-csrf-token', tok).expect(404);
+    await agent.post(`/api/v1/library/topics/${concept}/cases/${caseB}`).set('x-csrf-token', csrf).expect(403);
+  });
 });
