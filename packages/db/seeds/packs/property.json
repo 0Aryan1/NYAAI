@@ -1,6 +1,7 @@
 {
   "course": "Property Law",
   "outline": "CNLU Syllabus July–December 2024, Sem 3: Property Law (8 modules)",
+  "subject": "Property",
   "acts": [
     { "name": "Transfer of Property Act", "year": 1882, "units": ["I", "II", "III", "IV", "V", "VI", "VII"] },
     { "name": "Indian Easements Act", "year": 1882, "units": ["VIII"] },
@@ -12,7 +13,7 @@
     { "unit": "I", "name": "Jilubhai Nanbhai Khachar v. State of Gujarat", "year": 1994, "topic": "Right to property after the 44th Amendment (Article 300A)" },
     { "unit": "I", "name": "Vidya Devi v. State of Himachal Pradesh", "year": 2020, "titleWords": ["vidaya devi", "himachal"], "topic": "Article 300A: no deprivation without authority of law" },
     { "unit": "I", "name": "Kolkata Municipal Corporation v. Bimal Kumar Shah", "year": 2024, "topic": "Procedural sub-rights under Article 300A" },
-    { "unit": "I", "name": "Indore Development Authority v. Manoharlal", "year": 2020, "topic": "Lapse of acquisition under section 24 of the 2013 Act (Constitution Bench)" },
+    { "unit": "I", "name": "Indore Development Authority v. Manoharlal", "year": 2020, "topic": "Lapse of acquisition under section 24 of the 2013 Act (Constitution Bench)", "concepts": ["Right to property"] },
 
     { "unit": "II", "name": "Jumma Masjid, Mercara v. Kodimaniandra Deviah", "year": 1962, "topic": "Transfer by an unauthorised person; spes successionis and section 43" },
     { "unit": "II", "name": "Zoroastrian Co-operative Housing Society Ltd. v. District Registrar, Co-operative Societies (Urban)", "year": 2005, "topic": "Restraints on alienation (section 10)" },

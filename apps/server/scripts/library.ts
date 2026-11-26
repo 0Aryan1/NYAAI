@@ -22,6 +22,9 @@
  *                                             replace Indian Kanoon copies of Supreme Court judgments with the
  *                                             official report: typeset copies replace the text in place (ids kept),
  *                                             scanned copies are kept beside the cleaner text with their citations
+ *   pnpm library link-cases --file <pack.json> [--dry]
+ *                                             link each leading case to its topics (from the pack's note on it:
+ *                                             sections and topic names; or the topics the pack names); unconfirmed
  *   pnpm library relink [--dry]             keep the Kanoon link of each official copy that replaced a Kanoon text
  *                                             (from the Kanoon file still in storage; nothing fetched), so a lookup
  *                                             never loads the same case again
@@ -30,7 +33,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
-import { caseMatches, kanoonToJudgment, matchHeldCase, pdfToJudgment, pickAct, pickCaseHit, pickEscrByDate, pickEscrRecord, sameAct, splitJudgment, titleQuery, type EscrRecord, type KanoonDoc } from '@nyaai/legal';
+import { caseMatches, kanoonToJudgment, linkCase, matchHeldCase, pdfToJudgment, pickAct, pickCaseHit, pickEscrByDate, pickEscrRecord, sameAct, splitJudgment, titleQuery, type EscrRecord, type KanoonDoc } from '@nyaai/legal';
 import type { Kanoon } from '../src/services/kanoon/index.ts';
 import { createPool, withTenant } from '@nyaai/db';
 import { loadConfig } from '../src/config.ts';
@@ -66,6 +69,8 @@ const { values } = parseArgs({
 const Pack = z.object({
   course: z.string(),
   outline: z.string(),
+  /** The concept list's subject for this course ("ADR", "Property"): section numbers link within it only. */
+  subject: z.string().optional(),
   acts: z.array(z.object({ name: z.string(), year: z.number().int(), units: z.array(z.string()).default([]), note: z.string().optional() })),
   cases: z.array(
     z.object({
@@ -77,6 +82,8 @@ const Pack = z.object({
       unit: z.string(),
       topic: z.string(),
       note: z.string().optional(),
+      /** Topics (concept names) a person chose for this case, when its note names neither a section nor a topic. */
+      concepts: z.array(z.string()).optional(),
     }),
   ),
 });
@@ -284,6 +291,58 @@ try {
       }
     }
     console.log([...tally.entries()].map(([k, n]) => `${n} ${k}`).join(', ') || 'Nothing to do.');
+  } else if (command === 'link-cases') {
+    // Leading cases to topics (EXP-1, the lecture's must-cover cases): from the pack's note on each case, by code
+    // (packages/legal case-links). Links are added unconfirmed: the law expert confirms each one. --dry lists only.
+    if (!values.file) throw new Error('link-cases needs --file <pack.json>');
+    const pack = Pack.parse(JSON.parse(fs.readFileSync(path.resolve(process.env.INIT_CWD ?? process.cwd(), values.file), 'utf8')));
+    if (!pack.subject) throw new Error('the pack needs a "subject" (the concept list subject, e.g. "ADR")');
+    type Ref = { kind: 'section' | 'article'; act: string | null; number: string };
+    const concepts = (
+      await library.query<{ id: string; name: string; subject: string; aliases: string[]; sections: Ref[] | null }>(
+        `select lc.id, lc.name, lc.subject, lc.aliases,
+                json_agg(json_build_object('kind', case when k.article is not null then 'article' else 'section' end,
+                                           'act', case when k.article is not null then null else k.act_name end,
+                                           'number', upper(coalesce(k.section, k.article)))) filter (where k.id is not null) as sections
+           from legal_concepts lc left join concept_links l on l.concept_id = lc.id and l.kind = 'key_section' left join chunks k on k.id = l.chunk_id
+          group by lc.id`,
+      )
+    ).rows.map((r) => ({ ...r, sections: r.sections ?? [] }));
+    const held = (await library.query<{ id: string; title: string; year: number | null }>("select id, title, extract(year from decided_on)::int as year from sources where type = 'judgment' and status <> 'retired'")).rows;
+    const name = new Map(concepts.map((k) => [k.id, k.name]));
+    const tally = { linked: 0, already: 0, noTopic: 0, notInLibrary: 0 };
+    for (const c of pack.cases) {
+      const matches = held.filter((h) => (c.titleWords?.length ? c.titleWords.every((w) => h.title.toLowerCase().includes(w.toLowerCase())) : caseMatches(c.name, h.title)));
+      const src = matches.find((h) => !c.year || h.year === c.year) ?? (c.year ? undefined : matches[0]);
+      const label = `${c.name.slice(0, 60)}${c.year ? ` (${c.year})` : ''}`;
+      if (!src) {
+        tally.notInLibrary++;
+        console.log(`  ${label}: not in the library`);
+        continue;
+      }
+      const links = linkCase({ ...c, acts: pack.acts.filter((a) => a.units.includes(c.unit)).map((a) => a.name) }, concepts, pack.subject);
+      if (!links.length) {
+        tally.noTopic++;
+        console.log(`  ${label}: NO TOPIC (note: "${c.topic}"); name one in the pack's "concepts"`);
+        continue;
+      }
+      for (const l of links) {
+        let added = 0;
+        if (!values.dry) {
+          added =
+            (
+              await library.query(
+                "insert into concept_links (concept_id, source_id, kind) values ($1, $2, 'leading_case') on conflict do nothing",
+                [l.conceptId, src.id],
+              )
+            ).rowCount ?? 0;
+        }
+        if (values.dry || added) tally.linked++;
+        else tally.already++;
+        console.log(`  ${label} → ${name.get(l.conceptId)} (${l.reason})${!values.dry && !added ? ' [already linked]' : ''}`);
+      }
+    }
+    console.log(`${tally.linked} link(s) ${values.dry ? 'to add (dry run)' : 'added, unconfirmed'}; ${tally.already} already there; ${tally.noTopic} case(s) with no topic; ${tally.notInLibrary} not in the library.`);
   } else if (command === 'relink') {
     // Upkeep (0012): official copies that replaced a Kanoon text before the Kanoon copy was kept on record forgot its
     // link, so a lookup could load the case again. The Kanoon files are still in storage: each one no source uses is
