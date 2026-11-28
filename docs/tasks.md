@@ -3,6 +3,7 @@
 Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works on MVP hosting. Build order follows [LLD §16.4](specs/LLD.md) and [HLD §14](specs/HLD.md). Tick items here as they are done.
 
 ## Day 0: Monorepo, CI, Docker, config, tokens (done when `pnpm dev` runs web + API + worker)
+
 - [x] Docs: specs saved, working docs, CLAUDE.md, memory
 - [x] git init, pnpm via corepack, workspace, turbo, tsconfig base, eslint (one-door rule), prettier
 - [x] `.env.example` (LLD §15.4) + `.gitignore`
@@ -15,6 +16,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Verified: install, lint, typecheck, test, compose healthy, `pnpm dev` health OK
 
 ## Day 1: Schema + RLS, sign-in, ingestion 1–3, statute splitter
+
 - [x] `0001_init.sql`: all 41 tables, enums, indexes, RLS policies, `global_college()`, `auth_find_user()` (+ `auth_accept_invite()`), dev seed
 - [x] Tenant middleware (`req.db`, SET LOCAL per transaction) + RLS tests (9: pooled connection, A vs B, worker, editor, library, role/budget guards)
 - [x] Sign-in: dev stub login + **Google sign-in verified live** with a test client (Gmail, `GOOGLE_SKIP_HD_CHECK` in development); session JWT, CSRF, rate limits. CNLU's own Workspace client still needed for the pilot
@@ -27,6 +29,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Current Constitution loaded (Legislative Department, as on 10 Sep 2026): 503 Articles + 48 clause-level children, Parts and Chapters labelled; Art. 18–20 fixtures checked word for word
 
 ## Day 2: Judgments, metadata, embeddings, search
+
 - [x] Judgment splitter, opinion boundaries, paragraph roles (rules first, then Haiku); Kanoon adapter; court list. Tested on Satyabrata Ghose, Kharak Singh (dissent), Energy Watchdog
 - [x] Ingestion stages 5–7: label (Haiku `labeller.roles`), embed (Voyage), gate (official → live + sample item; Kanoon → provisional); `pnpm library finish|kanoon`
 - [x] LLM gateway (light/heavy tiers, structured output, escalation, never downgrade, usage costs); Voyage and Kanoon services
@@ -39,6 +42,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Draft test set and concept list reviewed by a law expert
 
 ## Added 2026-11-20: library gaps + trusted-source lookup (not in LLD; see memory.md)
+
 - [x] `0004_library_gaps.sql`: `library_gaps`, `library_gap_askers` (who asked, hidden), `record_library_gap()`, review kind `library_gap`
 - [x] Gap logic in `packages/legal/src/gaps.ts` (Act/case/topic, exact-match Act pick, case-title check, allowlist); more Act aliases
 - [x] India Code client (`services/india-code`), web-leads client (`services/web-search`, Perplexity, allowlist only), lookup + `searchWithLookup` (`services/lookup`)
@@ -50,6 +54,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Day 6: "delete my data" — her asker links are deleted; her gap questions stay as library questions, unattributed (decided 2026-11-25)
 
 ## Day 3: Planner, writer, checks, coverage
+
 - [x] LLM gateway: tiers, structured output, cost logging (Day 2); budget gate in Prepare and the build; per-lecture cost tagging
 - [x] planner.lecture, writer.part, writer.repair, checker.support, checker.second (`packages/prompts`)
 - [x] checker-rules C1–C8, risk, decision table, coverage matching (20 tests incl. planted errors); C9/C10 orchestration; must-cover list in `packages/legal`
@@ -64,6 +69,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Syllabus upload (COURSE-2, DATA-3, 2026-11-25): "Upload your syllabus" on Courses (Word, PDF or text; read by code, not kept; one lecture per unit or per topic; she edits the list); "Find the sources for every lecture now" runs `ingest.syllabus` (library search, then India Code / Indian Kanoon for gaps; no AI model); the course plan shows "Sources ready / Few sources / None found yet" per lecture
 
 ## Added 2026-11-21: pilot library for ADR and Property Law (quality first; see memory.md)
+
 - [x] Course packs `packages/db/seeds/packs/{adr,property}.json` + `pnpm library pack` (Acts from India Code, cases from Kanoon by party-word title match)
 - [x] 14 Acts loaded and complete (A&C 1996, CPC, Mediation 2023, LSA, Family Courts, Gram Nyayalayas, Commercial Courts, Lokpal, IR Code 2020, TPA, Easements, Trusts, RFCTLARR 2013, Registration): no missing section numbers
 - [x] Splitter fixes found by auditing them (contents, footnotes, wrapped headings, chapters, State amendments, Objects and Reasons, letter-spacing) + 9 new tests; `pnpm library reload` updates in place (ids kept)
@@ -83,6 +89,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Expert review: pack case lists, concept list, retrieval set; "Labels checked" on the leading cases
 
 ## Added 2026-11-22: A2 course series (pulled forward from Day 4; see memory.md)
+
 - [x] Course memory, recap and bridge (COURSE-4, COURSE-5, HLD F8.2–F8.3): pure logic in `packages/legal/src/course.ts` (memory for a lecture, series checks, terms kept only if on the slides) + 9 tests
 - [x] `learn.summary` prompt and `learn` queue/worker; mark taught and undo (`POST/DELETE /lectures/:id/taught`, COURSE-7)
 - [x] Build reads course memory: planner v2 (recap first only when something was taught, bridge last to the next lecture), recap/bridge written even when the library has nothing; writer v3 sees the whole outline (flow between parts) and the course memory as data
@@ -97,6 +104,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] "May need update" (F8.6, 2026-11-27, migration 0020): editing a taught lecture marks the later lectures of the course prepared after it was taught (they read its course memory); a banner in the Studio names the changed lecture, "It's still right" clears it, a rebuild clears it; a pill on the course plan
 
 ## Added 2026-11-22: expert screens, editing, download, UI cleanup (in the suggested order)
+
 - [x] Expert confirms case status (LIB-2, D28): migration 0008, `POST /library/judgments/:id/status`, "Is it still good law?" panel; the Studio reads case status live
 - [x] UI cleanup: shell (working screens only, account menu), Studio (header, status bar, 16:9 slide, notes, Source/Coverage tabs), library (to-do filter, plain status line, folded citations), course plan (row menu)
 - [x] Slide editing (STUDIO-2, -4, -6, -7): edit, remove, add a line or note, your example (+ example bank), mark verified, undo/restore with sources; code checks at once, `check.lines` job for C9/C10; migration 0009
@@ -108,6 +116,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Expert: confirm the status of the demo topics' cases (about 25) in the new panel
 
 ## Added 2026-11-24: research stage before writing (gap fill)
+
 - [x] Library review: fixed list order and the open judgment stays selected after a save; Coverage tab shows the Act's own words for a missing item
 - [x] Research stage in the build: every part searched at once, notes merged and de-duplicated, key sections and leading cases added, AI gap check (`research.gaps`, Sonnet, up to 2 rounds, library only), notes saved on the lecture (migration 0010); writers get MUST COVER and "taught in full in another part"; writer v6
 - [ ] Try the research stage on a real lecture (needs credits) and compare coverage and yellow counts with L02
@@ -121,6 +130,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Notes: read scanned PDFs (pictures of pages). Today they are refused with "This PDF is a scan with no text in it. Upload a Word copy or a typed PDF." Needs OCR (picture → text); OCR misreads characters (1/l, 0/O), so OCR'd notes must be labelled as machine-read and quotes checked, as for scanned judgments
 
 ## Day 4: PPT, edits, course series
+
 - [x] PPT builder: pptxgenjs base design now (automizer with her template later), flags in notes, remove-unverified (2026-11-22)
 - [x] Edit checks (C1–C8 inline; C9/C10 background `check.lines`, covered by the build integration test); ~~course memory, recap and bridge~~ (done 2026-11-22, above)
 - [x] Web: save on every change, versions with undo, Download dialog, course plan (2026-11-22)
@@ -128,6 +138,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [x] Done when: J1 end to end; .pptx output tests green (2026-11-25: `pnpm --filter @nyaai/web e2e`, J1 passes in a real browser and downloads the .pptx)
 
 ## Day 5: Explore, quick Research, reports queue
+
 - [x] Wrong-fact reports (ADM-2, F12; 2026-11-26, migrations 0017–0018): "Report a wrong fact" on every Studio line (one click, optional note); copies of the line and its source words go to the editor's queue (due in 24 h); editor's Reports screen (`/library/reports`): "the source is right" or "I fixed the source text / a label / a law mapping", with a note; a fix turns every line citing that source piece yellow for its teacher; the case joins the gold set; the teacher sees the answer on her line; covered by the build integration test and a third browser journey
 - [x] Library gaps screen (2026-11-26, `/library/gaps`): most-asked first; who asked and how often; what the lookup tried (India Code, Indian Kanoon); links found on official sites (Perplexity, gov.in / nic.in, each opened and checked) for the editor to open and add through Library; Look again, Close (loaded by hand / not something we hold, asked twice, with a note), Reopen; axe clean; screen tests
 - [x] Gaps: "Look again" shows live progress (2026-11-28): the badge says "Looking now…" from the click until that lookup has finished (checked every 3 s; after 3 minutes it says it is still running in the background), then the line says what this run brought ("Done: 2 sources downloaded…", "Done: nothing to download, but 1 new link…", "Done: nothing new found", and any service that did not answer); a lookup already running when the page opens is followed too
@@ -148,6 +159,7 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] Done when: full gold + red-team + planted sets pass
 
 ## Day 6: Privacy, deletion, deploy
+
 - [x] Delete and export my data (2026-11-25): "Your data" in the account menu; export = one zip (my-data.json + her note files); delete = type her email → signed out → `ops.delete_user_data` → `forget_teacher` (migration 0015) removes every row about her, her private notes and search data, her files; account kept only as an anonymous removed shell; logged in deletion_log with counts
 - [x] Consent screen (setup step, lists every processor; its promise "withdraw and delete my data at any time" is now true)
 - [x] Empty, error and slow states (2026-11-25): shared `Skeleton`, `ListSkeleton`, `LoadError` (plain words, "Try again", offline notice), `SlowNote` (after 8 s), `EmptyState`; used on Prepare, Build, Studio, Courses, course plan, My notes, the notes picker and the library review
@@ -162,15 +174,19 @@ Main goal: **finish the week-1 pilot**, meaning every BRD Must requirement works
 - [ ] E2E gaps: coach activity (week 2), her own template, old slides / template steps in setup are still placeholders; run the journeys in CI once CI has Postgres, Redis and S3
 
 ## Day 7: With teachers
+
 - [ ] Teachers repeat the end-to-end video on their own topics
 
 ## Weeks 2–4 (Should items, HLD §14.1)
+
 AWS Mumbai move · teaching coach · merge/split units · web search + What's new · nightly checks (F5) · add one-off to course (F9) · case-status suggestion job · second-check measurement · checker false-flag tuning · reading list · topic brief and tutorial problems · thorough Research · Word/PDF export · Langfuse · contract tests · k6 · ZAP · metrics dashboard.
 
 ## Launch checklist (BRD §12)
+
 See [BRD §12](specs/BRD.md). Copy items here as they become actionable.
 
 ## Open questions (BRD §11, HLD §14.4)
+
 - [ ] Pilot teachers and courses (about 2 courses, 8 topics)
 - [ ] CNLU data-residency exception: who signs, and when
 - [ ] Indian Kanoon storage terms (decides `KANOON_CACHE_DAYS`)
@@ -178,3 +194,14 @@ See [BRD §12](specs/BRD.md). Copy items here as they become actionable.
 - [ ] Google OAuth client for the CNLU domain
 - [ ] 3 ready CNLU slide templates
 - [ ] Production domain
+
+## Clean-up pass (2026-11-28; targeted, 8 batches, tests and journeys green after each)
+
+- [x] Batch 0: tooling (React hook rules, e2e typecheck, Prettier check in lint and CI, one-time reformat)
+- [ ] Batch 1: config out of code (.env.example complete, tunables and provider URLs in config.ts, one pricing table, timezone constant, dead config removed)
+- [ ] Batch 2: server layering (routes → services), one budget / counts / consent / hash / doc helpers, explicit /library editor group, no hand-kept signed-in list, response schemas, pagination, docs/api.md, dead code, shared test helpers
+- [ ] Batch 3: server error handling (job timeouts that stop, no rows stuck after a failed queue, job failure records, outside-service errors → 503, logged fallbacks, SSE fixes)
+- [ ] Batch 4: web (API client split per domain, query keys and polling rules, logic into hooks and pure modules, reusable ConfirmInline / Dialog / RadioCards / PageHeader / ErrorText / HighlightedPassage / CaseStatusPill / FlaggedLine, format and files helpers, dead code)
+- [ ] Batch 5: web error handling (route error elements, mutation and query error states, no swallowed promises)
+- [ ] Batch 6: naming and folder tidy (docs/conventions.md, renames, service folders, eval README)
+- [ ] Batch 7: documentation (root README, a README per app and package, architecture, api and conventions docs, header comments)
