@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, ExternalLink, RotateCw, SearchX, Undo2, Users } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Loader2, RotateCw, SearchX, Undo2, Users } from 'lucide-react';
 import type { LibraryGap } from '@nyaai/shared';
 import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { cn } from '@/shared/lib/utils';
@@ -21,33 +21,88 @@ const STATE: Record<LibraryGap['state'], { label: string; tone: 'grey' | 'yellow
   resolved: { label: 'Closed: loaded by hand', tone: 'neutral' },
   wont_fill: { label: 'Closed: not something we hold', tone: 'neutral' },
 };
+/** Checked every few seconds while a lookup runs; after this long the card stops waiting and says so. */
+export const WATCH_EVERY_MS = 3000;
+export const WATCH_FOR_MS = 3 * 60_000;
+
+/** The card as it was when she clicked "Look again". */
+export interface LookupStart {
+  lastLookupAt: string | null;
+  leadUrls: string[];
+  startedAt: number;
+}
+
+/**
+ * Has the lookup she started finished, and what did it bring? Done when a newer lookup than the one before her click
+ * has run and the gap is no longer "looking". Only that run's attempts count (they are stamped after it started).
+ */
+export function lookupOutcome(start: LookupStart, g: LibraryGap): { done: false } | { done: true; message: string; tone: 'success' | 'muted' } {
+  if (g.state === 'looking' || !g.lastLookupAt || g.lastLookupAt === start.lastLookupAt) return { done: false };
+  const run = g.attempts.filter((a) => a.at >= g.lastLookupAt!);
+  const downloaded = run.filter((a) => a.provider !== 'web' && a.outcome === 'loaded').reduce((n, a) => n + (a.sourceIds?.length ?? 0), 0);
+  const newLinks = g.leads.filter((l) => !start.leadUrls.includes(l.url)).length;
+  const failed = [...new Set(run.filter((a) => a.outcome === 'failed').map((a) => PROVIDER[a.provider]))];
+  const links = (n: number) => `${n} new ${n === 1 ? 'link' : 'links'} to check below`;
+  let message: string;
+  if (downloaded) message = `Done: ${downloaded} ${downloaded === 1 ? 'source' : 'sources'} downloaded. Check ${downloaded === 1 ? 'it' : 'them'} in Library, under “To check”.${newLinks ? ` Also ${links(newLinks)}.` : ''}`;
+  else if (newLinks) message = `Done: nothing to download, but ${links(newLinks)}.`;
+  else message = 'Done: nothing new found.';
+  if (failed.length) message += ` ${failed.join(' and ')} did not answer; try again later.`;
+  return { done: true, message, tone: downloaded || newLinks ? 'success' : 'muted' };
+}
+
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
 
 function GapCard({ g, show }: { g: LibraryGap; show: Show }) {
   const qc = useQueryClient();
   const [asking, setAsking] = useState<'resolved' | 'wont_fill' | null>(null);
   const [note, setNote] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; tone: 'success' | 'muted' } | null>(null);
+  // While her "Look again" runs in the background: what the card was before, so the result can be told apart.
+  const [watching, setWatching] = useState<LookupStart | null>(null);
   const refresh = () => void qc.invalidateQueries({ queryKey: ['review', 'gaps'] });
   const lookup = useMutation({
     mutationFn: () => api.lookupGap(g.id),
-    onSuccess: () => {
-      setMessage('Looking again in India Code, Indian Kanoon and official websites. This page updates when it is done.');
-      // The lookup runs in the background: look at the list again shortly.
-      setTimeout(refresh, 8000);
+    onMutate: () => {
+      setMessage(null);
+      setWatching({ lastLookupAt: g.lastLookupAt, leadUrls: g.leads.map((l) => l.url), startedAt: Date.now() });
     },
+    onError: () => setWatching(null),
   });
+  // Check every few seconds until that lookup has finished (or give up after a few minutes, and say so).
+  useEffect(() => {
+    if (!watching) return;
+    const t = setInterval(() => {
+      if (Date.now() - watching.startedAt > WATCH_FOR_MS) {
+        setWatching(null);
+        setMessage({ text: 'Still looking in the background. Come back to this card in a few minutes.', tone: 'muted' });
+        return;
+      }
+      refresh();
+    }, WATCH_EVERY_MS);
+    return () => clearInterval(t);
+  }, [watching]);
+  useEffect(() => {
+    if (!watching) return;
+    const r = lookupOutcome(watching, g);
+    if (r.done) {
+      setWatching(null);
+      setMessage({ text: r.message, tone: r.tone });
+    }
+  }, [watching, g]);
   const update = useMutation({
     mutationFn: (state: 'open' | 'resolved' | 'wont_fill') => api.updateGap(g.id, { state, note: note.trim() || undefined }),
     onSuccess: (x) => {
       setAsking(null);
-      setMessage(x.state === 'open' ? 'Reopened.' : 'Closed. The teachers who asked will find the answer in the library.');
+      setMessage({ text: x.state === 'open' ? 'Reopened.' : 'Closed. The teachers who asked will find the answer in the library.', tone: 'success' });
       qc.setQueryData<{ gaps: LibraryGap[] }>(queryKeys.gaps(show), (old) => (old ? { gaps: old.gaps.map((y) => (y.id === x.id ? x : y)) } : old));
     },
   });
   const closed = g.state === 'resolved' || g.state === 'wont_fill';
   const err = lookup.error ?? update.error;
-  const s = STATE[g.state];
+  // From her click until the result is in, the card is "looking", even before the worker has picked the job up.
+  const looking = !!watching || g.state === 'looking';
+  const s = looking ? STATE.looking : STATE[g.state];
 
   return (
     <li className="rounded-card border border-border bg-surface p-5">
@@ -108,10 +163,16 @@ function GapCard({ g, show }: { g: LibraryGap; show: Show }) {
       {g.note && <p className="mt-3 text-sm text-muted">Note: {g.note}</p>}
 
       <div className="mt-4 border-t border-border pt-4">
-        {message && (
-          <p role="status" className="mb-3 flex items-center gap-2 text-sm text-success">
-            <CheckCircle2 className="size-4" aria-hidden /> {message}
+        {looking ? (
+          <p role="status" className="mb-3 flex items-center gap-2 text-sm text-muted">
+            <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden /> Looking in India Code, Indian Kanoon and official websites. This usually takes under a minute.
           </p>
+        ) : (
+          message && (
+            <p role="status" className={cn('mb-3 flex items-center gap-2 text-sm', message.tone === 'success' ? 'text-success' : 'text-muted')}>
+              <CheckCircle2 className="size-4 shrink-0" aria-hidden /> {message.text}
+            </p>
+          )
         )}
         {err && <p className="mb-3 text-sm text-danger">{err instanceof ApiRequestError ? err.message : 'Not saved. Try again.'}</p>}
         {asking ? (
@@ -137,8 +198,8 @@ function GapCard({ g, show }: { g: LibraryGap; show: Show }) {
           </Button>
         ) : (
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={lookup.isPending || g.state === 'looking'} onClick={() => lookup.mutate()}>
-              <RotateCw className={cn('size-4', lookup.isPending && 'animate-spin motion-reduce:animate-none')} aria-hidden />
+            <Button size="sm" disabled={looking} onClick={() => lookup.mutate()}>
+              <RotateCw className="size-4" aria-hidden />
               Look again
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setAsking('resolved')}>
@@ -161,7 +222,8 @@ function GapCard({ g, show }: { g: LibraryGap; show: Show }) {
  */
 export function GapsPage() {
   const [show, setShow] = useState<Show>('waiting');
-  const q = useQuery({ queryKey: queryKeys.gaps(show), queryFn: () => api.libraryGaps(show) });
+  // A lookup running when the page opened (or started elsewhere): keep the list fresh until it ends.
+  const q = useQuery({ queryKey: queryKeys.gaps(show), queryFn: () => api.libraryGaps(show), refetchInterval: (query) => (query.state.data?.gaps.some((x) => x.state === 'looking') ? WATCH_EVERY_MS : false) });
   const list = q.data?.gaps ?? [];
   return (
     <div className="mx-auto max-w-3xl">

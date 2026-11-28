@@ -168,11 +168,12 @@ export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, sto
     const state = await req.db!(async (c) => (await c.query<{ state: string }>('select state from library_gaps where id = $1', [id])).rows[0]?.state);
     if (!state) throw new AppError('NOT_FOUND', 'We could not find that gap.');
     if (state === 'resolved' || state === 'wont_fill') throw new AppError('GAP_CLOSED', 'This gap is closed. Reopen it first.');
-    // One job per gap per minute: a double click runs once, a later click runs again.
+    // Every click runs a lookup: the page shows its progress until it ends. Two at once on one gap cannot happen, as
+    // the job claims the gap first (a second one finds it "looking" and stops), and the button waits for the result.
     const job = await ingestQueue.add(
       'ingest.lookup',
       { gapId: id, force: true, requestedBy: req.identity!.userId },
-      { ...INGEST_JOB_OPTIONS, attempts: 1, jobId: `ingest.lookup-${id}-${Math.floor(Date.now() / 60_000)}` },
+      { ...INGEST_JOB_OPTIONS, attempts: 1, jobId: `ingest.lookup-${id}-${Date.now()}` },
     );
     res.status(202).json(GapLookupResponse.parse({ jobId: job.id }));
   });
