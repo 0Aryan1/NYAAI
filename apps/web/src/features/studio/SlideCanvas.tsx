@@ -64,7 +64,17 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 /** A one-line input that saves on Enter or leaving it (adding a line, a note, or editing the title). */
-function InlineInput({ initial = '', placeholder, onDone, className }: { initial?: string; placeholder: string; onDone: (text: string | null) => void; className?: string }) {
+function InlineInput({
+  initial = '',
+  placeholder,
+  onDone,
+  className,
+}: {
+  initial?: string;
+  placeholder: string;
+  onDone: (text: string | null) => void;
+  className?: string;
+}) {
   const [text, setText] = useState(initial);
   const finish = () => onDone(text.trim() && text.trim() !== initial.trim() ? text.trim() : null);
   return (
@@ -130,7 +140,15 @@ function ExampleForm({ onSave, onCancel }: { onSave: (text: string, keep: boolea
   );
 }
 
-export function SlideCanvas({ slide, activeLine, showChecks, onOpenSource, editor, reports, onReport }: SlideCanvasProps) {
+export function SlideCanvas({
+  slide,
+  activeLine,
+  showChecks,
+  onOpenSource,
+  editor,
+  reports,
+  onReport,
+}: SlideCanvasProps) {
   const { byCitation, notes } = footnoteNumbers(slide);
   const [adding, setAdding] = useState<null | 'line' | 'note' | 'example'>(null);
   const [titleEditing, setTitleEditing] = useState(false);
@@ -153,7 +171,11 @@ export function SlideCanvas({ slide, activeLine, showChecks, onOpenSource, edito
       report={reports?.get(`${slide.id}|${l.lineKey}`)}
     />
   );
-  const list = (items: typeof lines) => <ul className={cn('space-y-[1cqw]', bullet ? 'list-disc pl-6 marker:text-accent/60' : 'list-none')}>{items.map(line)}</ul>;
+  const list = (items: typeof lines) => (
+    <ul className={cn('space-y-[1cqw]', bullet ? 'list-disc pl-6 marker:text-accent/60' : 'list-none')}>
+      {items.map(line)}
+    </ul>
+  );
 
   return (
     <>
@@ -161,7 +183,11 @@ export function SlideCanvas({ slide, activeLine, showChecks, onOpenSource, edito
           slide; the frame grows rather than cut a long slide. */}
       <div className="@container">
         <div className="flex aspect-video flex-col rounded-card border border-border bg-surface px-[5cqw] py-[4cqw] shadow-sm">
-          {KIND_LABEL[slide.layout] && <p className="mb-[0.8cqw] text-[clamp(0.65rem,1.1cqw,0.8rem)] font-semibold uppercase tracking-wider text-accent">{KIND_LABEL[slide.layout]}</p>}
+          {KIND_LABEL[slide.layout] && (
+            <p className="mb-[0.8cqw] text-[clamp(0.65rem,1.1cqw,0.8rem)] font-semibold uppercase tracking-wider text-accent">
+              {KIND_LABEL[slide.layout]}
+            </p>
+          )}
           {titleEditing && editor ? (
             <InlineInput
               initial={slide.title}
@@ -177,7 +203,9 @@ export function SlideCanvas({ slide, activeLine, showChecks, onOpenSource, edito
               onClick={editor ? () => setTitleEditing(true) : undefined}
               className={cn(
                 'mb-[2.2cqw] font-semibold leading-tight tracking-tight',
-                slide.layout === 'title' ? 'mt-auto text-[clamp(1.6rem,4.6cqw,2.9rem)]' : 'text-[clamp(1.25rem,3.6cqw,2.2rem)]',
+                slide.layout === 'title'
+                  ? 'mt-auto text-[clamp(1.6rem,4.6cqw,2.9rem)]'
+                  : 'text-[clamp(1.25rem,3.6cqw,2.2rem)]',
                 editor && '-mx-2 cursor-text rounded-control px-2 hover:bg-bg/70',
               )}
             >
@@ -208,7 +236,12 @@ export function SlideCanvas({ slide, activeLine, showChecks, onOpenSource, edito
           {notes.length > 0 && (
             <footer className="mt-auto flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-3 text-xs text-muted">
               {notes.map((f) => (
-                <button key={f.n} type="button" onClick={() => onOpenSource(f.citationId, '')} className="text-left hover:text-text hover:underline">
+                <button
+                  key={f.n}
+                  type="button"
+                  onClick={() => onOpenSource(f.citationId, '')}
+                  className="text-left hover:text-text hover:underline"
+                >
                   <sup>{f.n}</sup> {f.label}
                   {f.grey ? ' · status not verified' : ''}
                   {f.provisional ? ' · not yet reviewed' : ''}

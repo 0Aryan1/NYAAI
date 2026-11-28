@@ -49,21 +49,32 @@ export const ACT_YEARS: Record<string, number | null> = {
 
 const SECTION = /\b(?:s|ss|sec|secs|section|sections)\.?\s*(\d{1,4}[A-Z]{0,3})\b/gi;
 const ARTICLE = /\b(?:art|arts|article|articles)\.?\s*(\d{1,3}[A-Z]{0,3})\b/gi;
-const CASE = /\b([A-Z][\w.&'-]*(?:\s+(?:[A-Z][\w.&'-]*|of|and|&))*)\s+(?:v\.?|vs\.?|versus)\s+([A-Z][\w.&'-]*(?:\s+(?:[A-Z][\w.&'-]*|of|and|&))*)/g;
+const CASE =
+  /\b([A-Z][\w.&'-]*(?:\s+(?:[A-Z][\w.&'-]*|of|and|&))*)\s+(?:v\.?|vs\.?|versus)\s+([A-Z][\w.&'-]*(?:\s+(?:[A-Z][\w.&'-]*|of|and|&))*)/g;
 
 export function understandQuery(query: string): QueryUnderstanding {
   const acts = [...new Set(ACT_ALIASES.filter(([re]) => re.test(query)).map(([, name]) => name))];
   const defaultAct = acts.length === 1 ? acts[0]! : null;
   const refs: ExactRef[] = [];
-  for (const m of query.matchAll(SECTION)) refs.push({ kind: 'section', number: m[1]!.toUpperCase(), act: defaultAct === 'Constitution of India' ? null : defaultAct });
-  for (const m of query.matchAll(ARTICLE)) refs.push({ kind: 'article', number: m[1]!.toUpperCase(), act: 'Constitution of India' });
+  for (const m of query.matchAll(SECTION))
+    refs.push({
+      kind: 'section',
+      number: m[1]!.toUpperCase(),
+      act: defaultAct === 'Constitution of India' ? null : defaultAct,
+    });
+  for (const m of query.matchAll(ARTICLE))
+    refs.push({ kind: 'article', number: m[1]!.toUpperCase(), act: 'Constitution of India' });
   const caseNames = [...query.matchAll(CASE)].map((m) => `${m[1]} v. ${m[2]}`.replace(/\s+/g, ' ').trim());
   const unique = new Map(refs.map((r) => [`${r.kind}:${r.number}:${r.act}`, r]));
   return { refs: [...unique.values()], acts, caseNames };
 }
 
 /** Reciprocal rank fusion (LLD §7.4): score(d) = Σ 1 / (k + rank). Pinned ids come first, in their own order. */
-export function reciprocalRankFusion(lists: string[][], pinned: string[] = [], k = 60): { id: string; score: number }[] {
+export function reciprocalRankFusion(
+  lists: string[][],
+  pinned: string[] = [],
+  k = 60,
+): { id: string; score: number }[] {
   const scores = new Map<string, number>();
   for (const list of lists) list.forEach((id, i) => scores.set(id, (scores.get(id) ?? 0) + 1 / (k + i + 1)));
   const pins = [...new Set(pinned)];

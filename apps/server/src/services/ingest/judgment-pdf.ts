@@ -11,7 +11,15 @@
  * Without `replace`: a new source. A scanned copy stays provisional, marked `scanned`, for the editor to check.
  */
 import { createHash } from 'node:crypto';
-import { identifyCourt, matchChunks, pdfToJudgment, splitJudgment, textAgreement, type JudgmentChunk, type PdfJudgmentHint } from '@nyaai/legal';
+import {
+  identifyCourt,
+  matchChunks,
+  pdfToJudgment,
+  splitJudgment,
+  textAgreement,
+  type JudgmentChunk,
+  type PdfJudgmentHint,
+} from '@nyaai/legal';
 import type pg from 'pg';
 import type { Storage } from '../storage/index.ts';
 import { pdfLines } from './extract.ts';
@@ -32,7 +40,17 @@ export interface JudgmentPdf {
 }
 
 export type JudgmentPdfResult =
-  | ({ kind: 'loaded'; sourceId: string; paragraphs: number; opinions: string[]; scanned: boolean; replaced: boolean; keptIds: number; keptRoles: number; agreement: number | null } & FinishResult)
+  | ({
+      kind: 'loaded';
+      sourceId: string;
+      paragraphs: number;
+      opinions: string[];
+      scanned: boolean;
+      replaced: boolean;
+      keptIds: number;
+      keptRoles: number;
+      agreement: number | null;
+    } & FinishResult)
   | { kind: 'kept_existing'; sourceId: string; agreement: number }
   | { kind: 'mismatch'; sourceId: string; agreement: number }
   | { kind: 'duplicate'; sourceId: string };
@@ -66,7 +84,11 @@ export async function loadJudgmentPdf(
   const input = pdfToJudgment(doc, pdf.hint);
   const split = splitJudgment(input);
   const court = identifyCourt(input.court);
-  const body = (chunks: { kind: string; text: string }[]) => chunks.filter((c) => c.kind !== 'headnote').map((c) => c.text).join('\n');
+  const body = (chunks: { kind: string; text: string }[]) =>
+    chunks
+      .filter((c) => c.kind !== 'headnote')
+      .map((c) => c.text)
+      .join('\n');
   const opinions = split.opinions.map((o) => `${o.type}${o.judge ? ` (${o.judge})` : ''}`);
   const paragraphs = split.chunks.filter((c) => c.kind !== 'headnote').length;
 
@@ -87,7 +109,12 @@ export async function loadJudgmentPdf(
   let replaced = false;
   try {
     await client.query('begin');
-    const taken = (await client.query<{ id: string }>('select id from sources where origin = $1 and content_hash = $2 and id <> coalesce($3::uuid, gen_random_uuid())', [pdf.origin, hash, opts.replace ?? opts.sourceId ?? null])).rows[0];
+    const taken = (
+      await client.query<{ id: string }>(
+        'select id from sources where origin = $1 and content_hash = $2 and id <> coalesce($3::uuid, gen_random_uuid())',
+        [pdf.origin, hash, opts.replace ?? opts.sourceId ?? null],
+      )
+    ).rows[0];
     if (taken) {
       await client.query('rollback');
       return { kind: 'duplicate', sourceId: taken.id };
@@ -95,7 +122,11 @@ export async function loadJudgmentPdf(
 
     if (opts.replace) {
       sourceId = opts.replace;
-      const old = (await client.query<OldChunk>('select id, kind, text, para_role from chunks where source_id = $1 order by seq', [sourceId])).rows;
+      const old = (
+        await client.query<OldChunk>('select id, kind, text, para_role from chunks where source_id = $1 order by seq', [
+          sourceId,
+        ])
+      ).rows;
       agreement = Math.round(textAgreement(body(old), body(split.chunks)).aInB * 1000) / 1000;
       if (agreement < SAME_JUDGMENT || (doc.scanned && !opts.resplit)) {
         await copyRow(client, sourceId, false, agreement);
@@ -117,7 +148,19 @@ export async function loadJudgmentPdf(
                 court = coalesce($7, court), court_level = coalesce($8, court_level), bench_size = coalesce($9, bench_size),
                 decided_on = coalesce($10, decided_on), fetched_at = now(), expires_at = null, scanned = $11, status = 'processing'
           where id = $1`,
-        [sourceId, pdf.origin, pdf.url, key, hash, pdf.citation, court?.court ?? null, court?.level ?? null, split.benchSize || null, input.decidedOn, doc.scanned],
+        [
+          sourceId,
+          pdf.origin,
+          pdf.url,
+          key,
+          hash,
+          pdf.citation,
+          court?.court ?? null,
+          court?.level ?? null,
+          split.benchSize || null,
+          input.decidedOn,
+          doc.scanned,
+        ],
       );
       const r = await writeChunks(client, sourceId, split.chunks, old, input.decidedOn, court);
       keptIds = r.keptIds;
@@ -141,7 +184,20 @@ export async function loadJudgmentPdf(
         `update sources set origin = $2, title = $3, citation = $4, court = $5, court_level = $6, bench_size = $7, decided_on = $8, url = $9,
                 storage_key = $10, content_hash = $11, scanned = $12, fetched_at = now(), expires_at = null, status = 'processing'
           where id = $1`,
-        [sourceId, pdf.origin, pdf.hint.caseName, pdf.citation, court?.court ?? null, court?.level ?? null, split.benchSize || null, input.decidedOn, pdf.url, key, hash, doc.scanned],
+        [
+          sourceId,
+          pdf.origin,
+          pdf.hint.caseName,
+          pdf.citation,
+          court?.court ?? null,
+          court?.level ?? null,
+          split.benchSize || null,
+          input.decidedOn,
+          pdf.url,
+          key,
+          hash,
+          doc.scanned,
+        ],
       );
       await writeChunks(client, sourceId, split.chunks, [], input.decidedOn, court);
     }
@@ -156,14 +212,30 @@ export async function loadJudgmentPdf(
 
   // A scanned copy is never official-and-live by itself: its reading errors need the editor's eye.
   const finished = await finishSource(sourceId, { ...deps, provisional: opts.provisional || doc.scanned });
-  return { kind: 'loaded', sourceId, paragraphs, opinions, scanned: doc.scanned, replaced, keptIds, keptRoles, agreement, ...finished };
+  return {
+    kind: 'loaded',
+    sourceId,
+    paragraphs,
+    opinions,
+    scanned: doc.scanned,
+    replaced,
+    keptIds,
+    keptRoles,
+    agreement,
+    ...finished,
+  };
 }
 
 /**
  * The copy being replaced stays on record, not in use (its Kanoon link most of all), so a later lookup knows the case
  * is held and does not load it again (0012).
  */
-export async function keepReplacedCopy(client: pg.PoolClient, sourceId: string, agreement: number | null, newHash: string): Promise<void> {
+export async function keepReplacedCopy(
+  client: pg.PoolClient,
+  sourceId: string,
+  agreement: number | null,
+  newHash: string,
+): Promise<void> {
   await client.query(
     `insert into source_copies (college_id, source_id, origin, url, storage_key, content_hash, citation, scanned, agreement, in_use)
      select global_college(), id, origin, url, storage_key, content_hash, citation, scanned, $2, false
@@ -188,19 +260,43 @@ async function writeChunks(
 ): Promise<{ keptIds: number; keptRoles: number; removed: number }> {
   const oldBody = old.filter((c) => c.kind !== 'headnote');
   const freshBody = chunks.filter((c) => c.kind !== 'headnote');
-  const matches = matchChunks(oldBody, freshBody.map((c) => c.text));
+  const matches = matchChunks(
+    oldBody,
+    freshBody.map((c) => c.text),
+  );
   const byChunk = new Map(freshBody.map((c, i) => [c, matches[i]!]));
   const oldHeadnote = old.find((c) => c.kind === 'headnote');
   // Hashes are unique per source: clear the old ones first, so a paragraph that moves cannot collide mid-way.
-  if (old.length) await client.query("update chunks set content_hash = 'replacing:' || id where source_id = $1", [sourceId]);
+  if (old.length)
+    await client.query("update chunks set content_hash = 'replacing:' || id where source_id = $1", [sourceId]);
   const used = new Set<string>();
   let keptIds = 0;
   let keptRoles = 0;
   for (const c of chunks) {
-    const m = c.kind === 'headnote' ? (oldHeadnote ? { id: oldHeadnote.id, same: false } : { id: null, same: false }) : byChunk.get(c)!;
+    const m =
+      c.kind === 'headnote'
+        ? oldHeadnote
+          ? { id: oldHeadnote.id, same: false }
+          : { id: null, same: false }
+        : byChunk.get(c)!;
     const prior = m.id ? old.find((o) => o.id === m.id) : undefined;
     const role = c.kind === 'headnote' ? 'headnote' : m.same && prior?.para_role ? prior.para_role : c.role;
-    const values = [c.seq, c.kind, c.header, c.paraNo, c.paraNoSource, c.pageNo, c.opinion, c.judge, role, court?.court ?? null, court?.level ?? null, decidedOn, c.text, sha256(`${c.header}\n${c.text}`)];
+    const values = [
+      c.seq,
+      c.kind,
+      c.header,
+      c.paraNo,
+      c.paraNoSource,
+      c.pageNo,
+      c.opinion,
+      c.judge,
+      role,
+      court?.court ?? null,
+      court?.level ?? null,
+      decidedOn,
+      c.text,
+      sha256(`${c.header}\n${c.text}`),
+    ];
     if (m.id && prior) {
       used.add(m.id);
       keptIds++;

@@ -4,19 +4,41 @@ import { loadConfig, missingProviderKeys } from './config.ts';
 import { createLogger } from './logger.ts';
 import { createRedis } from './redis.ts';
 import { createApp } from './app.ts';
-import type { BuildJobData, CheckJobData, IngestJobData, LearnJobData, OpsJobData, ResearchJobData } from './jobs/queues.ts';
+import type {
+  BuildJobData,
+  CheckJobData,
+  IngestJobData,
+  LearnJobData,
+  OpsJobData,
+  ResearchJobData,
+} from './jobs/queues.ts';
 import { gatewayFrom, storageFrom, voyageFrom } from './services/factory.ts';
 
 const config = { ...loadConfig(), APP_ROLE: 'api' as const };
 const logger = createLogger(config);
 const pool = createPool(config.DATABASE_URL);
 const redis = createRedis(config.REDIS_URL);
-const ingest = new Queue<IngestJobData>('ingest', { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX });
-const build = new Queue<BuildJobData>('build', { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX });
-const learn = new Queue<LearnJobData>('learn', { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX });
-const check = new Queue<CheckJobData>('check', { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX });
+const ingest = new Queue<IngestJobData>('ingest', {
+  connection: createRedis(config.REDIS_URL),
+  prefix: config.QUEUE_PREFIX,
+});
+const build = new Queue<BuildJobData>('build', {
+  connection: createRedis(config.REDIS_URL),
+  prefix: config.QUEUE_PREFIX,
+});
+const learn = new Queue<LearnJobData>('learn', {
+  connection: createRedis(config.REDIS_URL),
+  prefix: config.QUEUE_PREFIX,
+});
+const check = new Queue<CheckJobData>('check', {
+  connection: createRedis(config.REDIS_URL),
+  prefix: config.QUEUE_PREFIX,
+});
 const ops = new Queue<OpsJobData>('ops', { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX });
-const research = new Queue<ResearchJobData>('research', { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX });
+const research = new Queue<ResearchJobData>('research', {
+  connection: createRedis(config.REDIS_URL),
+  prefix: config.QUEUE_PREFIX,
+});
 
 const missing = missingProviderKeys(config);
 if (missing.length) logger.warn({ missing }, 'provider keys not set; AI and lookup features will be unavailable');

@@ -6,7 +6,13 @@ import { Button } from '@/shared/ui/button';
  * Coverage panel (LLD §8.5, §12.4): missing provisos, exceptions, explanations, clauses and leading cases grouped per
  * section; the "Left out of this lecture" list; questions the library could not answer. Only her tick clears a note.
  */
-export function CoveragePanel({ lectureId, onAdded }: { lectureId: string; onAdded?: (slideId: string, lineKey: string) => void }) {
+export function CoveragePanel({
+  lectureId,
+  onAdded,
+}: {
+  lectureId: string;
+  onAdded?: (slideId: string, lineKey: string) => void;
+}) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: queryKeys.coverage(lectureId), queryFn: () => api.coverage(lectureId) });
   const leave = useMutation({
@@ -26,7 +32,8 @@ export function CoveragePanel({ lectureId, onAdded }: { lectureId: string; onAdd
   });
   const busy = leave.isPending || add.isPending;
   const d = q.data;
-  if (!d) return <p className="text-sm text-muted">{q.isError ? 'Coverage could not be loaded.' : 'Loading coverage…'}</p>;
+  if (!d)
+    return <p className="text-sm text-muted">{q.isError ? 'Coverage could not be loaded.' : 'Loading coverage…'}</p>;
   const missingGroups = d.groups.filter((g) => g.missing > 0);
 
   return (
@@ -37,7 +44,11 @@ export function CoveragePanel({ lectureId, onAdded }: { lectureId: string; onAdd
             ? 'Nothing in the cited sections needs a separate mention.'
             : `${d.covered} of ${d.counted} provisos, exceptions, explanations, clauses and leading cases of what you teach ${d.counted === 1 ? 'is' : 'are'} covered.`}
         </p>
-        {add.error && <p className="mt-1 text-danger">{add.error instanceof ApiRequestError ? add.error.message : 'That could not be added. Try again.'}</p>}
+        {add.error && (
+          <p className="mt-1 text-danger">
+            {add.error instanceof ApiRequestError ? add.error.message : 'That could not be added. Try again.'}
+          </p>
+        )}
       </div>
 
       {missingGroups.length > 0 && (
@@ -56,11 +67,23 @@ export function CoveragePanel({ lectureId, onAdded }: { lectureId: string; onAdd
                         <span className="font-medium">Missing: {i.label}</span>
                         <span className="flex shrink-0 gap-1">
                           {i.canAdd && (
-                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => add.mutate(i.id)} title="Put the Act’s own words on the slide that teaches this section">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={busy}
+                              onClick={() => add.mutate(i.id)}
+                              title="Put the Act’s own words on the slide that teaches this section"
+                            >
                               Add this for me
                             </Button>
                           )}
-                          <Button size="sm" variant="ghost" disabled={busy} onClick={() => leave.mutate(i.id)} title="Confirm you are leaving this out on purpose">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => leave.mutate(i.id)}
+                            title="Confirm you are leaving this out on purpose"
+                          >
                             Leave out
                           </Button>
                         </span>
@@ -91,7 +114,13 @@ export function CoveragePanel({ lectureId, onAdded }: { lectureId: string; onAdd
                     {i.label}
                     {i.reason && <span className="block text-xs text-muted">{i.reason}</span>}
                   </span>
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => leave.mutate(i.id)} title="Confirm this is meant to be left out">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => leave.mutate(i.id)}
+                    title="Confirm this is meant to be left out"
+                  >
                     Okay
                   </Button>
                 </li>

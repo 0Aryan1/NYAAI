@@ -8,7 +8,13 @@ import { HomePage } from './HomePage';
 function renderHome() {
   const client = new QueryClient();
   client.setQueryData(queryKeys.home, {
-    courses: [{ id: '00000000-0000-4000-8000-0000000000c1', name: 'Law of Contract II', nextUnit: { id: '00000000-0000-4000-8000-0000000000u1', position: 9, title: 'Frustration' } }],
+    courses: [
+      {
+        id: '00000000-0000-4000-8000-0000000000c1',
+        name: 'Law of Contract II',
+        nextUnit: { id: '00000000-0000-4000-8000-0000000000u1', position: 9, title: 'Frustration' },
+      },
+    ],
   });
   return render(
     <MemoryRouter>
@@ -33,9 +39,13 @@ describe('Home (HOME-4, HOME-5, HOME-6)', () => {
     renderHome();
     const prepare = screen.getByRole('button', { name: 'Prepare' }) as HTMLButtonElement;
     expect(prepare.disabled).toBe(true);
-    expect(screen.getByText(/Still needed: a topic, a course \(or one-off\), a class length, a level, a style/)).toBeTruthy();
+    expect(
+      screen.getByText(/Still needed: a topic, a course \(or one-off\), a class length, a level, a style/),
+    ).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText('What do you want to teach?'), { target: { value: 'Frustration of contract' } });
+    fireEvent.change(screen.getByLabelText('What do you want to teach?'), {
+      target: { value: 'Frustration of contract' },
+    });
     fireEvent.click(screen.getByRole('radio', { name: 'No course, one-off' }));
     fireEvent.click(screen.getByRole('radio', { name: '50 min' }));
     fireEvent.click(screen.getByRole('radio', { name: 'Standard' }));

@@ -8,7 +8,14 @@ import type pg from 'pg';
 import { withTenant, type TenantIdentity } from '@nyaai/db';
 import type { Role } from '@nyaai/shared';
 import { AppError } from '../errors.ts';
-import { SESSION_COOKIE, needsRefresh, needsStatusCheck, readSession, sessionCookieOptions, signSession } from '../auth/session.ts';
+import {
+  SESSION_COOKIE,
+  needsRefresh,
+  needsStatusCheck,
+  readSession,
+  sessionCookieOptions,
+  signSession,
+} from '../auth/session.ts';
 
 export interface AuthDeps {
   pool: pg.Pool;
@@ -25,8 +32,15 @@ export function requireAuth({ pool, sessionSecret, production }: AuthDeps): Requ
     let who: TenantIdentity = { userId: session.userId, collegeId: session.collegeId, role: session.role };
     let reissue = needsRefresh(session);
     if (needsStatusCheck(session)) {
-      const row = await withTenant(pool, who, async (c) =>
-        (await c.query<{ status: string; role: TenantIdentity['role'] }>('select status, role from users where id = app_user()')).rows[0],
+      const row = await withTenant(
+        pool,
+        who,
+        async (c) =>
+          (
+            await c.query<{ status: string; role: TenantIdentity['role'] }>(
+              'select status, role from users where id = app_user()',
+            )
+          ).rows[0],
       );
       if (!row || row.status !== 'active') {
         res.clearCookie(SESSION_COOKIE, { path: '/' });

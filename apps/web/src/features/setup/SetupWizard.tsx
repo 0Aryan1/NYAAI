@@ -41,9 +41,7 @@ export function SetupWizard() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
       <div className="mb-1 flex items-center justify-between gap-3 text-sm text-muted">
-        <p>
-          Setting up NYAAI · about 5 minutes · signed in as {me.data.user.email}
-        </p>
+        <p>Setting up NYAAI · about 5 minutes · signed in as {me.data.user.email}</p>
         <button
           type="button"
           className="shrink-0 rounded-control px-2 py-1 hover:bg-surface hover:text-text"
@@ -60,7 +58,9 @@ export function SetupWizard() {
         {SETUP_STEPS.map((s, i) => (
           <li key={s} aria-current={i === index ? 'step' : undefined}>
             <span className={`block h-1.5 rounded-full ${i <= index ? 'bg-accent' : 'bg-border'}`} aria-hidden />
-            <span className={`mt-1.5 block truncate text-xs ${i === index ? 'font-medium text-text' : 'text-muted'}`}>{TITLES[s]}</span>
+            <span className={`mt-1.5 block truncate text-xs ${i === index ? 'font-medium text-text' : 'text-muted'}`}>
+              {TITLES[s]}
+            </span>
           </li>
         ))}
       </ol>
@@ -88,7 +88,15 @@ export function SetupWizard() {
   );
 }
 
-function StepFrame({ title, intro, children, onSubmit, back, nextLabel = 'Next', canNext = true }: {
+function StepFrame({
+  title,
+  intro,
+  children,
+  onSubmit,
+  back,
+  nextLabel = 'Next',
+  canNext = true,
+}: {
   title: string;
   intro?: string;
   children?: ReactNode;
@@ -164,23 +172,49 @@ function ConsentStep({ onNext }: { onNext: (save: () => Promise<void>) => Promis
       </ul>
       {!consent.data?.accepted && (
         <label className="flex items-start gap-3 text-sm">
-          <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" />
-          I agree that NYAAI may send my data to these services for these purposes. I can withdraw and delete my data at any time
-          from My data.
+          <input
+            type="checkbox"
+            checked={agree}
+            onChange={(e) => setAgree(e.target.checked)}
+            className="mt-0.5 size-4 accent-[var(--accent)]"
+          />
+          I agree that NYAAI may send my data to these services for these purposes. I can withdraw and delete my data at
+          any time from My data.
         </label>
       )}
     </StepFrame>
   );
 }
 
-const SUBJECTS = ['Law of Contract I', 'Law of Contract II', 'Constitutional Law I', 'Constitutional Law II', 'Law of Torts', 'Criminal Law', 'Company Law', 'Jurisprudence', 'Family Law', 'Administrative Law'];
+const SUBJECTS = [
+  'Law of Contract I',
+  'Law of Contract II',
+  'Constitutional Law I',
+  'Constitutional Law II',
+  'Law of Torts',
+  'Criminal Law',
+  'Company Law',
+  'Jurisprudence',
+  'Family Law',
+  'Administrative Law',
+];
 
-function ProfileStep({ me, onNext, back }: { me: Me; onNext: (save: () => Promise<void>) => Promise<void>; back?: () => void }) {
+function ProfileStep({
+  me,
+  onNext,
+  back,
+}: {
+  me: Me;
+  onNext: (save: () => Promise<void>) => Promise<void>;
+  back?: () => void;
+}) {
   const [name, setName] = useState(me.user.name);
   const [department, setDepartment] = useState(me.profile.department ?? '');
   const [subjects, setSubjects] = useState<string[]>(me.profile.subjects);
   const [other, setOther] = useState('');
-  const [language, setLanguage] = useState<string | null>(me.profile.subjects.length ? me.profile.teachingLanguage : null);
+  const [language, setLanguage] = useState<string | null>(
+    me.profile.subjects.length ? me.profile.teachingLanguage : null,
+  );
   const toggle = (s: string) => setSubjects((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
   const addOther = () => {
     const s = other.trim();
@@ -206,12 +240,26 @@ function ProfileStep({ me, onNext, back }: { me: Me; onNext: (save: () => Promis
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="name" className="mb-1 block text-sm font-medium">Name</label>
-          <input id="name" value={name} onChange={(e) => setName(e.target.value)} className="h-10 w-full rounded-control border border-border bg-bg px-3 text-sm" />
+          <label htmlFor="name" className="mb-1 block text-sm font-medium">
+            Name
+          </label>
+          <input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="h-10 w-full rounded-control border border-border bg-bg px-3 text-sm"
+          />
         </div>
         <div>
-          <label htmlFor="dept" className="mb-1 block text-sm font-medium">Department <span className="font-normal text-muted">(optional)</span></label>
-          <input id="dept" value={department} onChange={(e) => setDepartment(e.target.value)} className="h-10 w-full rounded-control border border-border bg-bg px-3 text-sm" />
+          <label htmlFor="dept" className="mb-1 block text-sm font-medium">
+            Department <span className="font-normal text-muted">(optional)</span>
+          </label>
+          <input
+            id="dept"
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            className="h-10 w-full rounded-control border border-border bg-bg px-3 text-sm"
+          />
         </div>
       </div>
       <fieldset>
@@ -219,7 +267,12 @@ function ProfileStep({ me, onNext, back }: { me: Me; onNext: (save: () => Promis
         <div className="flex flex-wrap gap-2">
           {[...new Set([...SUBJECTS, ...subjects])].map((s) => (
             <label key={s} className="cursor-pointer">
-              <input type="checkbox" className="peer sr-only" checked={subjects.includes(s)} onChange={() => toggle(s)} />
+              <input
+                type="checkbox"
+                className="peer sr-only"
+                checked={subjects.includes(s)}
+                onChange={() => toggle(s)}
+              />
               <span className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm peer-checked:border-accent peer-checked:bg-accent peer-checked:text-accent-contrast peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">
                 {s}
               </span>
@@ -227,7 +280,9 @@ function ProfileStep({ me, onNext, back }: { me: Me; onNext: (save: () => Promis
           ))}
         </div>
         <div className="mt-3 flex gap-2">
-          <label htmlFor="other" className="sr-only">Another subject</label>
+          <label htmlFor="other" className="sr-only">
+            Another subject
+          </label>
           <input
             id="other"
             value={other}
@@ -241,7 +296,9 @@ function ProfileStep({ me, onNext, back }: { me: Me; onNext: (save: () => Promis
             placeholder="Another subject"
             className="h-9 min-w-0 flex-1 rounded-control border border-border bg-bg px-3 text-sm"
           />
-          <Button size="sm" onClick={addOther} disabled={other.trim().length < 2}>Add</Button>
+          <Button size="sm" onClick={addOther} disabled={other.trim().length < 2}>
+            Add
+          </Button>
         </div>
       </fieldset>
       <ChipGroup
@@ -258,7 +315,15 @@ function ProfileStep({ me, onNext, back }: { me: Me; onNext: (save: () => Promis
   );
 }
 
-function StyleStep({ me, onNext, back }: { me: Me; onNext: (save: () => Promise<void>) => Promise<void>; back?: () => void }) {
+function StyleStep({
+  me,
+  onNext,
+  back,
+}: {
+  me: Me;
+  onNext: (save: () => Promise<void>) => Promise<void>;
+  back?: () => void;
+}) {
   const [answers, setAnswers] = useState<Record<string, string>>(me.profile.style);
   const done = STYLE_QUESTIONS.every((q) => answers[q.key]);
   return (
@@ -270,13 +335,31 @@ function StyleStep({ me, onNext, back }: { me: Me; onNext: (save: () => Promise<
       onSubmit={() => onNext(() => api.saveStyle(answers as unknown as StyleRequest))}
     >
       {STYLE_QUESTIONS.map((q) => (
-        <ChipGroup key={q.key} label={q.question} options={q.options} value={answers[q.key] ?? null} onChange={(v) => setAnswers({ ...answers, [q.key]: v })} />
+        <ChipGroup
+          key={q.key}
+          label={q.question}
+          options={q.options}
+          value={answers[q.key] ?? null}
+          onChange={(v) => setAnswers({ ...answers, [q.key]: v })}
+        />
       ))}
     </StepFrame>
   );
 }
 
-function Placeholder({ title, body, onNext, back, nextLabel = 'Skip for now' }: { title: string; body: string; onNext: () => Promise<void>; back?: () => void; nextLabel?: string }) {
+function Placeholder({
+  title,
+  body,
+  onNext,
+  back,
+  nextLabel = 'Skip for now',
+}: {
+  title: string;
+  body: string;
+  onNext: () => Promise<void>;
+  back?: () => void;
+  nextLabel?: string;
+}) {
   return (
     <StepFrame title={title} back={back} onSubmit={onNext} nextLabel={nextLabel}>
       <p className="text-sm text-muted">{body}</p>
@@ -310,11 +393,14 @@ function CoursesStep({ onNext, back }: { onNext: () => Promise<void>; back?: () 
       <section className="rounded-card border border-border bg-surface p-6">
         <h1 className="mb-1 text-xl font-semibold">Your courses</h1>
         <p className="text-sm text-muted">
-          Add the courses you teach this semester. Upload your syllabus and NYAAI lists its lectures for you to check; a lecture in a course opens with a recap of the last
-          class. You can also do this later on the Courses screen.
+          Add the courses you teach this semester. Upload your syllabus and NYAAI lists its lectures for you to check; a
+          lecture in a course opens with a recap of the last class. You can also do this later on the Courses screen.
         </p>
         {courses.length > 0 && (
-          <ul aria-label="Your courses" className="mt-4 divide-y divide-border rounded-card border border-border text-sm">
+          <ul
+            aria-label="Your courses"
+            className="mt-4 divide-y divide-border rounded-card border border-border text-sm"
+          >
             {courses.map((c) => (
               <li key={c.id} className="flex items-center justify-between px-3 py-2">
                 <span className="font-medium">{c.name}</span>

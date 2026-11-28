@@ -4,19 +4,28 @@
  * Old slides, template and courses are skipped forward with /setup/progress until their screens land (Day 4).
  */
 import express from 'express';
-import { CONSENT_VERSION, ConsentRequest, PROCESSORS, ProfileRequest, ProgressRequest, StyleRequest } from '@nyaai/shared';
+import {
+  CONSENT_VERSION,
+  ConsentRequest,
+  PROCESSORS,
+  ProfileRequest,
+  ProgressRequest,
+  StyleRequest,
+} from '@nyaai/shared';
 import { AppError } from '../errors.ts';
 
 export function setupRouter() {
   const r = express.Router();
 
   r.get('/consents/current', async (req, res) => {
-    const accepted = await req.db!(async (c) =>
-      (
-        await c.query('select 1 from consents where owner_id = app_user() and version = $1 and withdrawn_at is null limit 1', [
-          CONSENT_VERSION,
-        ])
-      ).rowCount,
+    const accepted = await req.db!(
+      async (c) =>
+        (
+          await c.query(
+            'select 1 from consents where owner_id = app_user() and version = $1 and withdrawn_at is null limit 1',
+            [CONSENT_VERSION],
+          )
+        ).rowCount,
     );
     res.json({ version: CONSENT_VERSION, processors: PROCESSORS, accepted: accepted === 1 });
   });
@@ -30,14 +39,18 @@ export function setupRouter() {
           where not exists (select 1 from consents where owner_id = app_user() and version = $1 and withdrawn_at is null)`,
         [body.version, JSON.stringify(PROCESSORS)],
       );
-      await c.query('update teacher_profiles set setup_step = greatest(setup_step, 2), updated_at = now() where owner_id = app_user()');
+      await c.query(
+        'update teacher_profiles set setup_step = greatest(setup_step, 2), updated_at = now() where owner_id = app_user()',
+      );
     });
     res.status(204).end();
   });
 
   /** She withdraws her consent: nothing more is sent to outside services until she agrees again. Her data stays. */
   r.post('/consents/withdraw', async (req, res) => {
-    await req.db!((c) => c.query('update consents set withdrawn_at = now() where owner_id = app_user() and withdrawn_at is null'));
+    await req.db!((c) =>
+      c.query('update consents set withdrawn_at = now() where owner_id = app_user() and withdrawn_at is null'),
+    );
     res.status(204).end();
   });
 
@@ -96,8 +109,11 @@ export function setupRouter() {
       if (!row?.consented) missing.push('consent');
       if (!row?.subjects.length) missing.push('profile');
       if (!StyleRequest.safeParse(row?.style ?? {}).success) missing.push('style');
-      if (missing.length) throw new AppError('VALIDATION_FAILED', 'A few setup steps still need an answer.', { missing });
-      await c.query('update teacher_profiles set setup_step = 6, setup_done_at = coalesce(setup_done_at, now()), updated_at = now() where owner_id = app_user()');
+      if (missing.length)
+        throw new AppError('VALIDATION_FAILED', 'A few setup steps still need an answer.', { missing });
+      await c.query(
+        'update teacher_profiles set setup_step = 6, setup_done_at = coalesce(setup_done_at, now()), updated_at = now() where owner_id = app_user()',
+      );
     });
     res.status(204).end();
   });

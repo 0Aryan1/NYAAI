@@ -11,11 +11,16 @@ import { ApiRequestError } from '@/shared/api/client';
 /** A line she added while offline has no key from the server yet; it is sent as a new line. */
 export const UNSAVED = 'unsaved-';
 
-export const toEdit = (l: SlideLine): EditLine => ({ lineKey: l.lineKey.startsWith(UNSAVED) ? null : l.lineKey, text: l.text, kind: l.kind });
+export const toEdit = (l: SlideLine): EditLine => ({
+  lineKey: l.lineKey.startsWith(UNSAVED) ? null : l.lineKey,
+  text: l.text,
+  kind: l.kind,
+});
 
 /** The request did not reach the server, or the server could not be reached through the proxy: try again later. */
 export function isConnectionError(err: unknown): boolean {
-  if (err instanceof ApiRequestError) return err.status === 0 || err.status === 502 || err.status === 503 || err.status === 504;
+  if (err instanceof ApiRequestError)
+    return err.status === 0 || err.status === 502 || err.status === 503 || err.status === 504;
   return err instanceof TypeError || (typeof navigator !== 'undefined' && navigator.onLine === false);
 }
 
@@ -26,7 +31,17 @@ export function optimisticSlide(s: StudioSlide, payload: EditSlide): StudioSlide
   const line = (e: EditLine): SlideLine => {
     const was = e.lineKey ? all.find((l) => l.lineKey === e.lineKey) : undefined;
     if (was) return { ...was, text: e.text, edited: was.edited || was.text !== e.text };
-    return { lineKey: `${UNSAVED}${++added}`, text: e.text, kind: e.kind, status: 'open', flag: null, flagReason: null, sources: [], risk: 'normal', edited: true };
+    return {
+      lineKey: `${UNSAVED}${++added}`,
+      text: e.text,
+      kind: e.kind,
+      status: 'open',
+      flag: null,
+      flagReason: null,
+      sources: [],
+      risk: 'normal',
+      edited: true,
+    };
   };
   return { ...s, title: payload.title, lines: payload.lines.map(line), notes: payload.notes.map(line) };
 }

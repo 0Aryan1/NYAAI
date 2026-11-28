@@ -3,7 +3,11 @@ import { benchOf, pdfToJudgment, reporterNoteOf, type PdfLine, type PdfLines } f
 import { splitJudgment } from './judgment.ts';
 
 const L = (text: string, o: Partial<PdfLine> = {}): PdfLine => ({ text, size: 11, x: 100, y: 0, marks: [], ...o });
-const doc = (pages: PdfLine[][], scanned = false): PdfLines => ({ pages: pages.map((lines, i) => ({ pageNo: i + 1, lines })), scanned, bodySize: 11 });
+const doc = (pages: PdfLine[][], scanned = false): PdfLines => ({
+  pages: pages.map((lines, i) => ({ pageNo: i + 1, lines })),
+  scanned,
+  bodySize: 11,
+});
 const LONG = 'x'.repeat(70);
 
 describe('pdfToJudgment (official PDFs)', () => {
@@ -41,7 +45,11 @@ describe('pdfToJudgment (official PDFs)', () => {
       L('signatory affiliates when the parties so intended at the time of contracting.'),
     ],
   ];
-  const input = pdfToJudgment(doc(pages), { caseName: 'PASL WIND SOLUTIONS PRIVATE LIMITED v. GE POWER CONVERSION INDIA PRIVATE LIMITED', decidedOn: '2021-04-20', court: 'Supreme Court of India' });
+  const input = pdfToJudgment(doc(pages), {
+    caseName: 'PASL WIND SOLUTIONS PRIVATE LIMITED v. GE POWER CONVERSION INDIA PRIVATE LIMITED',
+    decidedOn: '2021-04-20',
+    court: 'Supreme Court of India',
+  });
   const texts = input.blocks.map((b) => b.text);
 
   it('keeps the reporter summary as the headnote and cuts case details and lists from it', () => {
@@ -102,7 +110,10 @@ describe('pdfToJudgment (official PDFs)', () => {
       ]),
       { caseName: 'COX AND KINGS LTD. v. SAP INDIA PVT. LTD.', decidedOn: null, court: 'Supreme Court of India' },
     );
-    expect(toc.blocks.map((b) => b.text)).toEqual(['DR. DHANANJAYA Y CHANDRACHUD, CJI', `1. More than a century ago ${LONG} ended.`]);
+    expect(toc.blocks.map((b) => b.text)).toEqual([
+      'DR. DHANANJAYA Y CHANDRACHUD, CJI',
+      `1. More than a century ago ${LONG} ended.`,
+    ]);
   });
 
   it('finds the court’s text after a "delivered" sentence broken over lines, and cuts the next case printed after it', () => {
@@ -130,7 +141,11 @@ describe('pdfToJudgment (official PDFs)', () => {
         ],
         true,
       ),
-      { caseName: 'ASSOCIATED HOTELS OF INDIA LTD. v. R. N. KAPOOR', decidedOn: '1959-09-18', court: 'Supreme Court of India' },
+      {
+        caseName: 'ASSOCIATED HOTELS OF INDIA LTD. v. R. N. KAPOOR',
+        decidedOn: '1959-09-18',
+        court: 'Supreme Court of India',
+      },
     );
     const all = old.blocks.map((b) => b.text).join('\n');
     expect(old.headnote).toContain('Room in a hotel');
@@ -141,23 +156,37 @@ describe('pdfToJudgment (official PDFs)', () => {
 
   it('takes scanned reports’ margin letters out of the text column', () => {
     const scan = pdfToJudgment(
-      doc([[L('The Judgment of the Court was delivered by'), L(`1. It is only when the award is in conflict with the public policy of India F`), L('A that the merits are looked into.')]], true),
+      doc(
+        [
+          [
+            L('The Judgment of the Court was delivered by'),
+            L(`1. It is only when the award is in conflict with the public policy of India F`),
+            L('A that the merits are looked into.'),
+          ],
+        ],
+        true,
+      ),
       { caseName: 'X v. Y', decidedOn: null, court: null },
     );
-    expect(scan.blocks.map((b) => b.text)).toContain('1. It is only when the award is in conflict with the public policy of India that the merits are looked into.');
+    expect(scan.blocks.map((b) => b.text)).toContain(
+      '1. It is only when the award is in conflict with the public policy of India that the merits are looked into.',
+    );
   });
 });
 
 describe('reporter notes and the Bench', () => {
   it('reads the e-SCR editor’s note on who formed the majority, and the separate opinions', () => {
     const note = reporterNoteOf([
-      "Ed. Note: Hon’ble Dr. Dhananjaya Y. Chandrachud, CJI pronounced judgment on behalf of his Lordship, Hon’ble Mr. Justice Hrishikesh Roy, Hon’ble Mr. Justice J.B. Pardiwala and Hon’ble Mr. Justice Manoj Misra. Hon’ble Mr. Justice Pamidighantam Sri Narasimha pronounced a separate concurring judgment.",
+      'Ed. Note: Hon’ble Dr. Dhananjaya Y. Chandrachud, CJI pronounced judgment on behalf of his Lordship, Hon’ble Mr. Justice Hrishikesh Roy, Hon’ble Mr. Justice J.B. Pardiwala and Hon’ble Mr. Justice Manoj Misra. Hon’ble Mr. Justice Pamidighantam Sri Narasimha pronounced a separate concurring judgment.',
     ]);
     expect(note.majority).toEqual(['Dhananjaya Y. Chandrachud', 'Hrishikesh Roy', 'J.B. Pardiwala', 'Manoj Misra']);
   });
 
   it('reads "(per X, J.) (Dissenting)" and "Per X, J. (Concurring):"', () => {
-    const note = reporterNoteOf(['Held: (per K.V. Viswanathan, J.) (Dissenting) Courts exercising …', 'Per N. V. RAMANA, J. (Concurring): The reference …']);
+    const note = reporterNoteOf([
+      'Held: (per K.V. Viswanathan, J.) (Dissenting) Courts exercising …',
+      'Per N. V. RAMANA, J. (Concurring): The reference …',
+    ]);
     expect(note.dissenting).toEqual(['K.V. Viswanathan']);
     expect(note.concurring).toEqual(['N. V. RAMANA']);
   });
@@ -184,6 +213,10 @@ describe('reporter notes and the Bench', () => {
   });
 
   it('reads the Bench line, also over two lines', () => {
-    expect(benchOf(['[DR DHANANJAYA Y CHANDRACHUD, CJI,', 'HRISHIKESH ROY AND MANOJ MISRA, JJ.]'])).toEqual(['DHANANJAYA Y CHANDRACHUD', 'HRISHIKESH ROY', 'MANOJ MISRA']);
+    expect(benchOf(['[DR DHANANJAYA Y CHANDRACHUD, CJI,', 'HRISHIKESH ROY AND MANOJ MISRA, JJ.]'])).toEqual([
+      'DHANANJAYA Y CHANDRACHUD',
+      'HRISHIKESH ROY',
+      'MANOJ MISRA',
+    ]);
   });
 });

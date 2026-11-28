@@ -10,7 +10,12 @@ import { Button } from './button';
 
 /** A grey block in the shape of what is coming. Still for people who ask for less motion. */
 export function Skeleton({ className }: { className?: string }) {
-  return <div aria-hidden className={cn('animate-pulse rounded-control bg-border/60 motion-reduce:animate-none', className)} />;
+  return (
+    <div
+      aria-hidden
+      className={cn('animate-pulse rounded-control bg-border/60 motion-reduce:animate-none', className)}
+    />
+  );
 }
 
 /** Rows of a list while it loads, labelled for screen readers. */
@@ -46,11 +51,25 @@ export function useSlow(active: boolean, ms = 8000): boolean {
 export function SlowNote({ active = true }: { active?: boolean }) {
   const slow = useSlow(active);
   if (!slow) return null;
-  return <p className="text-sm text-muted">This is taking longer than usual. Your connection may be slow; it will appear as soon as it arrives.</p>;
+  return (
+    <p className="text-sm text-muted">
+      This is taking longer than usual. Your connection may be slow; it will appear as soon as it arrives.
+    </p>
+  );
 }
 
 /** A load that failed: what failed, in plain words, and a way to try again. */
-export function LoadError({ what, onRetry, className, children }: { what: string; onRetry?: () => void; className?: string; children?: ReactNode }) {
+export function LoadError({
+  what,
+  onRetry,
+  className,
+  children,
+}: {
+  what: string;
+  onRetry?: () => void;
+  className?: string;
+  children?: ReactNode;
+}) {
   const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
   return (
     <div role="alert" className={cn('rounded-card border border-border bg-surface p-5 text-sm', className)}>
@@ -58,7 +77,11 @@ export function LoadError({ what, onRetry, className, children }: { what: string
         {offline && <WifiOff className="size-4 text-muted" aria-hidden />}
         {offline ? 'You seem to be offline.' : `${what} could not be loaded.`}
       </p>
-      <p className="mt-1 text-muted">{offline ? 'Check your internet connection, then try again.' : 'Nothing you made is lost. Try again in a moment.'}</p>
+      <p className="mt-1 text-muted">
+        {offline
+          ? 'Check your internet connection, then try again.'
+          : 'Nothing you made is lost. Try again in a moment.'}
+      </p>
       {children}
       {onRetry && (
         <Button size="sm" className="mt-3" onClick={onRetry}>

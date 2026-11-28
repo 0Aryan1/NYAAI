@@ -10,7 +10,17 @@
  */
 import { randomBytes } from 'node:crypto';
 import type pg from 'pg';
-import { codeChecks, decide, looksLegal, passedCode, type CheckResult, type CheckSource, type ClaimInput, type ClaimType, type MappingRow } from '@nyaai/checker-rules';
+import {
+  codeChecks,
+  decide,
+  looksLegal,
+  passedCode,
+  type CheckResult,
+  type CheckSource,
+  type ClaimInput,
+  type ClaimType,
+  type MappingRow,
+} from '@nyaai/checker-rules';
 import { understandQuery } from '@nyaai/legal';
 import type { CoverageChangedItem, EditLine, EditSlide } from '@nyaai/shared';
 import { AppError } from '../../errors.ts';
@@ -61,11 +71,19 @@ const newKey = () => `e-${randomBytes(4).toString('hex')}`;
 /** Tiptap-shaped document, as the build saves it (LLD §11.4). */
 const doc = (lines: { lineKey: string; kind: string; yourExample: boolean; edited: boolean; text: string }[]) => ({
   type: 'doc',
-  content: lines.map((l) => ({ type: 'claimLine', attrs: { lineKey: l.lineKey, kind: l.kind, yourExample: l.yourExample, edited: l.edited }, content: [{ type: 'text', text: l.text }] })),
+  content: lines.map((l) => ({
+    type: 'claimLine',
+    attrs: { lineKey: l.lineKey, kind: l.kind, yourExample: l.yourExample, edited: l.edited },
+    content: [{ type: 'text', text: l.text }],
+  })),
 });
 
 export async function loadSlide(c: pg.PoolClient, slideId: string): Promise<SlideRow> {
-  const s = (await c.query<SlideRow>('select id, lecture_id, title, body, notes, current_version from slides where id = $1', [slideId])).rows[0];
+  const s = (
+    await c.query<SlideRow>('select id, lecture_id, title, body, notes, current_version from slides where id = $1', [
+      slideId,
+    ])
+  ).rows[0];
   if (!s) throw new AppError('NOT_FOUND', 'We could not find that slide.');
   return s;
 }
@@ -73,24 +91,53 @@ export async function loadSlide(c: pg.PoolClient, slideId: string): Promise<Slid
 /** Signed old/new law mappings for C5 (as the build reads them). */
 async function mappings(c: pg.PoolClient): Promise<MappingRow[]> {
   return (
-    await c.query<{ old_act: string; new_act: string; relation: MappingRow['relation']; old: string[] | null; new: string[] | null; signed: boolean }>(
+    await c.query<{
+      old_act: string;
+      new_act: string;
+      relation: MappingRow['relation'];
+      old: string[] | null;
+      new: string[] | null;
+      signed: boolean;
+    }>(
       `select m.old_act, m.new_act, m.relation, m.reviewed_at is not null as signed,
               array_agg(i.section) filter (where i.side = 'old') as old, array_agg(i.section) filter (where i.side = 'new') as new
          from law_mappings m left join law_mapping_items i on i.mapping_id = m.id group by m.id`,
     )
-  ).rows.map((m) => ({ oldAct: m.old_act, newAct: m.new_act, relation: m.relation, oldSections: m.old ?? [], newSections: m.new ?? [], signed: m.signed }));
+  ).rows.map((m) => ({
+    oldAct: m.old_act,
+    newAct: m.new_act,
+    relation: m.relation,
+    oldSections: m.old ?? [],
+    newSections: m.new ?? [],
+    signed: m.signed,
+  }));
 }
 
 /**
  * The sources a set of citations rest on, as the checks see them: one S-tag per chunk (the paragraph or section the
  * span sits in, with its parent section for a sub-section).
  */
-export async function sourcesFor(c: pg.PoolClient, chunkIds: string[]): Promise<Map<string, CheckSource & { chunkId: string }>> {
+export async function sourcesFor(
+  c: pg.PoolClient,
+  chunkIds: string[],
+): Promise<Map<string, CheckSource & { chunkId: string }>> {
   const ids = [...new Set(chunkIds)];
   const out = new Map<string, CheckSource & { chunkId: string }>();
   if (!ids.length) return out;
   const rows = (
-    await c.query<{ id: string; source_id: string; header: string | null; text: string; parent_text: string | null; section: string | null; article: string | null; source_type: string; court: string | null; decided_on: Date | null; case_status: string | null }>(
+    await c.query<{
+      id: string;
+      source_id: string;
+      header: string | null;
+      text: string;
+      parent_text: string | null;
+      section: string | null;
+      article: string | null;
+      source_type: string;
+      court: string | null;
+      decided_on: Date | null;
+      case_status: string | null;
+    }>(
       `select k.id, k.source_id, k.header, k.text, p.text as parent_text, k.section, k.article, k.source_type::text, s.court, s.decided_on, cs.status as case_status
          from chunks k join sources s on s.id = k.source_id left join chunks p on p.id = k.parent_id left join case_status_v cs on cs.source_id = k.source_id
         where k.id = any($1::uuid[])`,
@@ -136,7 +183,10 @@ async function retire(c: pg.PoolClient, slideId: string, lineKeys: string[]) {
 async function namesFound(c: pg.PoolClient, text: string): Promise<boolean> {
   const q = understandQuery(text);
   for (const name of q.caseNames) {
-    const hit = await c.query("select 1 from sources where type = 'judgment' and status <> 'retired' and similarity(title, $1) >= 0.35 limit 1", [name]);
+    const hit = await c.query(
+      "select 1 from sources where type = 'judgment' and status <> 'retired' and similarity(title, $1) >= 0.35 limit 1",
+      [name],
+    );
     if (!hit.rowCount) return false;
   }
   for (const ref of q.refs) {
@@ -161,20 +211,67 @@ async function checkLine(
   previous: CitationRow[],
   maps: MappingRow[],
 ): Promise<string[]> {
-  const insert = async (row: { claimType: ClaimType; risk: 'normal' | 'high'; sourceId: string | null; chunkId: string | null; span: string; status: string; checks: CheckResult[]; flag: string | null; reason: string | null; tag: string | null; label: string | null; partIndex: number | null; relevance?: string | null }) =>
+  const insert = async (row: {
+    claimType: ClaimType;
+    risk: 'normal' | 'high';
+    sourceId: string | null;
+    chunkId: string | null;
+    span: string;
+    status: string;
+    checks: CheckResult[];
+    flag: string | null;
+    reason: string | null;
+    tag: string | null;
+    label: string | null;
+    partIndex: number | null;
+    relevance?: string | null;
+  }) =>
     (
       await c.query<{ id: string }>(
         `insert into citations (college_id, owner_id, lecture_id, slide_id, line_key, claim_text, claim_type, risk, source_id, chunk_id, span_text,
                                 check_status, checks, flag_kind, flag_reason, tag, source_label, part_index, source_relevance)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) returning id`,
-        [who.collegeId, who.userId, slide.lecture_id, slide.id, line.lineKey, line.text, row.claimType, row.risk, row.sourceId, row.chunkId, row.span, row.status, JSON.stringify(row.checks), row.flag, row.reason, row.tag, row.label, row.partIndex, row.relevance ?? null],
+        [
+          who.collegeId,
+          who.userId,
+          slide.lecture_id,
+          slide.id,
+          line.lineKey,
+          line.text,
+          row.claimType,
+          row.risk,
+          row.sourceId,
+          row.chunkId,
+          row.span,
+          row.status,
+          JSON.stringify(row.checks),
+          row.flag,
+          row.reason,
+          row.tag,
+          row.label,
+          row.partIndex,
+          row.relevance ?? null,
+        ],
       )
     ).rows[0]!.id;
 
   // Her example: no source needed; a case or section it names must exist (STUDIO-6).
   if (line.yourExample) {
     if (!(await namesFound(c, line.text))) {
-      await insert({ claimType: 'example', risk: 'normal', sourceId: null, chunkId: null, span: '', status: 'open', checks: [{ name: 'C3', result: 'fail', detail: EXAMPLE_NAMES }], flag: 'yellow', reason: EXAMPLE_NAMES, tag: null, label: null, partIndex: previous[0]?.part_index ?? null });
+      await insert({
+        claimType: 'example',
+        risk: 'normal',
+        sourceId: null,
+        chunkId: null,
+        span: '',
+        status: 'open',
+        checks: [{ name: 'C3', result: 'fail', detail: EXAMPLE_NAMES }],
+        flag: 'yellow',
+        reason: EXAMPLE_NAMES,
+        tag: null,
+        label: null,
+        partIndex: previous[0]?.part_index ?? null,
+      });
     }
     return [];
   }
@@ -214,28 +311,56 @@ async function checkLine(
 
   // No source: a line that states law is yellow; a question, a signpost or an analogy is fine as it is.
   if (line.kind === 'claim' || looksLegal(line.text)) {
-    await insert({ claimType: 'fact', risk: 'normal', sourceId: null, chunkId: null, span: '', status: 'open', checks: [{ name: 'C1', result: 'fail', detail: NOT_FOUND }], flag: 'yellow', reason: NOT_FOUND, tag: null, label: null, partIndex: previous[0]?.part_index ?? null });
+    await insert({
+      claimType: 'fact',
+      risk: 'normal',
+      sourceId: null,
+      chunkId: null,
+      span: '',
+      status: 'open',
+      checks: [{ name: 'C1', result: 'fail', detail: NOT_FOUND }],
+      flag: 'yellow',
+      reason: NOT_FOUND,
+      tag: null,
+      label: null,
+      partIndex: previous[0]?.part_index ?? null,
+    });
   }
   return [];
 }
 
 /** A new slide version (STUDIO-7), and the edit event her style learning reads (F10). */
-async function writeVersion(c: pg.PoolClient, who: Who, slide: SlideRow, next: { title: string; body: unknown; notes: unknown }, reason: 'edit' | 'add_example' | 'restore' | 'remove_unverified') {
+async function writeVersion(
+  c: pg.PoolClient,
+  who: Who,
+  slide: SlideRow,
+  next: { title: string; body: unknown; notes: unknown },
+  reason: 'edit' | 'add_example' | 'restore' | 'remove_unverified',
+) {
   const version = slide.current_version + 1;
-  await c.query('update slides set title = $2, body = $3, notes = $4, current_version = $5 where id = $1', [slide.id, next.title, next.body, next.notes, version]);
+  await c.query('update slides set title = $2, body = $3, notes = $4, current_version = $5 where id = $1', [
+    slide.id,
+    next.title,
+    next.body,
+    next.notes,
+    version,
+  ]);
   await c.query(
     `insert into slide_versions (slide_id, college_id, owner_id, version, title, body, notes, reason, created_by) values ($1, $2, $3, $4, $5, $6, $7, $8, $3)`,
     [slide.id, who.collegeId, who.userId, version, next.title, next.body, next.notes, reason],
   );
-  await c.query('insert into edit_events (college_id, owner_id, lecture_id, slide_id, kind, before, after) values ($1, $2, $3, $4, $5, $6, $7)', [
-    who.collegeId,
-    who.userId,
-    slide.lecture_id,
-    slide.id,
-    reason,
-    { title: slide.title, body: slide.body, notes: slide.notes },
-    { title: next.title, body: next.body, notes: next.notes },
-  ]);
+  await c.query(
+    'insert into edit_events (college_id, owner_id, lecture_id, slide_id, kind, before, after) values ($1, $2, $3, $4, $5, $6, $7)',
+    [
+      who.collegeId,
+      who.userId,
+      slide.lecture_id,
+      slide.id,
+      reason,
+      { title: slide.title, body: slide.body, notes: slide.notes },
+      { title: next.title, body: next.body, notes: next.notes },
+    ],
+  );
   await flagDependents(c, slide.lecture_id);
   return version;
 }
@@ -260,12 +385,24 @@ async function flagDependents(c: pg.PoolClient, lectureId: string): Promise<void
 }
 
 /** PATCH /slides/:id (LLD §8.6). Returns the lecture and the citations left for the background check. */
-export async function saveSlideEdit(c: pg.PoolClient, who: Who, slideId: string, edit: EditSlide, reason: 'edit' | 'remove_unverified' = 'edit'): Promise<{ lectureId: string; pending: string[] }> {
+export async function saveSlideEdit(
+  c: pg.PoolClient,
+  who: Who,
+  slideId: string,
+  edit: EditSlide,
+  reason: 'edit' | 'remove_unverified' = 'edit',
+): Promise<{ lectureId: string; pending: string[] }> {
   const slide = await loadSlide(c, slideId);
   if (edit.version !== slide.current_version) {
-    throw new AppError('VERSION_CONFLICT', 'This slide was changed elsewhere (another tab?). Reload it to see the newest version.', { version: slide.current_version });
+    throw new AppError(
+      'VERSION_CONFLICT',
+      'This slide was changed elsewhere (another tab?). Reload it to see the newest version.',
+      { version: slide.current_version },
+    );
   }
-  const before = new Map([...(slide.body.content ?? []), ...(slide.notes.content ?? [])].map((n) => [n.attrs?.lineKey ?? '', n]));
+  const before = new Map(
+    [...(slide.body.content ?? []), ...(slide.notes.content ?? [])].map((n) => [n.attrs?.lineKey ?? '', n]),
+  );
   const cits = (
     await c.query<CitationRow>(
       "select id, line_key, claim_type, source_id, chunk_id, span_text, source_label, source_relevance, tag, risk, part_index from citations where slide_id = $1 and check_status <> 'removed'",
@@ -292,7 +429,9 @@ export async function saveSlideEdit(c: pg.PoolClient, who: Who, slideId: string,
       const previous = old ? citsOf(lineKey) : [];
       if (old) await retire(c, slideId, [lineKey]);
       kept.add(lineKey);
-      pending.push(...(await checkLine(c, who, slide, { lineKey, text: l.text, kind: l.kind, yourExample }, previous, maps)));
+      pending.push(
+        ...(await checkLine(c, who, slide, { lineKey, text: l.text, kind: l.kind, yourExample }, previous, maps)),
+      );
       out.push({ lineKey, kind: l.kind, yourExample, edited: true, text: l.text });
     }
     return out;
@@ -321,14 +460,31 @@ export async function verifyLine(c: pg.PoolClient, slideId: string, lineKey: str
 }
 
 /** POST /slides/:id/examples (STUDIO-6): her example at the end of the slide, optionally saved to her bank (PERS-3). */
-export async function addExample(c: pg.PoolClient, who: Who, slideId: string, text: string, save: boolean): Promise<string> {
+export async function addExample(
+  c: pg.PoolClient,
+  who: Who,
+  slideId: string,
+  text: string,
+  save: boolean,
+): Promise<string> {
   const slide = await loadSlide(c, slideId);
-  const lines = (slide.body.content ?? []).map((n) => ({ lineKey: n.attrs?.lineKey ?? newKey(), kind: n.attrs?.kind ?? 'teaching', yourExample: n.attrs?.yourExample === true, edited: n.attrs?.edited === true, text: lineText(n) }));
+  const lines = (slide.body.content ?? []).map((n) => ({
+    lineKey: n.attrs?.lineKey ?? newKey(),
+    kind: n.attrs?.kind ?? 'teaching',
+    yourExample: n.attrs?.yourExample === true,
+    edited: n.attrs?.edited === true,
+    text: lineText(n),
+  }));
   const lineKey = newKey();
   await checkLine(c, who, slide, { lineKey, text, kind: 'example', yourExample: true }, [], []);
   lines.push({ lineKey, kind: 'example', yourExample: true, edited: true, text });
   await writeVersion(c, who, slide, { title: slide.title, body: doc(lines), notes: slide.notes }, 'add_example');
-  if (save) await c.query('insert into examples (college_id, owner_id, text) values ($1, $2, $3)', [who.collegeId, who.userId, text]);
+  if (save)
+    await c.query('insert into examples (college_id, owner_id, text) values ($1, $2, $3)', [
+      who.collegeId,
+      who.userId,
+      text,
+    ]);
   return slide.lecture_id;
 }
 
@@ -339,9 +495,13 @@ export async function addExample(c: pg.PoolClient, who: Who, slideId: string, te
 export async function restoreSlide(c: pg.PoolClient, who: Who, slideId: string, version: number): Promise<string> {
   const slide = await loadSlide(c, slideId);
   const v = (
-    await c.query<{ title: string; body: SlideRow['body']; notes: SlideRow['notes']; created_at: Date }>('select title, body, notes, created_at from slide_versions where slide_id = $1 and version = $2', [slideId, version])
+    await c.query<{ title: string; body: SlideRow['body']; notes: SlideRow['notes']; created_at: Date }>(
+      'select title, body, notes, created_at from slide_versions where slide_id = $1 and version = $2',
+      [slideId, version],
+    )
   ).rows[0];
-  if (!v || version >= slide.current_version) throw new AppError('NOT_FOUND', 'That version of the slide is not there.');
+  if (!v || version >= slide.current_version)
+    throw new AppError('NOT_FOUND', 'That version of the slide is not there.');
   // Citations that were active at that moment come back; those added since are set aside (kept, for a redo).
   await c.query(
     `update citations set check_status = prev_status, prev_status = null, removed_at = null
@@ -362,14 +522,27 @@ export async function restoreSlide(c: pg.PoolClient, who: Who, slideId: string, 
  * the section as its source. The code checks run as on any line; only when every one passes is the quote supported,
  * since a word-for-word quote needs no AI reading (C9/C10). Otherwise the line is yellow with the reason.
  */
-export async function addCoverageLine(c: pg.PoolClient, who: Who, itemId: string): Promise<{ lectureId: string; slideId: string; lineKey: string }> {
+export async function addCoverageLine(
+  c: pg.PoolClient,
+  who: Who,
+  itemId: string,
+): Promise<{ lectureId: string; slideId: string; lineKey: string }> {
   const item = (
-    await c.query<{ lecture_id: string; item_kind: string; item_ref: string | null; item_label: string | null; item_text: string | null; state: string; section_key: string }>(
+    await c.query<{
+      lecture_id: string;
+      item_kind: string;
+      item_ref: string | null;
+      item_label: string | null;
+      item_text: string | null;
+      state: string;
+      section_key: string;
+    }>(
       'select lecture_id, item_kind, item_ref, item_label, item_text, state, section_key from coverage_items where id = $1',
       [itemId],
     )
   ).rows[0];
-  if (!item || item.state !== 'missing' || !canAddFor(item)) throw new AppError('NOT_FOUND', 'That item is not open, or it needs your own teaching (a leading case).');
+  if (!item || item.state !== 'missing' || !canAddFor(item))
+    throw new AppError('NOT_FOUND', 'That item is not open, or it needs your own teaching (a leading case).');
   const chunkId = item.item_ref!;
   const home = (
     await c.query<{ id: string; source_label: string | null }>(
@@ -378,7 +551,13 @@ export async function addCoverageLine(c: pg.PoolClient, who: Who, itemId: string
       [item.lecture_id, chunkId],
     )
   ).rows[0];
-  const slideId = home?.id ?? (await c.query<{ id: string }>('select id from slides where lecture_id = $1 order by position desc limit 1', [item.lecture_id])).rows[0]?.id;
+  const slideId =
+    home?.id ??
+    (
+      await c.query<{ id: string }>('select id from slides where lecture_id = $1 order by position desc limit 1', [
+        item.lecture_id,
+      ])
+    ).rows[0]?.id;
   if (!slideId) throw new AppError('NOT_FOUND', 'This lecture has no slides yet.');
   const src = (await sourcesFor(c, [chunkId])).get(chunkId);
   if (!src) throw new AppError('NOT_FOUND', 'The section this item comes from is no longer in the library.');
@@ -389,16 +568,43 @@ export async function addCoverageLine(c: pg.PoolClient, who: Who, itemId: string
   const claim: ClaimInput = { text, type: 'quote', tag: src.tag, span: words };
   const out = codeChecks(claim, new Map([[src.tag, src]]), await mappings(c));
   const verbatim: CheckResult = { name: 'C9', result: 'pass', detail: VERBATIM };
-  const results = passedCode(out.results) ? [...out.results, verbatim, ...(out.risk === 'high' ? [{ ...verbatim, name: 'C10' as const }] : [])] : out.results;
+  const results = passedCode(out.results)
+    ? [...out.results, verbatim, ...(out.risk === 'high' ? [{ ...verbatim, name: 'C10' as const }] : [])]
+    : out.results;
   const d = decide(results);
   const lineKey = newKey();
   await c.query(
     `insert into citations (college_id, owner_id, lecture_id, slide_id, line_key, claim_text, claim_type, risk, source_id, chunk_id, span_text, span_start, span_end,
                             check_status, checks, flag_kind, flag_reason, tag, source_label, part_index)
      values ($1, $2, $3, $4, $5, $6, 'quote', $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, (select part_index from slides where id = $4))`,
-    [who.collegeId, who.userId, item.lecture_id, slideId, lineKey, text, out.risk, src.sourceId, out.chunkId ?? chunkId, words, out.spanStart, out.spanEnd, d.status, JSON.stringify(results), d.flag, d.reason, src.tag, home?.source_label ?? src.header],
+    [
+      who.collegeId,
+      who.userId,
+      item.lecture_id,
+      slideId,
+      lineKey,
+      text,
+      out.risk,
+      src.sourceId,
+      out.chunkId ?? chunkId,
+      words,
+      out.spanStart,
+      out.spanEnd,
+      d.status,
+      JSON.stringify(results),
+      d.flag,
+      d.reason,
+      src.tag,
+      home?.source_label ?? src.header,
+    ],
   );
-  const lines = (slide.body.content ?? []).map((n) => ({ lineKey: n.attrs?.lineKey ?? newKey(), kind: n.attrs?.kind ?? 'teaching', yourExample: n.attrs?.yourExample === true, edited: n.attrs?.edited === true, text: lineText(n) }));
+  const lines = (slide.body.content ?? []).map((n) => ({
+    lineKey: n.attrs?.lineKey ?? newKey(),
+    kind: n.attrs?.kind ?? 'teaching',
+    yourExample: n.attrs?.yourExample === true,
+    edited: n.attrs?.edited === true,
+    text: lineText(n),
+  }));
   lines.push({ lineKey, kind: 'claim', yourExample: false, edited: true, text });
   await writeVersion(c, who, slide, { title: slide.title, body: doc(lines), notes: slide.notes }, 'edit');
   return { lectureId: item.lecture_id, slideId, lineKey };
@@ -424,7 +630,11 @@ export async function refreshCounts(c: pg.PoolClient, lectureId: string): Promis
  * check.lines (LLD §5, §8.6): C9 for each changed line still waiting, and C10 for high-risk ones, against the words it
  * rests on. A pass turns the line supported; anything else keeps it yellow with the reason. Never blocks her typing.
  */
-export async function checkEditedLines(tenant: <T>(fn: (c: pg.PoolClient) => Promise<T>) => Promise<T>, citationIds: string[], deps: { gateway: Gateway; usage: UsageSink }): Promise<number> {
+export async function checkEditedLines(
+  tenant: <T>(fn: (c: pg.PoolClient) => Promise<T>) => Promise<T>,
+  citationIds: string[],
+  deps: { gateway: Gateway; usage: UsageSink },
+): Promise<number> {
   const loaded = await tenant(async (c) => {
     const rows = (
       await c.query<CitationRow & { claim_text: string }>(
@@ -432,23 +642,28 @@ export async function checkEditedLines(tenant: <T>(fn: (c: pg.PoolClient) => Pro
         [citationIds, CHANGED],
       )
     ).rows;
-    return { rows, sources: await sourcesFor(c, rows.map((r) => r.chunk_id!).filter(Boolean)), maps: await mappings(c) };
+    return {
+      rows,
+      sources: await sourcesFor(c, rows.map((r) => r.chunk_id!).filter(Boolean)),
+      maps: await mappings(c),
+    };
   });
   let done = 0;
   for (const r of loaded.rows) {
     const src = loaded.sources.get(r.chunk_id!);
     if (!src) continue;
-    const [checked] = await checkClaims([{ id: r.id, claim: { text: r.claim_text, type: r.claim_type, tag: src.tag, span: r.span_text } }], new Map([[src.tag, src]]), loaded.maps, deps);
+    const [checked] = await checkClaims(
+      [{ id: r.id, claim: { text: r.claim_text, type: r.claim_type, tag: src.tag, span: r.span_text } }],
+      new Map([[src.tag, src]]),
+      loaded.maps,
+      deps,
+    );
     const d = decide(checked!.results);
     await tenant((c) =>
-      c.query("update citations set check_status = $2, checks = $3, flag_kind = $4, flag_reason = $5 where id = $1 and check_status = 'open' and flag_reason = $6", [
-        r.id,
-        d.status,
-        JSON.stringify(checked!.results),
-        d.flag,
-        d.reason,
-        CHANGED,
-      ]),
+      c.query(
+        "update citations set check_status = $2, checks = $3, flag_kind = $4, flag_reason = $5 where id = $1 and check_status = 'open' and flag_reason = $6",
+        [r.id, d.status, JSON.stringify(checked!.results), d.flag, d.reason, CHANGED],
+      ),
     );
     done += 1;
   }

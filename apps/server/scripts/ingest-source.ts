@@ -27,10 +27,16 @@ const { values: a } = parseArgs({
 const config = loadConfig();
 if (config.NODE_ENV !== 'development') throw new Error('ingest:source is a development tool.');
 if (!a.act || (!a.url && !a.file)) {
-  console.error('Usage: pnpm ingest:source (--url <https> | --file <path>) --act "<Act name>" [--year 1872] [--type act|constitution] [--origin india_code]');
+  console.error(
+    'Usage: pnpm ingest:source (--url <https> | --file <path>) --act "<Act name>" [--year 1872] [--type act|constitution] [--origin india_code]',
+  );
   process.exit(1);
 }
-const url = a.file ? pathToFileURL(path.resolve(process.env.INIT_CWD ?? process.cwd(), a.file.replace(/^~(?=\/)/, process.env.HOME ?? '~'))).href : a.url!;
+const url = a.file
+  ? pathToFileURL(
+      path.resolve(process.env.INIT_CWD ?? process.cwd(), a.file.replace(/^~(?=\/)/, process.env.HOME ?? '~')),
+    ).href
+  : a.url!;
 const library = createPool(config.DATABASE_URL_LIBRARY!, 2);
 const storage = createStorage({
   endpoint: config.S3_ENDPOINT,
@@ -43,7 +49,10 @@ const storage = createStorage({
 try {
   const title = a.title ?? (a.year ? `${a.act}, ${a.year}` : a.act);
   const existing = (
-    await library.query<{ id: string }>('select id from sources where url = $1 and origin = $2 order by created_at desc limit 1', [url, a.origin])
+    await library.query<{ id: string }>(
+      'select id from sources where url = $1 and origin = $2 order by created_at desc limit 1',
+      [url, a.origin],
+    )
   ).rows[0];
   const sourceId =
     existing?.id ??
@@ -56,7 +65,12 @@ try {
       )
     ).rows[0]!.id;
   const started = Date.now();
-  const result = await ingestSource(sourceId, { library, storage, allowFile: true, progress: (s) => console.log(`  ${s}…`) });
+  const result = await ingestSource(sourceId, {
+    library,
+    storage,
+    allowFile: true,
+    progress: (s) => console.log(`  ${s}…`),
+  });
   console.log(JSON.stringify({ sourceId, ...result, seconds: (Date.now() - started) / 1000 }, null, 2));
 } finally {
   await library.end();

@@ -12,8 +12,10 @@ export function checkProcessor(deps: { worker: pg.Pool; gateway: Gateway; logger
   return async (job: Job<CheckJobData>) => {
     if (job.name !== 'check.lines') throw new Error(`unknown check job ${job.name}`);
     const d = job.data;
-    const tenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) => withTenant(deps.worker, { userId: d.ownerId, collegeId: d.collegeId, role: 'teacher' }, fn);
-    const usage = (row: Parameters<ReturnType<typeof usageSink>>[0]) => tenant((c) => usageSink(c, { collegeId: d.collegeId, ownerId: d.ownerId })({ ...row, lectureId: d.lectureId }));
+    const tenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+      withTenant(deps.worker, { userId: d.ownerId, collegeId: d.collegeId, role: 'teacher' }, fn);
+    const usage = (row: Parameters<ReturnType<typeof usageSink>>[0]) =>
+      tenant((c) => usageSink(c, { collegeId: d.collegeId, ownerId: d.ownerId })({ ...row, lectureId: d.lectureId }));
     try {
       const done = await checkEditedLines(tenant, d.citationIds, { gateway: deps.gateway, usage });
       await tenant((c) => refreshCounts(c, d.lectureId));
@@ -23,7 +25,10 @@ export function checkProcessor(deps: { worker: pg.Pool; gateway: Gateway; logger
       // Last attempt: the line stays yellow, and says so plainly instead of "being checked" for ever.
       if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1)) {
         await tenant((c) =>
-          c.query("update citations set flag_reason = 'Changed by you: please verify' where id = any($1::uuid[]) and check_status = 'open' and flag_reason = $2", [d.citationIds, CHANGED]),
+          c.query(
+            "update citations set flag_reason = 'Changed by you: please verify' where id = any($1::uuid[]) and check_status = 'open' and flag_reason = $2",
+            [d.citationIds, CHANGED],
+          ),
         );
       }
       throw err;

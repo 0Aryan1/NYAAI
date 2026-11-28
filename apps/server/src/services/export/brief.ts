@@ -43,7 +43,10 @@ export interface PlannedBrief {
 }
 
 /** The content of the file, in the order of the page. */
-export function planBrief(run: Pick<ResearchRunView, 'question' | 'scope' | 'brief' | 'createdAt'>, today: string): PlannedBrief {
+export function planBrief(
+  run: Pick<ResearchRunView, 'question' | 'scope' | 'brief' | 'createdAt'>,
+  today: string,
+): PlannedBrief {
   const b = run.brief;
   if (!b) throw new Error('the brief is not ready');
   const notes: PlannedBrief['notes'] = [];
@@ -54,11 +57,21 @@ export function planBrief(run: Pick<ResearchRunView, 'question' | 'scope' | 'bri
       note = notes.length + 1;
       notes.push({ n: note, text: `Please verify: ${l.reason ?? 'this line'}`, line: l.text });
     }
-    return { text: grey && !l.text.includes(NOT_VERIFIED) ? `${l.text} ${NOT_VERIFIED}` : l.text, sources: l.sources.map((s) => `${s.tag} · ${s.label}`), note };
+    return {
+      text: grey && !l.text.includes(NOT_VERIFIED) ? `${l.text} ${NOT_VERIFIED}` : l.text,
+      sources: l.sources.map((s) => `${s.tag} · ${s.label}`),
+      note,
+    };
   };
   const sections: PlannedBrief['sections'] = [];
   const empty = b.shortAnswer.length === 0 && b.keyPoints.length === 0;
-  if (empty) sections.push({ heading: 'Short answer', bullets: ['The library does not hold enough to answer this yet. The library team has the question and will look for the sources.'] });
+  if (empty)
+    sections.push({
+      heading: 'Short answer',
+      bullets: [
+        'The library does not hold enough to answer this yet. The library team has the question and will look for the sources.',
+      ],
+    });
   else {
     sections.push({ heading: 'Short answer', lines: b.shortAnswer.map(line) });
     if (b.keyPoints.length) sections.push({ heading: 'Key points', lines: b.keyPoints.map(line) });
@@ -66,7 +79,10 @@ export function planBrief(run: Pick<ResearchRunView, 'question' | 'scope' | 'bri
   }
   if (b.openQuestions.length) sections.push({ heading: 'Open questions', bullets: b.openQuestions });
   if (b.notFound.length) sections.push({ heading: 'Not found in the sources', bullets: b.notFound });
-  const years = run.scope.fromYear || run.scope.toYear ? ` · judgments ${run.scope.fromYear ?? 'any year'}–${run.scope.toYear ?? 'now'}` : '';
+  const years =
+    run.scope.fromYear || run.scope.toYear
+      ? ` · judgments ${run.scope.fromYear ?? 'any year'}–${run.scope.toYear ?? 'now'}`
+      : '';
   return {
     title: run.question,
     subtitle: `Research brief · ${run.scope.comparative ? 'Comparative' : 'India only'}${years} · asked ${run.createdAt.slice(0, 10)} · exported ${today}`,
@@ -75,12 +91,20 @@ export function planBrief(run: Pick<ResearchRunView, 'question' | 'scope' | 'bri
     evidence: b.evidence.map((e) => ({
       tag: e.tag,
       label: e.label,
-      meta: [e.court, e.decidedOn, `found for question ${e.subQuestion}`, e.provisional ? 'not yet reviewed by the library team' : null].filter(Boolean).join(' · '),
+      meta: [
+        e.court,
+        e.decidedOn,
+        `found for question ${e.subQuestion}`,
+        e.provisional ? 'not yet reviewed by the library team' : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
       relation: RELATION[e.relation],
       status: e.statusLabel,
       words: e.spans.length ? e.spans : [e.text.slice(0, 600)],
     })),
-    footer: 'Prepared with NYAAI from the library’s Acts and judgments only. Every line was checked against the words it cites; lines marked with a number are still to verify (see the notes).',
+    footer:
+      'Prepared with NYAAI from the library’s Acts and judgments only. Every line was checked against the words it cites; lines marked with a number are still to verify (see the notes).',
   };
 }
 
@@ -114,7 +138,9 @@ export async function renderDocx(p: PlannedBrief): Promise<Buffer> {
           children: [
             new TextRun({ text: l.text, ...(l.note ? { underline: { color: YELLOW } } : {}) }),
             ...(l.note ? [new FootnoteReferenceRun(l.note)] : []),
-            ...(l.sources.length ? [new TextRun({ text: l.sources.join('; '), color: MUTED, size: 18, break: 1 })] : []),
+            ...(l.sources.length
+              ? [new TextRun({ text: l.sources.join('; '), color: MUTED, size: 18, break: 1 })]
+              : []),
           ],
         }),
       );
@@ -122,24 +148,65 @@ export async function renderDocx(p: PlannedBrief): Promise<Buffer> {
     for (const x of s.bullets ?? []) body.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun(x)] }));
   }
   if (p.evidence.length) {
-    body.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(`Evidence (${p.evidence.length})`)] }));
+    body.push(
+      new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(`Evidence (${p.evidence.length})`)] }),
+    );
     const cell = (children: Paragraph[], width: number, head = false) =>
-      new TableCell({ children, width: { size: width, type: WidthType.PERCENTAGE }, ...(head ? { shading: { type: ShadingType.CLEAR, color: 'auto', fill: 'EEF0F3' } } : {}) });
+      new TableCell({
+        children,
+        width: { size: width, type: WidthType.PERCENTAGE },
+        ...(head ? { shading: { type: ShadingType.CLEAR, color: 'auto', fill: 'EEF0F3' } } : {}),
+      });
     body.push(
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
           new TableRow({
             tableHeader: true,
-            children: [cell([new Paragraph({ children: [new TextRun({ text: 'Source', bold: true })] })], 30, true), cell([new Paragraph({ children: [new TextRun({ text: 'How it relates · status', bold: true })] })], 20, true), cell([new Paragraph({ children: [new TextRun({ text: 'The exact words used', bold: true })] })], 50, true)],
+            children: [
+              cell([new Paragraph({ children: [new TextRun({ text: 'Source', bold: true })] })], 30, true),
+              cell(
+                [new Paragraph({ children: [new TextRun({ text: 'How it relates · status', bold: true })] })],
+                20,
+                true,
+              ),
+              cell(
+                [new Paragraph({ children: [new TextRun({ text: 'The exact words used', bold: true })] })],
+                50,
+                true,
+              ),
+            ],
           }),
           ...p.evidence.map(
             (e) =>
               new TableRow({
                 children: [
-                  cell([new Paragraph({ children: [new TextRun({ text: `${e.tag} · ${e.label}`, bold: true })] }), new Paragraph({ children: [new TextRun({ text: e.meta, color: MUTED, size: 18 })] })], 30),
-                  cell([new Paragraph(e.relation), new Paragraph({ children: [new TextRun({ text: e.status, color: e.status === 'Status not verified' ? MUTED : undefined, size: 18 })] })], 20),
-                  cell(e.words.map((w) => new Paragraph({ children: [new TextRun({ text: `“${w}”`, size: 18 })] })), 50),
+                  cell(
+                    [
+                      new Paragraph({ children: [new TextRun({ text: `${e.tag} · ${e.label}`, bold: true })] }),
+                      new Paragraph({ children: [new TextRun({ text: e.meta, color: MUTED, size: 18 })] }),
+                    ],
+                    30,
+                  ),
+                  cell(
+                    [
+                      new Paragraph(e.relation),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: e.status,
+                            color: e.status === 'Status not verified' ? MUTED : undefined,
+                            size: 18,
+                          }),
+                        ],
+                      }),
+                    ],
+                    20,
+                  ),
+                  cell(
+                    e.words.map((w) => new Paragraph({ children: [new TextRun({ text: `“${w}”`, size: 18 })] })),
+                    50,
+                  ),
                 ],
               }),
           ),
@@ -148,8 +215,23 @@ export async function renderDocx(p: PlannedBrief): Promise<Buffer> {
     );
   }
   if (p.notes.length) {
-    body.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: `Please verify (${p.notes.length})`, color: YELLOW })] }));
-    for (const n of p.notes) body.push(new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: `${n.n}. `, bold: true }), new TextRun(`“${n.line}”`), new TextRun({ text: ` — ${n.text.replace(/^Please verify: /, '')}`, color: YELLOW })] }));
+    body.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: `Please verify (${p.notes.length})`, color: YELLOW })],
+      }),
+    );
+    for (const n of p.notes)
+      body.push(
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({ text: `${n.n}. `, bold: true }),
+            new TextRun(`“${n.line}”`),
+            new TextRun({ text: ` — ${n.text.replace(/^Please verify: /, '')}`, color: YELLOW }),
+          ],
+        }),
+      );
   }
   body.push(
     new Paragraph({
@@ -175,12 +257,19 @@ export async function renderDocx(p: PlannedBrief): Promise<Buffer> {
 // print as junk: ₹ becomes "Rs.", anything else outside the set "?". Noted in docs/memory.md.
 const CP1252_EXTRA = new Set('€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ');
 export function winAnsi(s: string): string {
-  return [...s.replace(/₹\s?/g, 'Rs. ')].map((ch) => (ch.codePointAt(0)! <= 0xff || CP1252_EXTRA.has(ch) ? ch : '?')).join('');
+  return [...s.replace(/₹\s?/g, 'Rs. ')]
+    .map((ch) => (ch.codePointAt(0)! <= 0xff || CP1252_EXTRA.has(ch) ? ch : '?'))
+    .join('');
 }
 
 export function renderPdf(p: PlannedBrief): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margins: { top: 56, bottom: 56, left: 60, right: 60 }, info: { Title: winAnsi(p.title.slice(0, 200)), Creator: 'NYAAI' }, bufferPages: true });
+    const doc = new PDFDocument({
+      size: 'A4',
+      margins: { top: 56, bottom: 56, left: 60, right: 60 },
+      info: { Title: winAnsi(p.title.slice(0, 200)), Creator: 'NYAAI' },
+      bufferPages: true,
+    });
     const parts: Buffer[] = [];
     doc.on('data', (d: Buffer) => parts.push(d));
     doc.on('end', () => resolve(Buffer.concat(parts)));
@@ -195,27 +284,64 @@ export function renderPdf(p: PlannedBrief): Promise<Buffer> {
     for (const s of p.sections) {
       heading(s.heading);
       for (const l of s.lines ?? []) {
-        doc.font('Helvetica').fontSize(10.5).fillColor('#111111').text(t(l.text), { continued: !!l.note, underline: !!l.note });
-        if (l.note) doc.font('Helvetica-Bold').fontSize(8).fillColor('#A34A07').text(` [${l.note}]`, { underline: false });
-        if (l.sources.length) doc.moveDown(0.1).font('Helvetica').fontSize(8.5).fillColor('#5B6270').text(t(l.sources.join('; ')));
+        doc
+          .font('Helvetica')
+          .fontSize(10.5)
+          .fillColor('#111111')
+          .text(t(l.text), { continued: !!l.note, underline: !!l.note });
+        if (l.note)
+          doc.font('Helvetica-Bold').fontSize(8).fillColor('#A34A07').text(` [${l.note}]`, { underline: false });
+        if (l.sources.length)
+          doc
+            .moveDown(0.1)
+            .font('Helvetica')
+            .fontSize(8.5)
+            .fillColor('#5B6270')
+            .text(t(l.sources.join('; ')));
         doc.moveDown(0.5);
       }
-      for (const x of s.bullets ?? []) doc.font('Helvetica').fontSize(10.5).fillColor('#111111').list([t(x)], { bulletRadius: 1.5 }).moveDown(0.2);
+      for (const x of s.bullets ?? [])
+        doc
+          .font('Helvetica')
+          .fontSize(10.5)
+          .fillColor('#111111')
+          .list([t(x)], { bulletRadius: 1.5 })
+          .moveDown(0.2);
     }
     if (p.evidence.length) {
       heading(`Evidence (${p.evidence.length})`);
       for (const e of p.evidence) {
-        doc.font('Helvetica-Bold').fontSize(10).fillColor('#111111').text(t(`${e.tag} · ${e.label}`));
-        doc.font('Helvetica').fontSize(8.5).fillColor('#5B6270').text(t(`${e.relation} · ${e.status}${e.meta ? ` · ${e.meta}` : ''}`));
-        for (const w of e.words) doc.font('Times-Italic').fontSize(10).fillColor('#222222').text(t(`“${w}”`), { indent: 10 });
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(10)
+          .fillColor('#111111')
+          .text(t(`${e.tag} · ${e.label}`));
+        doc
+          .font('Helvetica')
+          .fontSize(8.5)
+          .fillColor('#5B6270')
+          .text(t(`${e.relation} · ${e.status}${e.meta ? ` · ${e.meta}` : ''}`));
+        for (const w of e.words)
+          doc
+            .font('Times-Italic')
+            .fontSize(10)
+            .fillColor('#222222')
+            .text(t(`“${w}”`), { indent: 10 });
         doc.moveDown(0.5);
       }
     }
     if (p.notes.length) {
       heading(`Please verify (${p.notes.length})`, '#A34A07');
       for (const n of p.notes) {
-        doc.font('Helvetica').fontSize(10).fillColor('#111111').text(t(`${n.n}. “${n.line}”`), { continued: true });
-        doc.fillColor('#A34A07').text(t(` — ${n.text.replace(/^Please verify: /, '')}`)).moveDown(0.3);
+        doc
+          .font('Helvetica')
+          .fontSize(10)
+          .fillColor('#111111')
+          .text(t(`${n.n}. “${n.line}”`), { continued: true });
+        doc
+          .fillColor('#A34A07')
+          .text(t(` — ${n.text.replace(/^Please verify: /, '')}`))
+          .moveDown(0.3);
       }
     }
     doc.moveDown(1).font('Helvetica').fontSize(8).fillColor('#5B6270').text(t(p.footer));
@@ -226,7 +352,15 @@ export function renderPdf(p: PlannedBrief): Promise<Buffer> {
       // Below the bottom margin: without this, pdfkit would start a new page for the number.
       const bottom = doc.page.margins.bottom;
       doc.page.margins.bottom = 0;
-      doc.font('Helvetica').fontSize(8).fillColor('#5B6270').text(`${i + 1} / ${range.count}`, 60, doc.page.height - 40, { width: doc.page.width - 120, align: 'right', lineBreak: false });
+      doc
+        .font('Helvetica')
+        .fontSize(8)
+        .fillColor('#5B6270')
+        .text(`${i + 1} / ${range.count}`, 60, doc.page.height - 40, {
+          width: doc.page.width - 120,
+          align: 'right',
+          lineBreak: false,
+        });
       doc.page.margins.bottom = bottom;
     }
     doc.end();

@@ -9,10 +9,18 @@ import { CONSENT_VERSION } from '@nyaai/shared';
 import { AppError } from '../errors.ts';
 
 export async function hasConsent(c: pg.PoolClient): Promise<boolean> {
-  return (await c.query('select 1 from consents where owner_id = app_user() and version = $1 and withdrawn_at is null limit 1', [CONSENT_VERSION])).rowCount === 1;
+  return (
+    (
+      await c.query(
+        'select 1 from consents where owner_id = app_user() and version = $1 and withdrawn_at is null limit 1',
+        [CONSENT_VERSION],
+      )
+    ).rowCount === 1
+  );
 }
 
-export const consentMessage = 'You withdrew your consent, so NYAAI cannot send your work to the services it uses. Agree again to continue.';
+export const consentMessage =
+  'You withdrew your consent, so NYAAI cannot send your work to the services it uses. Agree again to continue.';
 
 export const requireConsent: RequestHandler = async (req, _res, next) => {
   if (req.identity?.role !== 'teacher') return next();

@@ -16,7 +16,14 @@ const CHOICES: { value: Choice; label: string; hint: string }[] = [
   { value: 'reversed', label: 'Reversed', hint: 'Reversed on appeal' },
 ];
 
-export const statusTone = (s: string): PillTone => (s === 'not_verified' ? 'grey' : s === 'overruled' || s === 'reversed' ? 'yellow' : s === 'doubted' ? 'coverage' : 'success');
+export const statusTone = (s: string): PillTone =>
+  s === 'not_verified'
+    ? 'grey'
+    : s === 'overruled' || s === 'reversed'
+      ? 'yellow'
+      : s === 'doubted'
+        ? 'coverage'
+        : 'success';
 
 /**
  * The expert's finding on a case's current status (HLD 5.2 a, LIB-2). Until she records one, every lecture shows
@@ -48,7 +55,11 @@ export function CaseStatusCard({ judgment, step }: { judgment: ReviewJudgment; s
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 id="case-status" className="flex items-center gap-2 font-semibold">
-            {step ? <span className="grid size-6 place-items-center rounded-full bg-bg text-xs">{step}</span> : <Scale className="size-4 text-muted" aria-hidden />}
+            {step ? (
+              <span className="grid size-6 place-items-center rounded-full bg-bg text-xs">{step}</span>
+            ) : (
+              <Scale className="size-4 text-muted" aria-hidden />
+            )}
             Is it still good law?
           </h3>
           <p className="mt-1 text-sm text-muted">
@@ -73,7 +84,14 @@ export function CaseStatusCard({ judgment, step }: { judgment: ReviewJudgment; s
                   choice === c.value ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/60',
                 )}
               >
-                <input type="radio" name="case-status" value={c.value} checked={choice === c.value} onChange={() => setChoice(c.value)} className="sr-only" />
+                <input
+                  type="radio"
+                  name="case-status"
+                  value={c.value}
+                  checked={choice === c.value}
+                  onChange={() => setChoice(c.value)}
+                  className="sr-only"
+                />
                 <span className="block font-medium">{c.label}</span>
                 <span className="block text-xs text-muted">{c.hint}</span>
               </label>
@@ -107,7 +125,11 @@ export function CaseStatusCard({ judgment, step }: { judgment: ReviewJudgment; s
                 className="w-full rounded-control border border-border bg-bg px-3 py-2"
               />
             </label>
-            {save.error && <p className="text-sm text-danger">{save.error instanceof ApiRequestError ? save.error.message : 'Not saved. Try again.'}</p>}
+            {save.error && (
+              <p className="text-sm text-danger">
+                {save.error instanceof ApiRequestError ? save.error.message : 'Not saved. Try again.'}
+              </p>
+            )}
             <div className="flex gap-2">
               <Button type="submit" variant="primary" disabled={save.isPending}>
                 Save the status

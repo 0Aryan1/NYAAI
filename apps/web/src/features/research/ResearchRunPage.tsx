@@ -34,9 +34,20 @@ function Lines({ lines, onSource }: { lines: BriefLine[]; onSource: (tag: string
     <ul className="space-y-2 text-sm leading-relaxed">
       {lines.map((l, i) => (
         <li key={i}>
-          <span className={cn(l.flag === 'yellow' && 'underline decoration-flag-yellow-underline decoration-2 underline-offset-4')}>{l.text}</span>
+          <span
+            className={cn(
+              l.flag === 'yellow' && 'underline decoration-flag-yellow-underline decoration-2 underline-offset-4',
+            )}
+          >
+            {l.text}
+          </span>
           {l.sources.map((s) => (
-            <button key={s.tag} type="button" onClick={() => onSource(s.tag)} className="ml-1.5 rounded-full border border-border px-2 py-0.5 align-middle text-xs text-muted hover:border-accent hover:text-text">
+            <button
+              key={s.tag}
+              type="button"
+              onClick={() => onSource(s.tag)}
+              className="ml-1.5 rounded-full border border-border px-2 py-0.5 align-middle text-xs text-muted hover:border-accent hover:text-text"
+            >
               {s.tag} · {s.label}
             </button>
           ))}
@@ -67,7 +78,8 @@ export function ResearchRunPage() {
   const q = useQuery({
     queryKey: queryKeys.researchRun(runId),
     queryFn: () => api.researchRun(runId),
-    refetchInterval: (query) => (query.state.data && !['ready', 'failed'].includes(query.state.data.status) ? 2000 : false),
+    refetchInterval: (query) =>
+      query.state.data && !['ready', 'failed'].includes(query.state.data.status) ? 2000 : false,
   });
   const [open, setOpen] = useState<string | null>(null);
   const [sort, setSort] = useState<'order' | 'relation' | 'court' | 'date'>('order');
@@ -80,7 +92,11 @@ export function ResearchRunPage() {
     try {
       const r = await api.exportBrief(runId, format);
       saveFile(r.blob, r.fileName);
-      setExportNote(r.toVerify ? `Saved ${r.fileName}. ${r.toVerify} ${r.toVerify === 1 ? 'line is' : 'lines are'} marked “Please verify” in it.` : `Saved ${r.fileName}.`);
+      setExportNote(
+        r.toVerify
+          ? `Saved ${r.fileName}. ${r.toVerify} ${r.toVerify === 1 ? 'line is' : 'lines are'} marked “Please verify” in it.`
+          : `Saved ${r.fileName}.`,
+      );
     } catch (err) {
       setExportNote(err instanceof ApiRequestError ? err.message : 'The file could not be made. Try again.');
     } finally {
@@ -96,7 +112,8 @@ export function ResearchRunPage() {
     return rows;
   }, [run, sort]);
 
-  if (q.isError) return <LoadError what="This research" onRetry={() => void q.refetch()} className="mx-auto max-w-3xl" />;
+  if (q.isError)
+    return <LoadError what="This research" onRetry={() => void q.refetch()} className="mx-auto max-w-3xl" />;
   if (!run)
     return (
       <div className="mx-auto max-w-3xl">
@@ -123,17 +140,28 @@ export function ResearchRunPage() {
             <span className="flex flex-wrap gap-2">
               {run.brief && (run.brief.shortAnswer.length > 0 || run.brief.keyPoints.length > 0) && (
                 <>
-                  <Button disabled={exporting !== null} onClick={() => void exportAs('docx')} title="Lines to verify are marked in the file, with a closing list">
+                  <Button
+                    disabled={exporting !== null}
+                    onClick={() => void exportAs('docx')}
+                    title="Lines to verify are marked in the file, with a closing list"
+                  >
                     <FileDown className="size-4" aria-hidden />
                     {exporting === 'docx' ? 'Preparing…' : 'Word'}
                   </Button>
-                  <Button disabled={exporting !== null} onClick={() => void exportAs('pdf')} title="Lines to verify are marked in the file, with a closing list">
+                  <Button
+                    disabled={exporting !== null}
+                    onClick={() => void exportAs('pdf')}
+                    title="Lines to verify are marked in the file, with a closing list"
+                  >
                     <FileDown className="size-4" aria-hidden />
                     {exporting === 'pdf' ? 'Preparing…' : 'PDF'}
                   </Button>
                 </>
               )}
-              <Button variant="primary" onClick={() => void navigate(`/?topic=${encodeURIComponent(run.question.slice(0, 200))}`)}>
+              <Button
+                variant="primary"
+                onClick={() => void navigate(`/?topic=${encodeURIComponent(run.question.slice(0, 200))}`)}
+              >
                 <Presentation className="size-4" aria-hidden />
                 Turn into a lecture
               </Button>
@@ -147,14 +175,17 @@ export function ResearchRunPage() {
         )}
         <p className="mt-1 text-sm text-muted">
           {run.scope.comparative ? 'Comparative' : 'India only'}
-          {(run.scope.fromYear || run.scope.toYear) && ` · judgments ${run.scope.fromYear ?? 'any year'}–${run.scope.toYear ?? 'now'}`}
+          {(run.scope.fromYear || run.scope.toYear) &&
+            ` · judgments ${run.scope.fromYear ?? 'any year'}–${run.scope.toYear ?? 'now'}`}
         </p>
       </div>
 
       {run.status === 'failed' && (
         <div role="alert" className="rounded-card border border-border bg-surface p-5 text-sm">
           <p className="font-medium">This research did not finish.</p>
-          <p className="mt-1 text-muted">{FAILED[run.errorCode ?? ''] ?? 'Something went wrong on our side. Ask the question again.'}</p>
+          <p className="mt-1 text-muted">
+            {FAILED[run.errorCode ?? ''] ?? 'Something went wrong on our side. Ask the question again.'}
+          </p>
           <Link to="/research" className="mt-3 inline-block text-accent hover:underline">
             Ask again
           </Link>
@@ -172,7 +203,13 @@ export function ResearchRunPage() {
               const now = at === i;
               return (
                 <li key={s.key} className={cn('flex items-center gap-3 text-sm', !done && !now && 'text-muted')}>
-                  {done ? <Check className="size-4 text-success" aria-label="done" /> : now ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-label="now" /> : <Circle className="size-4" aria-hidden />}
+                  {done ? (
+                    <Check className="size-4 text-success" aria-label="done" />
+                  ) : now ? (
+                    <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-label="now" />
+                  ) : (
+                    <Circle className="size-4" aria-hidden />
+                  )}
                   {s.label}
                 </li>
               );
@@ -199,7 +236,10 @@ export function ResearchRunPage() {
               The brief
             </h2>
             {brief.shortAnswer.length === 0 && brief.keyPoints.length === 0 ? (
-              <p className="text-sm text-muted">The library does not hold enough to answer this yet. The library team has your question and will look for the sources.</p>
+              <p className="text-sm text-muted">
+                The library does not hold enough to answer this yet. The library team has your question and will look
+                for the sources.
+              </p>
             ) : (
               <>
                 <div>
@@ -214,7 +254,9 @@ export function ResearchRunPage() {
                 )}
                 {brief.conflicts.length > 0 && (
                   <div>
-                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Where the authorities differ</h3>
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                      Where the authorities differ
+                    </h3>
                     <Lines lines={brief.conflicts} onSource={showSource} />
                   </div>
                 )}
@@ -250,7 +292,11 @@ export function ResearchRunPage() {
               {brief.evidence.length > 1 && (
                 <label className="flex items-center gap-2 text-sm text-muted">
                   Sort by
-                  <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="h-8 rounded-control border border-border bg-surface px-2 text-text">
+                  <select
+                    value={sort}
+                    onChange={(e) => setSort(e.target.value as typeof sort)}
+                    className="h-8 rounded-control border border-border bg-surface px-2 text-text"
+                  >
                     <option value="order">Question</option>
                     <option value="relation">How it relates</option>
                     <option value="court">Court</option>
@@ -264,14 +310,31 @@ export function ResearchRunPage() {
                 const parts = e.spans[0] ? highlight(e.text, e.spans[0]) : null;
                 const expanded = open === e.tag;
                 return (
-                  <li key={e.tag} id={`evidence-${e.tag}`} className={cn('rounded-card border bg-surface p-4 text-sm', expanded ? 'border-accent' : 'border-border')}>
+                  <li
+                    key={e.tag}
+                    id={`evidence-${e.tag}`}
+                    className={cn(
+                      'rounded-card border bg-surface p-4 text-sm',
+                      expanded ? 'border-accent' : 'border-border',
+                    )}
+                  >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <p className="font-medium">
                         {e.tag} · {e.label}
                       </p>
                       <span className="flex flex-wrap gap-1.5">
                         <Pill tone={RELATION[e.relation].tone}>{RELATION[e.relation].label}</Pill>
-                        <Pill tone={e.statusLabel === 'Status not verified' ? 'grey' : /Overruled|Reversed|Repealed|Doubted/.test(e.statusLabel) ? 'yellow' : 'success'}>{e.statusLabel}</Pill>
+                        <Pill
+                          tone={
+                            e.statusLabel === 'Status not verified'
+                              ? 'grey'
+                              : /Overruled|Reversed|Repealed|Doubted/.test(e.statusLabel)
+                                ? 'yellow'
+                                : 'success'
+                          }
+                        >
+                          {e.statusLabel}
+                        </Pill>
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted">
@@ -290,7 +353,12 @@ export function ResearchRunPage() {
                         e.text
                       )}
                     </p>
-                    <button type="button" onClick={() => setOpen(expanded ? null : e.tag)} className="mt-1 text-xs text-accent hover:underline" aria-expanded={expanded}>
+                    <button
+                      type="button"
+                      onClick={() => setOpen(expanded ? null : e.tag)}
+                      className="mt-1 text-xs text-accent hover:underline"
+                      aria-expanded={expanded}
+                    >
                       {expanded ? 'Show less' : 'Show the whole passage'}
                     </button>
                   </li>

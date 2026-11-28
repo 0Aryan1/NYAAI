@@ -96,7 +96,8 @@ const SEPARATOR = /^\s*[_\u2014\u2013-]{5,}\s*$/;
 /** Looks like the start of a section heading whose ".—" may be on the next line. */
 const LOOSE_SECTION = /^\s*(\d+[A-Z]{0,3})\.\s*[^\d\s]/;
 /** "120. [Effect of wrongful refusal to accept.] Rep. by s. 65, ibid.": a repealed section kept as a one-liner. */
-const REPEALED_SECTION = /^\s*(\d+[A-Z]{0,3})\.\s*\[([^\]]{2,300})\]\.?\s*(.*\b(?:Rep\.\s*by|Omitted\s+by|Repealed\s+by).*)$/;
+const REPEALED_SECTION =
+  /^\s*(\d+[A-Z]{0,3})\.\s*\[([^\]]{2,300})\]\.?\s*(.*\b(?:Rep\.\s*by|Omitted\s+by|Repealed\s+by).*)$/;
 /** A superscript marker glued after a word: "becomes impossible or unlawful.1" (marker 1). */
 const GLUED_MARKER = /([A-Za-z\]][.;:,)])(\d{1,2})(?=\s|$)/g;
 /** A marker glued straight onto a word: "on such date2 as the Central Government may …" (marker 2). */
@@ -109,10 +110,15 @@ const CONTENTS_HEADING = /^\s*(?:ARRANGEMENT\s+OF\s+(?:SECTIONS|ARTICLES|RULES)\
 const isContentsHeading = (probe: string) => {
   if (CONTENTS_HEADING.test(probe)) return true;
   const pieces = probe.trim().split(/\s+/);
-  return pieces.length >= 8 && pieces.every((p) => /^[A-Z]{1,2}$/.test(p)) && /^ARRANGEMENTOF(?:SECTIONS|ARTICLES|RULES)$/.test(pieces.join(''));
+  return (
+    pieces.length >= 8 &&
+    pieces.every((p) => /^[A-Z]{1,2}$/.test(p)) &&
+    /^ARRANGEMENTOF(?:SECTIONS|ARTICLES|RULES)$/.test(pieces.join(''))
+  );
 };
 /** "THE FIRST SCHEDULE", "THE SCHEDULE", "APPENDIX I": the sections are over. */
-const SCHEDULE_HEADING = /^\s*(?:THE\s+)?(?:(?:FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH|SEVENTH|EIGHTH|NINTH|TENTH|ELEVENTH|TWELFTH)\s+)?SCHEDULE\s*$|^\s*APPENDIX(?:\s+[IVX]+)?\s*$/;
+const SCHEDULE_HEADING =
+  /^\s*(?:THE\s+)?(?:(?:FIRST|SECOND|THIRD|FOURTH|FIFTH|SIXTH|SEVENTH|EIGHTH|NINTH|TENTH|ELEVENTH|TWELFTH)\s+)?SCHEDULE\s*$|^\s*APPENDIX(?:\s+[IVX]+)?\s*$/;
 const FOOTNOTE_START = /^\s*(\d{1,2})\.\s+(\S.*)$/;
 /** India Code prints the Bill's Statement of Objects and Reasons after the last section: not law. */
 const OBJECTS_HEADING = /^\s*STATEMENT\s+OF\s+OBJECTS\s+AND\s+REASONS\b/i;
@@ -123,7 +129,8 @@ const FOOTNOTE_WORDS = /\b(?:Subs|Ins|Rep)\.\s*by\b|\b(?:omitted|inserted|substi
 const LEADING_MARKERS = /^\s*(?:\d{1,3}\[)+/;
 const MARKER = /(?:^|[\s(\u2014\u2013-])(\d{1,3})(?=\[|\*\s*\*)/g;
 const WEF = /w\.e\.f\.\s*(\d{1,2})[-./](\d{1,2})[-./](\d{4})/;
-const AMENDING_ACT = /\bby\s+(?:the\s+)?((?:Constitution\s+\([^)]+\)\s+Act,?\s*\d{4})|(?:Act\s+\d+\s+of\s+\d{4})|(?:[A-Z][A-Za-z()\s,]*?Act,?\s*\d{4}))/;
+const AMENDING_ACT =
+  /\bby\s+(?:the\s+)?((?:Constitution\s+\([^)]+\)\s+Act,?\s*\d{4})|(?:Act\s+\d+\s+of\s+\d{4})|(?:[A-Z][A-Za-z()\s,]*?Act,?\s*\d{4}))/;
 
 const words = (s: string) => s.trim().split(/\s+/).length;
 const sentenceCase = (s: string) => {
@@ -159,8 +166,15 @@ function isPlausibleJump(prev: string | null, num: string): boolean {
 
 /** A Part or Chapter title: a heading, or an all-capitals line of up to 16 words ("AMENDMENTS TO THE … CODE, 1908"). */
 function isChapterTitle(text: string): boolean {
-  const t = text.replace(/\d{1,3}(?=\[)/g, '').replace(/[[\]]/g, '').replace(/[.,;:]$/, '').trim();
-  return isHeadingLike(t) || (/^[A-Z]/.test(t) && t === t.toUpperCase() && /[A-Z]{3}/.test(t) && words(t) <= 16 && !/[;:]$/.test(t));
+  const t = text
+    .replace(/\d{1,3}(?=\[)/g, '')
+    .replace(/[[\]]/g, '')
+    .replace(/[.,;:]$/, '')
+    .trim();
+  return (
+    isHeadingLike(t) ||
+    (/^[A-Z]/.test(t) && t === t.toUpperCase() && /[A-Z]{3}/.test(t) && words(t) <= 16 && !/[;:]$/.test(t))
+  );
 }
 
 function isHeadingLike(text: string): boolean {
@@ -186,7 +200,9 @@ function displayText(raw: string): string {
 }
 
 function markersIn(raw: string): string[] {
-  return [...raw.matchAll(MARKER), ...raw.matchAll(GLUED_MARKER), ...raw.matchAll(WORD_MARKER)].map((m) => m[m.length - 1]!);
+  return [...raw.matchAll(MARKER), ...raw.matchAll(GLUED_MARKER), ...raw.matchAll(WORD_MARKER)].map(
+    (m) => m[m.length - 1]!,
+  );
 }
 
 function parseAmendment(f: Footnote): Amendment {
@@ -219,7 +235,11 @@ function absorbStrayMarkers(lines: Line[]): MarkedLine[] {
     const digit = /^\s*(\d{1,3})\s*$/.exec(line.text)?.[1];
     if (digit && next && next.pageNo === line.pageNo) {
       if (/^\s*[[*]/.test(next.text)) {
-        out.push({ pageNo: next.pageNo, text: `${digit}${next.text.trimStart()}`, strayMarkers: pending.length ? pending : undefined });
+        out.push({
+          pageNo: next.pageNo,
+          text: `${digit}${next.text.trimStart()}`,
+          strayMarkers: pending.length ? pending : undefined,
+        });
         pending = [];
         i++;
         continue;
@@ -254,7 +274,12 @@ export function missingSections(chunks: Pick<StatuteChunk, 'number' | 'parentKey
 
 export function splitStatute(input: Line[] | string, opts: StatuteOptions): StatuteChunk[] {
   const lines: MarkedLine[] = absorbStrayMarkers(
-    typeof input === 'string' ? input.split(/\r?\n/).filter((t) => t.trim()).map((text) => ({ pageNo: 0, text })) : input,
+    typeof input === 'string'
+      ? input
+          .split(/\r?\n/)
+          .filter((t) => t.trim())
+          .map((text) => ({ pageNo: 0, text }))
+      : input,
   );
   const isConst = opts.kind === 'constitution';
   const maxTokens = opts.maxTokens ?? MAX_TOKENS;
@@ -276,7 +301,12 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
   let pendingChapter: { kind: 'Part' | 'Chapter'; label: string } | null = null; // waiting for its title line
   const setContext = (kind: 'Part' | 'Chapter', rawLabel: string) => {
     // Footnote markers and amendment brackets are not part of a heading: "The states 1***", "[The union territories]".
-    const label = rawLabel.replace(/\s*\d{0,3}\*+(\s*\*)*/g, '').replace(/\d{1,3}(?=\[)/g, '').replace(/[[\]]/g, '').replace(/\s+/g, ' ').trim();
+    const label = rawLabel
+      .replace(/\s*\d{0,3}\*+(\s*\*)*/g, '')
+      .replace(/\d{1,3}(?=\[)/g, '')
+      .replace(/[[\]]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
     if (kind === 'Part') {
       partLabel = label;
       chapterLabel = null;
@@ -292,7 +322,7 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
     t
       .replace(LEADING_MARKERS, '')
       .replace(/^\s*\[/, '')
-      .replace(/^(\s*\d+[A-Z]{0,3}\.\s*)\d{1,3}(?=\[)/, '$1'); // "368. 1[Power of Parliament ..." 
+      .replace(/^(\s*\d+[A-Z]{0,3}\.\s*)\d{1,3}(?=\[)/, '$1'); // "368. 1[Power of Parliament ..."
   // "ARRANGEMENT OF SECTIONS" (the table of contents) lists every heading without its ".—"; skip it until the
   // first line that is a full section heading on its own, so contents entries never become sections.
   let inContents = false;
@@ -355,7 +385,13 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
         // numbered line starts something new.
         const nextLoose = LOOSE_SECTION.exec(nextProbe);
         const yearLine = nextLoose !== null && !isPlausibleJump(loose[1]!, nextLoose[1]!);
-        if ((nextLoose && !yearLine) || P.chapter.test(nextProbe) || attachmentOf(nextProbe) || SEPARATOR.test(nextText)) break;
+        if (
+          (nextLoose && !yearLine) ||
+          P.chapter.test(nextProbe) ||
+          attachmentOf(nextProbe) ||
+          SEPARATOR.test(nextText)
+        )
+          break;
         joined = `${joined.trimEnd()} ${nextText.trim()}`;
         const m = P.section.exec(stripLead(joined)) ?? (REPEALED_SECTION.test(stripLead(joined)) ? null : undefined);
         if (m === null) {
@@ -430,8 +466,17 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
       let rest = chap[3]?.replace(/^[\s.\u2014\u2013-]+/, '').trim();
       // "[CHAPTER VII.—SALES OF GOODS.] Rep. by the Indian Sale of Goods Act, 1930": keep the name, mark it repealed.
       const repealedChapter = rest ? /\]\s*(Rep\.|Omitted|Repealed)/.test(rest) : false;
-      if (rest && repealedChapter) rest = `${rest.split(']')[0]!.replace(/[[\].]/g, '').trim()} (repealed)`;
-      setContext(kind, rest ? `${label}: ${sentenceCase(rest.replace(/ \(repealed\)$/, ''))}${repealedChapter ? ' (repealed)' : ''}` : label);
+      if (rest && repealedChapter)
+        rest = `${rest
+          .split(']')[0]!
+          .replace(/[[\].]/g, '')
+          .trim()} (repealed)`;
+      setContext(
+        kind,
+        rest
+          ? `${label}: ${sentenceCase(rest.replace(/ \(repealed\)$/, ''))}${repealedChapter ? ' (repealed)' : ''}`
+          : label,
+      );
       pendingChapter = rest ? null : { kind, label };
       continue;
     }
@@ -452,7 +497,10 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
       const firstSub = P.subSection.exec(body)?.[1] ?? null;
       const unit: Unit = {
         number: section[1]!,
-        title: section[2]!.trim().replace(/^\[(.*?)\.?\]?$/, '$1').replace(/\.$/, ''), // "[Power of Parliament ...]" → plain title
+        title: section[2]!
+          .trim()
+          .replace(/^\[(.*?)\.?\]?$/, '$1')
+          .replace(/\.$/, ''), // "[Power of Parliament ...]" → plain title
         chapter,
         lines: [{ text: displayText(raw), pageNo, sub: firstSub, attach: null, scope: 'sub' }],
         subs: firstSub ? [firstSub] : [],
@@ -482,8 +530,16 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
     } else if (attach) {
       const currentSub = prevLine.sub;
       const subOnly =
-        attach === 'proviso' ? currentSub !== null : /\bthis\s+sub-section\b|\bsub-section\s*\(/i.test(probe) && currentSub !== null;
-      line = { text: displayText(raw), pageNo, sub: subOnly ? currentSub : null, attach, scope: subOnly ? 'sub' : 'section' };
+        attach === 'proviso'
+          ? currentSub !== null
+          : /\bthis\s+sub-section\b|\bsub-section\s*\(/i.test(probe) && currentSub !== null;
+      line = {
+        text: displayText(raw),
+        pageNo,
+        sub: subOnly ? currentSub : null,
+        attach,
+        scope: subOnly ? 'sub' : 'section',
+      };
     } else {
       line = { ...prevLine, text: displayText(raw), pageNo };
     }
@@ -513,7 +569,12 @@ export function splitStatute(input: Line[] | string, opts: StatuteOptions): Stat
   for (const unit of units) {
     const base = [actLabel, unit.chapter, `${ref(unit.number)} ${unit.title}`].filter(Boolean).join(' › ');
     const amendments = amendmentsByUnit.get(unit) ?? [];
-    const validFrom = amendments.map((a) => a.wef).filter((d): d is string => !!d).sort().pop() ?? null;
+    const validFrom =
+      amendments
+        .map((a) => a.wef)
+        .filter((d): d is string => !!d)
+        .sort()
+        .pop() ?? null;
     const kinds = (ls: UnitLine[]) => [...new Set(ls.map((l) => l.attach).filter((a): a is AttachmentKind => !!a))];
     const text = unit.lines.map((l) => l.text).join('\n');
     const common = {

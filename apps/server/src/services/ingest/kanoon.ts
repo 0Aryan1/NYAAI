@@ -81,22 +81,35 @@ export async function fullCaseName(
     const [first, second] = casePartyWords(knownName);
     const inTitle = !first || name.toLowerCase().includes(first);
     const inOpening = !second || opening.toLowerCase().includes(second);
-    if ((first || second) && inTitle && (inOpening || verified)) return knownName.replace(/\s+vs\.?\s+/i, ' v. ').trim();
+    if ((first || second) && inTitle && (inOpening || verified))
+      return knownName.replace(/\s+vs\.?\s+/i, ' v. ').trim();
   }
   if (!gateway) return name.replace(/\s*(\.\.\.|…)\s*$/, '');
   const prefix = name.split(/\s*(?:\.\.\.|…)/)[0]!.trim();
   const boundary = randomBytes(6).toString('hex');
   const r = await gateway.run(
-    { prompt: PROMPTS['extract.metadata'], schema: FullName, task: `The title is cut short: "${name}".\n${fence('judgment opening', opening.slice(0, 6000), boundary)}` },
+    {
+      prompt: PROMPTS['extract.metadata'],
+      schema: FullName,
+      task: `The title is cut short: "${name}".\n${fence('judgment opening', opening.slice(0, 6000), boundary)}`,
+    },
     usage,
   );
   const full = r.data.caseName?.replace(/\s+vs\.?\s+/i, ' v. ').trim();
   // Validation in code (LLD §6.5): it must extend what we already know and name two parties.
-  const ok = full && / v\. /.test(full) && full.toLowerCase().startsWith(prefix.toLowerCase().slice(0, 12)) && opening.includes(full.split(' v. ')[1]!.slice(0, 12));
+  const ok =
+    full &&
+    / v\. /.test(full) &&
+    full.toLowerCase().startsWith(prefix.toLowerCase().slice(0, 12)) &&
+    opening.includes(full.split(' v. ')[1]!.slice(0, 12));
   return ok ? full : prefix;
 }
 
-export async function ingestKanoonJudgment(tid: number, deps: KanoonIngestDeps, opts: { knownName?: string; nameVerified?: boolean } = {}): Promise<KanoonIngestResult> {
+export async function ingestKanoonJudgment(
+  tid: number,
+  deps: KanoonIngestDeps,
+  opts: { knownName?: string; nameVerified?: boolean } = {},
+): Promise<KanoonIngestResult> {
   const { library } = deps;
   const url = kanoonUrl(tid);
   // Held under another source (its official copy replaced this text): loading it again would make a second source.
@@ -115,8 +128,19 @@ export async function ingestKanoonJudgment(tid: number, deps: KanoonIngestDeps, 
   const input = kanoonToJudgment(doc);
   const split = splitJudgment(input);
   const court = identifyCourt(input.court);
-  const opening = split.chunks.filter((c) => c.kind !== 'headnote').slice(0, 3).map((c) => c.text).join('\n');
-  const caseName = await fullCaseName(input.caseName, opening, deps.gateway, deps.usage, opts.knownName, opts.nameVerified);
+  const opening = split.chunks
+    .filter((c) => c.kind !== 'headnote')
+    .slice(0, 3)
+    .map((c) => c.text)
+    .join('\n');
+  const caseName = await fullCaseName(
+    input.caseName,
+    opening,
+    deps.gateway,
+    deps.usage,
+    opts.knownName,
+    opts.nameVerified,
+  );
   const year = input.decidedOn?.slice(0, 4);
   const base = year ? `${caseName} (${year})` : caseName;
 
@@ -136,8 +160,18 @@ export async function ingestKanoonJudgment(tid: number, deps: KanoonIngestDeps, 
                -- the paragraphs are rebuilt and labelled again, so the editor's role check no longer applies
                roles_sampled = false
          returning id`,
-        [caseName, input.citations.join('; ') || null, court?.court ?? null, court?.level ?? null, split.benchSize || null,
-         input.decidedOn, url, key, hash, deps.cacheDays],
+        [
+          caseName,
+          input.citations.join('; ') || null,
+          court?.court ?? null,
+          court?.level ?? null,
+          split.benchSize || null,
+          input.decidedOn,
+          url,
+          key,
+          hash,
+          deps.cacheDays,
+        ],
       )
     ).rows[0]!.id;
     await client.query('delete from chunks where source_id = $1', [sourceId]);
@@ -148,8 +182,23 @@ export async function ingestKanoonJudgment(tid: number, deps: KanoonIngestDeps, 
         `insert into chunks (college_id, owner_id, visibility, source_id, seq, kind, header, para_no, para_no_source, page_no,
                              opinion, judge, para_role, court, court_level, decided_on, source_type, text, content_hash, status)
          values (global_college(), null, 'shared', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'judgment', $14, $15, 'processing')`,
-        [sourceId, c.seq, c.kind, header, c.paraNo, c.paraNoSource, c.pageNo, c.opinion, c.judge, c.role,
-         court?.court ?? null, court?.level ?? null, input.decidedOn, c.text, sha256(`${header}\n${c.text}`)],
+        [
+          sourceId,
+          c.seq,
+          c.kind,
+          header,
+          c.paraNo,
+          c.paraNoSource,
+          c.pageNo,
+          c.opinion,
+          c.judge,
+          c.role,
+          court?.court ?? null,
+          court?.level ?? null,
+          input.decidedOn,
+          c.text,
+          sha256(`${header}\n${c.text}`),
+        ],
       );
     }
     await client.query('commit');

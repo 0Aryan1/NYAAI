@@ -28,7 +28,16 @@ const coverage: CoverageResponse = {
       title: 's. 9 Arbitration and Conciliation Act, 1996',
       missing: 2,
       total: 3,
-      items: [item({}), item({ id: '33333333-3333-4333-8333-333333333333', kind: 'leading_case', label: 'Leading case: X v. Y', text: null, canAdd: false })],
+      items: [
+        item({}),
+        item({
+          id: '33333333-3333-4333-8333-333333333333',
+          kind: 'leading_case',
+          label: 'Leading case: X v. Y',
+          text: null,
+          canAdd: false,
+        }),
+      ],
     },
   ],
   leftOut: [],
@@ -37,7 +46,9 @@ const coverage: CoverageResponse = {
 
 function setup() {
   vi.spyOn(api, 'coverage').mockResolvedValue(coverage);
-  const add = vi.spyOn(api, 'addCoverage').mockResolvedValue({ slideId: '44444444-4444-4444-8444-444444444444', lineKey: 'e-1' });
+  const add = vi
+    .spyOn(api, 'addCoverage')
+    .mockResolvedValue({ slideId: '44444444-4444-4444-8444-444444444444', lineKey: 'e-1' });
   const onAdded = vi.fn();
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -56,7 +67,9 @@ afterEach(() => {
 describe('the coverage panel', () => {
   it('says "X of Y covered", not a bare percentage', async () => {
     setup();
-    expect(await screen.findByText(/^1 of 3 provisos, exceptions, explanations, clauses and leading cases/)).toBeTruthy();
+    expect(
+      await screen.findByText(/^1 of 3 provisos, exceptions, explanations, clauses and leading cases/),
+    ).toBeTruthy();
     expect(screen.queryByText(/%/)).toBeNull();
   });
 

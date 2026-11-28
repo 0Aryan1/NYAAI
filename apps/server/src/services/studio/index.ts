@@ -31,10 +31,18 @@ export interface CitationRow {
 export function lineFrom(node: LineNode, cits: CitationRow[]): SlideLine {
   const text = (node.content ?? []).map((t) => t.text ?? '').join('');
   const adverse = cits.find((c) => c.case_status === 'overruled' || c.case_status === 'reversed');
-  const open = cits.find((c) => c.check_status === 'open') ?? (adverse ? { ...adverse, flag_reason: `This case was ${adverse.case_status}` } : undefined);
+  const open =
+    cits.find((c) => c.check_status === 'open') ??
+    (adverse ? { ...adverse, flag_reason: `This case was ${adverse.case_status}` } : undefined);
   const grey = cits.find((c) => c.flag_kind === 'grey' && (c.case_status ?? 'not_verified') === 'not_verified');
   const verified = cits.length > 0 && cits.every((c) => c.check_status === 'verified_by_you');
-  const status: SlideLine['status'] = open ? 'open' : verified ? 'verified_by_you' : !cits.length && node.attrs?.yourExample ? 'your_example' : 'supported';
+  const status: SlideLine['status'] = open
+    ? 'open'
+    : verified
+      ? 'verified_by_you'
+      : !cits.length && node.attrs?.yourExample
+        ? 'your_example'
+        : 'supported';
   return {
     lineKey: node.attrs?.lineKey ?? '',
     text,
@@ -44,17 +52,31 @@ export function lineFrom(node: LineNode, cits: CitationRow[]): SlideLine {
     flagReason: open?.flag_reason ?? grey?.flag_reason ?? null,
     sources: cits
       .filter((c) => c.tag)
-      .map((c) => ({ tag: c.tag!, citationId: c.id, label: c.source_label ?? c.tag!, provisional: c.source_status === 'provisional', caseStatus: c.case_status })),
+      .map((c) => ({
+        tag: c.tag!,
+        citationId: c.id,
+        label: c.source_label ?? c.tag!,
+        provisional: c.source_status === 'provisional',
+        caseStatus: c.case_status,
+      })),
     risk: cits.some((c) => c.risk === 'high') ? 'high' : 'normal',
     edited: node.attrs?.edited === true,
   };
 }
 
-
 /** Active citations only: a removed line's citations are kept for restore but never shown. */
 export async function loadStudioSlides(c: pg.PoolClient, lectureId: string, slideId?: string): Promise<StudioSlide[]> {
   const slides = (
-    await c.query<{ id: string; position: number; part_index: number; layout: string; title: string; body: { content?: LineNode[] }; notes: { content?: LineNode[] }; current_version: number }>(
+    await c.query<{
+      id: string;
+      position: number;
+      part_index: number;
+      layout: string;
+      title: string;
+      body: { content?: LineNode[] };
+      notes: { content?: LineNode[] };
+      current_version: number;
+    }>(
       `select id, position, part_index, layout, title, body, notes, current_version from slides where lecture_id = $1 and ($2::uuid is null or id = $2) order by position`,
       [lectureId, slideId ?? null],
     )
@@ -69,7 +91,8 @@ export async function loadStudioSlides(c: pg.PoolClient, lectureId: string, slid
     )
   ).rows;
   const byLine = new Map<string, CitationRow[]>();
-  for (const x of cits) byLine.set(`${x.slide_id}|${x.line_key}`, [...(byLine.get(`${x.slide_id}|${x.line_key}`) ?? []), x]);
+  for (const x of cits)
+    byLine.set(`${x.slide_id}|${x.line_key}`, [...(byLine.get(`${x.slide_id}|${x.line_key}`) ?? []), x]);
   return slides.map((s) => ({
     id: s.id,
     position: s.position,

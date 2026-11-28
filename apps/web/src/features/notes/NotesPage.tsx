@@ -12,7 +12,10 @@ import { NoteStatus, UploadNoteButton, useNotes } from './notes-ui';
 export function NotesPage() {
   const qc = useQueryClient();
   const notes = useNotes();
-  const remove = useMutation({ mutationFn: api.deleteNote, onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.notes }) });
+  const remove = useMutation({
+    mutationFn: api.deleteNote,
+    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.notes }),
+  });
   const list = notes.data?.notes ?? [];
 
   return (
@@ -22,15 +25,17 @@ export function NotesPage() {
         <UploadNoteButton size="md" />
       </div>
       <p className="mb-6 max-w-prose text-sm text-muted">
-        Your own documents, seen only by you. When you prepare a lecture, tick the ones it should use; the others are left out. Slides may use your notes for
-        examples and explanations; a point of law still comes from the Act or a judgment.
+        Your own documents, seen only by you. When you prepare a lecture, tick the ones it should use; the others are
+        left out. Slides may use your notes for examples and explanations; a point of law still comes from the Act or a
+        judgment.
       </p>
 
       {notes.isLoading && <ListSkeleton label="Loading your notes" />}
       {notes.isError && <LoadError what="Your notes" onRetry={() => void notes.refetch()} />}
       {notes.isSuccess && list.length === 0 && (
         <EmptyState title="No documents yet" action={<UploadNoteButton size="md" />}>
-          Upload your own notes as a Word file, a PDF or a text file. When you prepare a lecture, you choose which of them it may use.
+          Upload your own notes as a Word file, a PDF or a text file. When you prepare a lecture, you choose which of
+          them it may use.
         </EmptyState>
       )}
       <ul className="space-y-3">
@@ -40,7 +45,12 @@ export function NotesPage() {
               <div className="min-w-0">
                 <p className="font-medium">{n.title}</p>
                 <p className="text-xs text-muted">
-                  {n.fileName} · uploaded {new Date(n.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {n.fileName} · uploaded{' '}
+                  {new Date(n.uploadedAt).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
                   {n.replaces && ` · replaces ${n.replaces.title}`}
                 </p>
                 {n.error && <p className="mt-1 text-sm text-danger">{n.error}</p>}
@@ -54,7 +64,10 @@ export function NotesPage() {
                 variant="ghost"
                 disabled={remove.isPending}
                 onClick={() => {
-                  if (window.confirm(`Remove “${n.title}”? Lectures already prepared keep the words they quoted from it.`)) remove.mutate(n.id);
+                  if (
+                    window.confirm(`Remove “${n.title}”? Lectures already prepared keep the words they quoted from it.`)
+                  )
+                    remove.mutate(n.id);
                 }}
               >
                 <Trash2 className="size-4" aria-hidden />

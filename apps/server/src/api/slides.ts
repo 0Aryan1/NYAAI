@@ -5,11 +5,26 @@
 import express from 'express';
 import type { Queue } from 'bullmq';
 import { z } from 'zod';
-import { AddExample, DownloadRequest, EditSlide, RestoreSlide, SlideVersions, SlideWriteResponse, VerifyLine } from '@nyaai/shared';
+import {
+  AddExample,
+  DownloadRequest,
+  EditSlide,
+  RestoreSlide,
+  SlideVersions,
+  SlideWriteResponse,
+  VerifyLine,
+} from '@nyaai/shared';
 import { AppError } from '../errors.ts';
 import { requireConsent } from '../middleware/consent.ts';
 import { CHECK_JOB_OPTIONS, type CheckJobData } from '../jobs/queues.ts';
-import { addExample, loadSlide, refreshCounts, restoreSlide, saveSlideEdit, verifyLine } from '../services/edit/index.ts';
+import {
+  addExample,
+  loadSlide,
+  refreshCounts,
+  restoreSlide,
+  saveSlideEdit,
+  verifyLine,
+} from '../services/edit/index.ts';
 import { loadStudioSlides } from '../services/studio/index.ts';
 import { exportPptx } from '../services/export/index.ts';
 
@@ -18,10 +33,20 @@ const Id = z.uuid();
 export function slidesRouter(checkQueue?: Queue<CheckJobData>) {
   const r = express.Router();
 
-  const answer = async (req: express.Request, res: express.Response, slideId: string, lectureId: string, pending: string[] = []) => {
+  const answer = async (
+    req: express.Request,
+    res: express.Response,
+    slideId: string,
+    lectureId: string,
+    pending: string[] = [],
+  ) => {
     const who = req.identity!;
     if (pending.length && checkQueue) {
-      await checkQueue.add('check.lines', { lectureId, ownerId: who.userId, collegeId: who.collegeId, citationIds: pending }, CHECK_JOB_OPTIONS);
+      await checkQueue.add(
+        'check.lines',
+        { lectureId, ownerId: who.userId, collegeId: who.collegeId, citationIds: pending },
+        CHECK_JOB_OPTIONS,
+      );
     }
     const slide = (await req.db!((c) => loadStudioSlides(c, lectureId, slideId)))[0];
     if (!slide) throw new AppError('NOT_FOUND', 'We could not find that slide.');
@@ -67,9 +92,18 @@ export function slidesRouter(checkQueue?: Queue<CheckJobData>) {
     const id = Id.parse(req.params.id);
     const rows = await req.db!(async (c) => {
       await loadSlide(c, id);
-      return (await c.query<{ version: number; reason: string; created_at: Date }>('select version, reason, created_at from slide_versions where slide_id = $1 order by version desc', [id])).rows;
+      return (
+        await c.query<{ version: number; reason: string; created_at: Date }>(
+          'select version, reason, created_at from slide_versions where slide_id = $1 order by version desc',
+          [id],
+        )
+      ).rows;
     });
-    res.json(SlideVersions.parse({ versions: rows.map((v) => ({ version: v.version, reason: v.reason, createdAt: v.created_at.toISOString() })) }));
+    res.json(
+      SlideVersions.parse({
+        versions: rows.map((v) => ({ version: v.version, reason: v.reason, createdAt: v.created_at.toISOString() })),
+      }),
+    );
   });
 
   r.post('/slides/:id/restore', requireConsent, async (req, res) => {
@@ -95,10 +129,14 @@ export function slidesRouter(checkQueue?: Queue<CheckJobData>) {
     const out = await req.db!((c) => exportPptx(c, req.identity!, id, { ...body, today }));
     if ('coverageChanged' in out) {
       // Thrown after the commit, so the removed lines stay removed (each slide's Undo brings one back).
-      throw new AppError('COVERAGE_CHANGED', `Removing the unverified lines left ${out.coverageChanged.length === 1 ? 'one part' : `${out.coverageChanged.length} parts`} of the sections you teach uncovered. Add them, or leave them out, then download again.`, {
-        removed: out.removed,
-        items: out.coverageChanged,
-      });
+      throw new AppError(
+        'COVERAGE_CHANGED',
+        `Removing the unverified lines left ${out.coverageChanged.length === 1 ? 'one part' : `${out.coverageChanged.length} parts`} of the sections you teach uncovered. Add them, or leave them out, then download again.`,
+        {
+          removed: out.removed,
+          items: out.coverageChanged,
+        },
+      );
     }
     res.setHeader('content-type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     res.setHeader('content-disposition', `attachment; filename="${out.fileName}"`);

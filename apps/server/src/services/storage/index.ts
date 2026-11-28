@@ -2,7 +2,14 @@
  * Object storage: the one door to the S3 API (LLD §2, HLD D5). SeaweedFS locally, R2 in the pilot, S3 Mumbai
  * in production; only configuration changes. Buckets are private; signed links come with uploads (Day 4).
  */
-import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 
 export interface StorageConfig {
   endpoint?: string;
@@ -50,7 +57,9 @@ export function createStorage(cfg: StorageConfig): Storage {
       const keys: string[] = [];
       let token: string | undefined;
       do {
-        const out = await s3.send(new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix, ContinuationToken: token }));
+        const out = await s3.send(
+          new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix, ContinuationToken: token }),
+        );
         keys.push(...(out.Contents ?? []).flatMap((o) => (o.Key ? [o.Key] : [])));
         token = out.IsTruncated ? out.NextContinuationToken : undefined;
       } while (token);

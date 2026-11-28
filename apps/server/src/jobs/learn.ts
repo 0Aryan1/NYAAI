@@ -20,13 +20,24 @@ export function learnProcessor(deps: { worker: pg.Pool; gateway: Gateway; logger
         summariseTaught(d, {
           tenant,
           gateway: deps.gateway,
-          usage: (row) => tenant((c) => usageSink(c, { collegeId: d.collegeId, ownerId: d.ownerId })({ ...row, lectureId: d.lectureId })),
+          usage: (row) =>
+            tenant((c) =>
+              usageSink(c, { collegeId: d.collegeId, ownerId: d.ownerId })({ ...row, lectureId: d.lectureId }),
+            ),
         }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new Error('course memory took longer than 3 minutes')), LEARN_TIMEOUT_MS);
         }),
       ]);
-      deps.logger.info({ lectureId: d.lectureId, saved: !!memory, terms: memory?.terms?.length ?? 0, cases: memory?.cases?.length ?? 0 }, 'course memory updated');
+      deps.logger.info(
+        {
+          lectureId: d.lectureId,
+          saved: !!memory,
+          terms: memory?.terms?.length ?? 0,
+          cases: memory?.cases?.length ?? 0,
+        },
+        'course memory updated',
+      );
       return { saved: !!memory };
     } finally {
       clearTimeout(timer);

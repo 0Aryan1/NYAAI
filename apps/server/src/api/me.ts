@@ -57,7 +57,12 @@ export function meRouter(config: Config) {
       Me.parse({
         user: { id: row.id, name: row.name, email: row.email, role: row.role },
         college: { id: row.college_id, name: row.college_name },
-        profile: { department: row.department, subjects: row.subjects, teachingLanguage: row.teaching_language, style: row.style },
+        profile: {
+          department: row.department,
+          subjects: row.subjects,
+          teachingLanguage: row.teaching_language,
+          style: row.style,
+        },
         setupStep: row.setup_step,
         setupDone: row.setup_done_at !== null,
         consented: row.role !== 'teacher' || row.consented,

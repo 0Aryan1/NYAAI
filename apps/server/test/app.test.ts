@@ -19,7 +19,9 @@ const config = parseConfig({
 });
 
 function app(dbUp: boolean, redisUp: boolean) {
-  const pool = { query: async () => (dbUp ? { rows: [{ v: '0.8.1' }] } : Promise.reject(new Error('down'))) } as unknown as pg.Pool;
+  const pool = {
+    query: async () => (dbUp ? { rows: [{ v: '0.8.1' }] } : Promise.reject(new Error('down'))),
+  } as unknown as pg.Pool;
   const redis = { ping: async () => (redisUp ? 'PONG' : Promise.reject(new Error('down'))) } as unknown as Redis;
   return createApp({ config, logger: pino({ level: 'silent' }), pool, redis });
 }

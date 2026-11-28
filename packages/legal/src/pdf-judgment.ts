@@ -75,7 +75,8 @@ const AUTHOR_FOOTER = /^\[[A-Z][A-Za-z .,']{2,80},?\s*(?:CJI|C\.\s?J\.(?:I\.)?|J
 /** A table of contents (long judgments): from its heading to the court's first paragraph. */
 const CONTENTS_HEADING = /^(?:Table\s+of\s+Contents|Index|Contents)\*?$/i;
 const PARA_START = /^\(?\d{1,4}[.)](?:\s|$)/;
-const ABBREV_END = /\b(?:v|vs|Ltd|Co|No|Nos|s|ss|Art|Arts|Mr|Mrs|Ms|Dr|Sr|Jr|Pvt|Corpn|Govt|Anr|Ors|Hon'ble|i\.e|e\.g|viz|p|pp|para|paras|Vol|cl|Sch)\.$/i;
+const ABBREV_END =
+  /\b(?:v|vs|Ltd|Co|No|Nos|s|ss|Art|Arts|Mr|Mrs|Ms|Dr|Sr|Jr|Pvt|Corpn|Govt|Anr|Ors|Hon'ble|i\.e|e\.g|viz|p|pp|para|paras|Vol|cl|Sch)\.$/i;
 const TERMINAL = /[.:;?!”"’)\]]$/;
 /** Where the reporter's summary ends and case details or lists begin. */
 const HEAD_END =
@@ -114,7 +115,31 @@ function printedPage(lines: PdfLine[]): number | null {
 }
 
 /** Words a running title may shorten or add ("PVT. LTD.", "& ANR."), besides the case title's own words. */
-const TITLE_EXTRAS = new Set(['V', 'VS', 'VERSUS', 'PVT', 'PRIVATE', 'LTD', 'LIMITED', 'CO', 'CORPN', 'CORPORATION', 'ANR', 'ORS', 'M', 'S', 'AND', 'OF', 'THE', 'INC', 'LLP', 'JV', 'ETC', 'DR', '&']);
+const TITLE_EXTRAS = new Set([
+  'V',
+  'VS',
+  'VERSUS',
+  'PVT',
+  'PRIVATE',
+  'LTD',
+  'LIMITED',
+  'CO',
+  'CORPN',
+  'CORPORATION',
+  'ANR',
+  'ORS',
+  'M',
+  'S',
+  'AND',
+  'OF',
+  'THE',
+  'INC',
+  'LLP',
+  'JV',
+  'ETC',
+  'DR',
+  '&',
+]);
 
 /**
  * A running title: mostly capitals and every word from the case title. e-SCR prints it at the top of odd pages, but
@@ -122,13 +147,17 @@ const TITLE_EXTRAS = new Set(['V', 'VS', 'VERSUS', 'PVT', 'PRIVATE', 'LTD', 'LIM
  * brackets after it ("[R. F. NARIMAN, J.]") goes with it.
  */
 function isRunningTitle(text: string, titleWords: Set<string>): boolean {
-  const t = text.replace(/\s*\[[^\]]*,\s*(?:CJI|C\.\s?J\.(?:I\.)?|JJ?\.)\]\s*$/, '').replace(/\s*\d{1,5}\s*$/, '').trim();
+  const t = text
+    .replace(/\s*\[[^\]]*,\s*(?:CJI|C\.\s?J\.(?:I\.)?|JJ?\.)\]\s*$/, '')
+    .replace(/\s*\d{1,5}\s*$/, '')
+    .trim();
   if (t.length < 4 || t.length > 140 || upperShare(t) < 0.8) return false;
   const ws = words(t).filter((w) => !/^\d+$/.test(w));
   if (ws.length < 2) return false;
   // Running heads shorten words ("SSANGYONG ENG. & CONST. CO. … AUTH. OF INDIA"): a word counts when it starts a
   // word of the title.
-  const known = (w: string) => TITLE_EXTRAS.has(w) || titleWords.has(w) || (w.length >= 3 && [...titleWords].some((x) => x.startsWith(w)));
+  const known = (w: string) =>
+    TITLE_EXTRAS.has(w) || titleWords.has(w) || (w.length >= 3 && [...titleWords].some((x) => x.startsWith(w)));
   const own = ws.filter((w) => !TITLE_EXTRAS.has(w) && known(w)).length;
   const share = ws.filter(known).length / ws.length;
   const versus = ws.some((w) => w === 'V' || w === 'VS' || w === 'VERSUS');
@@ -136,7 +165,13 @@ function isRunningTitle(text: string, titleWords: Set<string>): boolean {
 }
 
 /** Lines that are not the text: running heads, page numbers, margin letters, editor's notes, signature stamps. */
-function cleanPage(lines: PdfLine[], titleWords: Set<string>, bodySize: number, scanned: boolean, page: number | null): PdfLine[] {
+function cleanPage(
+  lines: PdfLine[],
+  titleWords: Set<string>,
+  bodySize: number,
+  scanned: boolean,
+  page: number | null,
+): PdfLine[] {
   const marks = new Set(lines.flatMap((l) => l.marks).filter((m) => /^\d+$/.test(m)));
   const real = lines
     .map((l) => ({ ...l, text: l.text.replace(/\s+/g, ' ').trim() }))
@@ -174,7 +209,10 @@ function bodyStart(lines: { text: string }[]): number {
   for (let i = 0; i < limit; i++) {
     const here = lines[i]!.text;
     // Scanned reports may break the sentence over several lines, a word or two each.
-    const window = lines.slice(i, i + 5).map((l) => l.text).join(' ');
+    const window = lines
+      .slice(i, i + 5)
+      .map((l) => l.text)
+      .join(' ');
     for (const { re, skipLine } of BODY_MARKERS) {
       const m = re === DELIVERED ? re.exec(window) : re.exec(here);
       if (!m || m.index >= here.length) continue;
@@ -203,12 +241,25 @@ function nextCaseStart<T extends { text: string }>(lines: T[], titleWords: Set<s
     if (!alone && !/\sv\.(?:\s|$)/.test(t)) continue;
     // A title in capitals that is not this case's ("v." alone on its line: the parties are the lines around it).
     const parties = alone ? [lines[i - 1]?.text ?? '', lines[i + 1]?.text ?? ''] : [t];
-    if (parties.some((x) => upperShare(x) < 0.8 || isRunningTitle(x, titleWords)) || parties.every((x) => isRunningTitle(`${x} V.`, titleWords))) continue;
-    const near = lines.slice(i, i + 6).map((l) => l.text).join(' ');
+    if (
+      parties.some((x) => upperShare(x) < 0.8 || isRunningTitle(x, titleWords)) ||
+      parties.every((x) => isRunningTitle(`${x} V.`, titleWords))
+    )
+      continue;
+    const near = lines
+      .slice(i, i + 6)
+      .map((l) => l.text)
+      .join(' ');
     if (/[([][A-Z][A-Za-z.,' ]{5,300}(?:C\.\s?J\.(?:I\.)?|JJ?\.)\s*[)\]]/.test(near)) {
       // The title may start a line or two above "v.".
       let k = i;
-      while (k > tail && upperShare(lines[k - 1]!.text) >= 0.8 && lines[k - 1]!.text.length < 80 && !isRunningTitle(lines[k - 1]!.text, titleWords)) k--;
+      while (
+        k > tail &&
+        upperShare(lines[k - 1]!.text) >= 0.8 &&
+        lines[k - 1]!.text.length < 80 &&
+        !isRunningTitle(lines[k - 1]!.text, titleWords)
+      )
+        k--;
       return k;
     }
   }
@@ -274,11 +325,18 @@ export function benchOf(headLines: string[]): string[] {
  *   the majority, when they are more than half the Bench (the splitter checks);
  * - "(per K.V. Viswanathan, J.) (Dissenting)", "Per N. V. RAMANA, J. (Concurring):".
  */
-export function reporterNoteOf(headLines: string[]): { majority: string[]; concurring: string[]; dissenting: string[] } {
+export function reporterNoteOf(headLines: string[]): {
+  majority: string[];
+  concurring: string[];
+  dissenting: string[];
+} {
   const text = headLines.join(' ').replace(/\s+/g, ' ');
   const clean = (s: string) =>
     s
-      .replace(/\b(?:Hon[’']?ble|Mr|Mrs|Ms|Dr)\.?(?=\s|$)|\b(?:Justice|his\s+Lordship|her\s+Ladyship|himself|herself|CJI)\b/gi, ' ')
+      .replace(
+        /\b(?:Hon[’']?ble|Mr|Mrs|Ms|Dr)\.?(?=\s|$)|\b(?:Justice|his\s+Lordship|her\s+Ladyship|himself|herself|CJI)\b/gi,
+        ' ',
+      )
       .replace(/\s+/g, ' ')
       .replace(/^[\s,]+|[\s,]+$/g, '');
   const names = (xs: string[]) => [...new Set(xs.map(clean).filter((s) => /[A-Za-z]{3,}/.test(s)))];
@@ -292,11 +350,20 @@ export function reporterNoteOf(headLines: string[]): { majority: string[]; concu
     majority.push(ed[1]!, ...(stop ? rest.slice(0, stop.index) : rest).split(/,|\band\b/));
   }
   const JUDGE = String.raw`([A-Z][A-Za-z.'’ ]{2,60}?),?\s*(?:CJI|C\.\s?J\.(?:I\.)?|J\.)`;
-  const forHimself = new RegExp(String.raw`\bper\s+${JUDGE}\s*\)?\s*\(\s*for\s+(?:himself|herself)\s*(?:,|\band\b)\s*([^)]{3,200}?),?\s*JJ?\.\s*\)`, 'i').exec(text);
+  const forHimself = new RegExp(
+    String.raw`\bper\s+${JUDGE}\s*\)?\s*\(\s*for\s+(?:himself|herself)\s*(?:,|\band\b)\s*([^)]{3,200}?),?\s*JJ?\.\s*\)`,
+    'i',
+  ).exec(text);
   if (forHimself && !majority.length) majority.push(forHimself[1]!, ...forHimself[2]!.split(/,|\band\b/));
   const separate = (word: string) =>
-    [...text.matchAll(new RegExp(String.raw`\bper\s+${JUDGE}\s*[)\]]?\s*[(\[]?\s*(?:partly\s+)?${word}`, 'gi'))].map((m) => m[1]!);
-  return { majority: names(majority), concurring: names(separate('concurring')), dissenting: names(separate('dissenting')) };
+    [...text.matchAll(new RegExp(String.raw`\bper\s+${JUDGE}\s*[)\]]?\s*[(\[]?\s*(?:partly\s+)?${word}`, 'gi'))].map(
+      (m) => m[1]!,
+    );
+  return {
+    majority: names(majority),
+    concurring: names(separate('concurring')),
+    dissenting: names(separate('dissenting')),
+  };
 }
 
 const median = (xs: number[]) => {
@@ -350,7 +417,9 @@ export function pdfToJudgment(doc: PdfLines, hint: PdfJudgmentHint): JudgmentInp
     const text = joinLines(lines, vocabulary, hyphenated);
     if (text && !/^\d{1,5}$/.test(text)) {
       const indented = cur.filter((l) => l.x - l.margin >= 15).length;
-      const quoted = (cur.length > 1 && indented / cur.length >= 0.6) || (cur.length === 1 && indented === 1 && !PARA_START.test(text));
+      const quoted =
+        (cur.length > 1 && indented / cur.length >= 0.6) ||
+        (cur.length === 1 && indented === 1 && !PARA_START.test(text));
       blocks.push({ text, page: cur[0]!.page, quoted });
     }
     cur = [];
@@ -366,7 +435,8 @@ export function pdfToJudgment(doc: PdfLines, hint: PdfJudgmentHint): JudgmentInp
       const continues = /^[a-z(]/.test(l.text) || ABBREV_END.test(prev.text) || /[-—–,]$/.test(prev.text);
       const shortEnd = prevShort && !continues && (TERMINAL.test(prev.text) || !doc.scanned);
       // A first line indented under a body paragraph, or the reverse, is a quotation starting or ending.
-      const indentShift = !doc.scanned && prevIndented !== indented && !continues && (TERMINAL.test(prev.text) || startsPara);
+      const indentShift =
+        !doc.scanned && prevIndented !== indented && !continues && (TERMINAL.test(prev.text) || startsPara);
       if (startsPara || shortEnd || indentShift) flush();
     }
     cur.push(l);

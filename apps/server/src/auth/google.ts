@@ -19,7 +19,11 @@ export type ClaimCheck =
   | { ok: false; reason: 'email_unverified' | 'domain_not_allowed' | 'hd_mismatch' | 'missing_claims' };
 
 /** Pure claim check: verified email, allowed domain, and a Workspace `hd` claim equal to that domain. */
-export function checkGoogleClaims(claims: GoogleClaims, allowedDomains: string[], { requireHd = true } = {}): ClaimCheck {
+export function checkGoogleClaims(
+  claims: GoogleClaims,
+  allowedDomains: string[],
+  { requireHd = true } = {},
+): ClaimCheck {
   const email = typeof claims.email === 'string' ? claims.email.trim().toLowerCase() : '';
   const sub = typeof claims.sub === 'string' ? claims.sub : '';
   if (!email || !sub) return { ok: false, reason: 'missing_claims' };
@@ -28,7 +32,8 @@ export function checkGoogleClaims(claims: GoogleClaims, allowedDomains: string[]
   const allowed = allowedDomains.map((d) => d.toLowerCase());
   if (!allowed.includes(domain)) return { ok: false, reason: 'domain_not_allowed' };
   // Workspace accounts carry `hd`; skipping this is allowed only in development (config refuses it elsewhere).
-  if (requireHd && (typeof claims.hd !== 'string' || claims.hd.toLowerCase() !== domain)) return { ok: false, reason: 'hd_mismatch' };
+  if (requireHd && (typeof claims.hd !== 'string' || claims.hd.toLowerCase() !== domain))
+    return { ok: false, reason: 'hd_mismatch' };
   const name = typeof claims.name === 'string' && claims.name.trim() ? claims.name.trim() : email.split('@')[0]!;
   return { ok: true, email, name, sub };
 }
@@ -60,7 +65,11 @@ export class GoogleSignIn {
   /** Returns the Google URL and a short-lived signed cookie value holding PKCE verifier, state and nonce. */
   async start(): Promise<{ url: string; flowCookie: string }> {
     const config = await this.discover();
-    const flow: Flow = { verifier: oidc.randomPKCECodeVerifier(), state: oidc.randomState(), nonce: oidc.randomNonce() };
+    const flow: Flow = {
+      verifier: oidc.randomPKCECodeVerifier(),
+      state: oidc.randomState(),
+      nonce: oidc.randomNonce(),
+    };
     const params: Record<string, string> = {
       redirect_uri: this.redirectUri,
       scope: 'openid email profile',

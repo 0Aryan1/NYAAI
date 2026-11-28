@@ -36,7 +36,11 @@ export const Me = z.object({
   setupDone: z.boolean(),
   /** She has agreed to the current consent and not withdrawn it (teachers only; always true for others). */
   consented: z.boolean(),
-  budget: z.object({ monthlyMicroUsd: z.number().int(), usedMicroUsd: z.number().int(), leftMicroUsd: z.number().int() }),
+  budget: z.object({
+    monthlyMicroUsd: z.number().int(),
+    usedMicroUsd: z.number().int(),
+    leftMicroUsd: z.number().int(),
+  }),
   features: z.array(z.string()),
 });
 export type Me = z.infer<typeof Me>;

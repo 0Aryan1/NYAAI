@@ -33,7 +33,12 @@ export type CaseMatch = { kind: 'same'; held: HeldCase } | { kind: 'maybe'; held
 const bare = (title: string) => title.replace(/\s*\(\d{4}\)\s*$/, '').trim();
 
 const VERSUS = /\s+(?:v\.?|vs\.?|versus)\s+/i;
-const titleWords = (t: string): string[] => [...(t.toLowerCase().replace(/\.\.\.|…/g, ' ').match(/[a-z]{4,}/g) ?? [])];
+const titleWords = (t: string): string[] => [
+  ...(t
+    .toLowerCase()
+    .replace(/\.\.\.|…/g, ' ')
+    .match(/[a-z]{4,}/g) ?? []),
+];
 
 /**
  * The parties match either way round (Kanoon shortens long names, the library keeps the full one). A title with no
@@ -49,7 +54,8 @@ export function sameParties(a: string, b: string): boolean {
 
 export function matchHeldCase(found: FoundCase, held: HeldCase[]): CaseMatch | null {
   const parsed = parseKanoonTitle(found.title);
-  const date = parsed.decidedOn ?? (found.publishdate && /^\d{4}-\d{2}-\d{2}$/.test(found.publishdate) ? found.publishdate : null);
+  const date =
+    parsed.decidedOn ?? (found.publishdate && /^\d{4}-\d{2}-\d{2}$/.test(found.publishdate) ? found.publishdate : null);
   const level = identifyCourt(found.docsource)?.level ?? null;
   let maybe: HeldCase | null = null;
   for (const h of held) {

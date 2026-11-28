@@ -90,7 +90,9 @@ export function planDeck(
         if (numbers.has(src.label)) continue;
         numbers.set(src.label, numbers.size + 1);
         const d = citations.get(src.citationId);
-        sources.push(`[${numbers.size}] ${src.label}${d?.title && !src.label.includes(d.title) ? ` (${d.title})` : ''}${d?.span ? ` — ${quoted(d.span)}` : ''}`);
+        sources.push(
+          `[${numbers.size}] ${src.label}${d?.title && !src.label.includes(d.title) ? ` (${d.title})` : ''}${d?.span ? ` — ${quoted(d.span)}` : ''}`,
+        );
         if (src.caseStatus === 'not_verified' && d?.title) notVerified.add(d.title);
       }
     }
@@ -98,7 +100,9 @@ export function planDeck(
     if (opts.withFlags) {
       for (const line of [...s.lines, ...s.notes]) {
         if (line.flag === 'yellow') {
-          flags.push(`[!] PLEASE VERIFY, not confirmed by NYAAI: ${quoted(line.text)}${line.flagReason ? ` (${line.flagReason})` : ''}`);
+          flags.push(
+            `[!] PLEASE VERIFY, not confirmed by NYAAI: ${quoted(line.text)}${line.flagReason ? ` (${line.flagReason})` : ''}`,
+          );
           verify.push({ slide: out.length + 2, text: `${line.text}${line.flagReason ? ` (${line.flagReason})` : ''}` });
         }
       }
@@ -127,7 +131,9 @@ export function planDeck(
       marks: [...new Set(l.sources.map((src) => numbers.get(src.label)!).filter(Boolean))].sort((a, b) => a - b),
     }));
     const footnotes = [...numbers.entries()].map(([label, k]) => `${k} ${label}`);
-    const pages = paginate(lines.length ? lines : [{ text: '', kind: 'teaching', yourExample: false, marks: [] as number[] }]);
+    const pages = paginate(
+      lines.length ? lines : [{ text: '', kind: 'teaching', yourExample: false, marks: [] as number[] }],
+    );
     pages.forEach((page, p) =>
       out.push({
         title: p === 0 ? s.title : `${s.title} (cont.)`,

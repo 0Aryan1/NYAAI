@@ -16,7 +16,11 @@ export function createPool(connectionString: string, max = 10): pg.Pool {
  * set_config(..., true) — i.e. SET LOCAL — so a pooled connection never carries one teacher's
  * identity into another request. Queries outside this wrapper see no teacher rows under RLS.
  */
-export async function withTenant<T>(pool: pg.Pool, who: TenantIdentity, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+export async function withTenant<T>(
+  pool: pg.Pool,
+  who: TenantIdentity,
+  fn: (c: pg.PoolClient) => Promise<T>,
+): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query('begin');

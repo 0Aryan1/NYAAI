@@ -52,7 +52,13 @@ async function stackUp(): Promise<boolean> {
   const c = new pg.Client({ connectionString: process.env.DATABASE_URL_MIGRATE, connectionTimeoutMillis: 1500 });
   try {
     await c.connect();
-    return (await c.query("select to_regclass('public.concept_links') is not null and exists (select 1 from colleges where is_global) as ok")).rows[0]?.ok === true;
+    return (
+      (
+        await c.query(
+          "select to_regclass('public.concept_links') is not null and exists (select 1 from colleges where is_global) as ok",
+        )
+      ).rows[0]?.ok === true
+    );
   } catch {
     return false;
   } finally {
@@ -75,10 +81,20 @@ describe.skipIf(!up)('search service (integration)', () => {
     owner = new pg.Pool({ connectionString: process.env.DATABASE_URL_MIGRATE, max: 2 });
     app = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
     redis = new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
-    await owner.query("insert into colleges (id, name, slug) values ($1, 'Search Test College', $2)", [college, `st-${college}`]);
-    await owner.query("insert into users (id, college_id, email, name) values ($1, $2, $3, 'Searcher')", [teacher, college, `s-${tag}@st.test`]);
+    await owner.query("insert into colleges (id, name, slug) values ($1, 'Search Test College', $2)", [
+      college,
+      `st-${college}`,
+    ]);
+    await owner.query("insert into users (id, college_id, email, name) values ($1, $2, $3, 'Searcher')", [
+      teacher,
+      college,
+      `s-${tag}@st.test`,
+    ]);
     await owner.query('insert into teacher_profiles (owner_id, college_id) values ($1, $2)', [teacher, college]);
-    await owner.query("insert into invite_allowlist (college_id, email) values ($1, $2)", [college, `s-${tag}@st.test`]);
+    await owner.query('insert into invite_allowlist (college_id, email) values ($1, $2)', [
+      college,
+      `s-${tag}@st.test`,
+    ]);
 
     // A shared test statute: one section split into two children, one short section, one repealed section.
     await owner.query(
@@ -94,14 +110,68 @@ describe.skipIf(!up)('search service (integration)', () => {
       );
       ids[key] = r.rows[0]!.id;
     };
-    const act = { college_id: null, visibility: 'shared', source_id: sourceAct, act_name: `Zebra Test Act ${tag}`, source_type: 'act', status: 'live' };
+    const act = {
+      college_id: null,
+      visibility: 'shared',
+      source_id: sourceAct,
+      act_name: `Zebra Test Act ${tag}`,
+      source_type: 'act',
+      status: 'live',
+    };
     const globalId = (await owner.query('select id from colleges where is_global')).rows[0].id;
     act.college_id = globalId;
-    await chunk('parent', { ...act, seq: 1, kind: 'section', section: '901', header: 'Zebra Test Act › s. 901 Grazing rights', text: '901. Grazing rights.—(1) A zebra may graze in the meadow. (2) A zebra may not graze in the orchard. Provided that striped animals keep to the path.', content_hash: `p-${tag}` });
-    await chunk('child1', { ...act, seq: 2, kind: 'subsection', section: '901', parent_id: ids.parent, header: 'Zebra Test Act › s. 901 Grazing rights › sub-s. (1)', text: '(1) A zebra may graze in the meadow.', content_hash: `c1-${tag}`, embedding: toVector(fakeVector('zebra graze meadow grazing rights')) });
-    await chunk('child2', { ...act, seq: 3, kind: 'subsection', section: '901', parent_id: ids.parent, header: 'Zebra Test Act › s. 901 Grazing rights › sub-s. (2)', text: '(2) A zebra may not graze in the orchard.', content_hash: `c2-${tag}`, embedding: toVector(fakeVector('zebra graze orchard grazing rights')) });
-    await chunk('short', { ...act, seq: 4, kind: 'section', section: '902', header: 'Zebra Test Act › s. 902 Fences', text: '902. Fences.—Every meadow shall have a fence around it for the zebra herd.', content_hash: `s-${tag}`, embedding: toVector(fakeVector('meadow fence zebra herd fences')) });
-    await chunk('repealed', { ...act, seq: 5, kind: 'section', section: '903', law_status: 'repealed', header: 'Zebra Test Act › s. 903 Old tolls', text: '903. [Old tolls for zebra meadow crossings.] Rep. by Act 1 of 1950.', content_hash: `r-${tag}`, embedding: toVector(fakeVector('zebra meadow tolls crossings')) });
+    await chunk('parent', {
+      ...act,
+      seq: 1,
+      kind: 'section',
+      section: '901',
+      header: 'Zebra Test Act › s. 901 Grazing rights',
+      text: '901. Grazing rights.—(1) A zebra may graze in the meadow. (2) A zebra may not graze in the orchard. Provided that striped animals keep to the path.',
+      content_hash: `p-${tag}`,
+    });
+    await chunk('child1', {
+      ...act,
+      seq: 2,
+      kind: 'subsection',
+      section: '901',
+      parent_id: ids.parent,
+      header: 'Zebra Test Act › s. 901 Grazing rights › sub-s. (1)',
+      text: '(1) A zebra may graze in the meadow.',
+      content_hash: `c1-${tag}`,
+      embedding: toVector(fakeVector('zebra graze meadow grazing rights')),
+    });
+    await chunk('child2', {
+      ...act,
+      seq: 3,
+      kind: 'subsection',
+      section: '901',
+      parent_id: ids.parent,
+      header: 'Zebra Test Act › s. 901 Grazing rights › sub-s. (2)',
+      text: '(2) A zebra may not graze in the orchard.',
+      content_hash: `c2-${tag}`,
+      embedding: toVector(fakeVector('zebra graze orchard grazing rights')),
+    });
+    await chunk('short', {
+      ...act,
+      seq: 4,
+      kind: 'section',
+      section: '902',
+      header: 'Zebra Test Act › s. 902 Fences',
+      text: '902. Fences.—Every meadow shall have a fence around it for the zebra herd.',
+      content_hash: `s-${tag}`,
+      embedding: toVector(fakeVector('meadow fence zebra herd fences')),
+    });
+    await chunk('repealed', {
+      ...act,
+      seq: 5,
+      kind: 'section',
+      section: '903',
+      law_status: 'repealed',
+      header: 'Zebra Test Act › s. 903 Old tolls',
+      text: '903. [Old tolls for zebra meadow crossings.] Rep. by Act 1 of 1950.',
+      content_hash: `r-${tag}`,
+      embedding: toVector(fakeVector('zebra meadow tolls crossings')),
+    });
 
     // A shared provisional judgment with a run of paragraphs.
     await owner.query(
@@ -109,13 +179,34 @@ describe.skipIf(!up)('search service (integration)', () => {
        values ($1, global_college(), 'shared', 'judgment', 'indian_kanoon', $2, 'Supreme Court of India', 'supreme_court', '1999-01-01', $3, 'provisional')`,
       [sourceCase, `Stripe v. Meadowland Board ${tag}`, `case-${tag}`],
     );
-    const paras = ['The appellant keeps a zebra herd.', 'The Board fenced the meadow.', 'Counsel argued the fence was unlawful.', 'We hold that a zebra herd may graze in a fenced meadow.', 'The appeal is allowed.', 'No costs.'];
+    const paras = [
+      'The appellant keeps a zebra herd.',
+      'The Board fenced the meadow.',
+      'Counsel argued the fence was unlawful.',
+      'We hold that a zebra herd may graze in a fenced meadow.',
+      'The appeal is allowed.',
+      'No costs.',
+    ];
     for (let i = 0; i < paras.length; i++) {
       await chunk(`p${i + 1}`, {
-        college_id: globalId, visibility: 'shared', source_id: sourceCase, source_type: 'judgment', status: 'provisional', seq: i + 1,
-        kind: 'paragraph', para_no: String(i + 1), para_no_source: 'court', opinion: 'majority', para_role: i === 3 ? 'holding' : 'unknown',
-        court: 'Supreme Court of India', court_level: 'supreme_court', decided_on: '1999-01-01',
-        header: `Stripe v. Meadowland Board (1999) › para ${i + 1}`, text: paras[i], content_hash: `j${i}-${tag}`, embedding: toVector(fakeVector(paras[i]!)),
+        college_id: globalId,
+        visibility: 'shared',
+        source_id: sourceCase,
+        source_type: 'judgment',
+        status: 'provisional',
+        seq: i + 1,
+        kind: 'paragraph',
+        para_no: String(i + 1),
+        para_no_source: 'court',
+        opinion: 'majority',
+        para_role: i === 3 ? 'holding' : 'unknown',
+        court: 'Supreme Court of India',
+        court_level: 'supreme_court',
+        decided_on: '1999-01-01',
+        header: `Stripe v. Meadowland Board (1999) › para ${i + 1}`,
+        text: paras[i],
+        content_hash: `j${i}-${tag}`,
+        embedding: toVector(fakeVector(paras[i]!)),
       });
     }
     // Concepts in the test college: one clear, one ambiguous across subjects.
@@ -132,14 +223,21 @@ describe.skipIf(!up)('search service (integration)', () => {
     if (!owner) return;
     await owner.query('delete from sources where id = any($1)', [[sourceAct, sourceCase]]);
     await owner.query('delete from legal_concepts where college_id = $1', [college]);
-    for (const t of ['usage', 'teacher_profiles', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
+    for (const t of ['usage', 'teacher_profiles', 'invite_allowlist', 'users'])
+      await owner.query(`delete from ${t} where college_id = $1`, [college]);
     await owner.query('delete from colleges where id = $1', [college]);
     await redis.del('rl_signin:::ffff:127.0.0.1', 'rl_signin:127.0.0.1', 'rl_signin:::1');
     await Promise.all([owner.end(), app.end(), redis.quit()]);
   });
 
   const run = (query: string, extra: Partial<Parameters<typeof search>[1]> = {}, voyage = fakeVoyage) =>
-    withTenant(app, who(), (c) => search(c, { query, purpose: 'eval', noExpand: true, ...extra }, { voyage, gateway: null, usage: noUsage, minScore: 0.5 }));
+    withTenant(app, who(), (c) =>
+      search(
+        c,
+        { query, purpose: 'eval', noExpand: true, ...extra },
+        { voyage, gateway: null, usage: noUsage, minScore: 0.5 },
+      ),
+    );
 
   it('expands a statute child to its whole section, collapsing the two children into one source', async () => {
     const r = await run(`zebra graze grazing rights ${tag}`);
@@ -181,23 +279,58 @@ describe.skipIf(!up)('search service (integration)', () => {
 
   it('suggests from the library and asks one question for an ambiguous topic (HTTP)', async () => {
     const config = parseConfig({
-      DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL, S3_BUCKET: 'b', S3_ACCESS_KEY_ID: 'k', S3_SECRET_ACCESS_KEY: 's',
-      SESSION_SECRET: 'a'.repeat(32), CSRF_SECRET: 'b'.repeat(32), ALLOWED_EMAIL_DOMAINS: 'st.test', LOG_LEVEL: 'silent', NODE_ENV: 'development', DEV_LOGIN: 'true',
+      DATABASE_URL: process.env.DATABASE_URL,
+      REDIS_URL: process.env.REDIS_URL,
+      S3_BUCKET: 'b',
+      S3_ACCESS_KEY_ID: 'k',
+      S3_SECRET_ACCESS_KEY: 's',
+      SESSION_SECRET: 'a'.repeat(32),
+      CSRF_SECRET: 'b'.repeat(32),
+      ALLOWED_EMAIL_DOMAINS: 'st.test',
+      LOG_LEVEL: 'silent',
+      NODE_ENV: 'development',
+      DEV_LOGIN: 'true',
     });
     const http = createApp({ config, logger: pino({ level: 'silent' }), pool: app, redis });
     const agent = request.agent(http);
-    const login = await agent.post('/api/v1/auth/dev-login').set('x-forwarded-for', `10.${tag.charCodeAt(0)}.0.1`).send({ email: `s-${tag}@st.test` }).expect(204);
-    const csrf = decodeURIComponent(([] as string[]).concat(login.headers['set-cookie'] ?? []).find((c) => c.startsWith('nyaai_csrf='))!.split(';')[0]!.slice(11));
+    const login = await agent
+      .post('/api/v1/auth/dev-login')
+      .set('x-forwarded-for', `10.${tag.charCodeAt(0)}.0.1`)
+      .send({ email: `s-${tag}@st.test` })
+      .expect(204);
+    const csrf = decodeURIComponent(
+      ([] as string[])
+        .concat(login.headers['set-cookie'] ?? [])
+        .find((c) => c.startsWith('nyaai_csrf='))!
+        .split(';')[0]!
+        .slice(11),
+    );
 
     const sug = await agent.get('/api/v1/suggest?q=zebra gr').expect(200);
     expect(sug.body.suggestions[0]).toMatchObject({ kind: 'concept', label: 'Zebra grazing' });
 
-    const amb = await agent.post('/api/v1/topics/resolve').set('x-csrf-token', csrf).send({ topic: `stripes${tag}` }).expect(409);
+    const amb = await agent
+      .post('/api/v1/topics/resolve')
+      .set('x-csrf-token', csrf)
+      .send({ topic: `stripes${tag}` })
+      .expect(409);
     expect(amb.body.error.code).toBe('TOPIC_AMBIGUOUS');
     const choices = amb.body.error.details.choices as { conceptId: string; subject: string }[];
     expect(choices.map((c) => c.subject).sort()).toEqual(['Contract', 'Torts']);
-    const ok = await agent.post('/api/v1/topics/resolve').set('x-csrf-token', csrf).send({ topic: `stripes${tag}`, choice: choices[0]!.conceptId }).expect(200);
+    const ok = await agent
+      .post('/api/v1/topics/resolve')
+      .set('x-csrf-token', csrf)
+      .send({ topic: `stripes${tag}`, choice: choices[0]!.conceptId })
+      .expect(200);
     expect(ok.body.conceptId).toBe(choices[0]!.conceptId);
-    expect((await agent.post('/api/v1/topics/resolve').set('x-csrf-token', csrf).send({ topic: 'Zebra grazing' }).expect(200)).body.conceptId).toBeTruthy();
+    expect(
+      (
+        await agent
+          .post('/api/v1/topics/resolve')
+          .set('x-csrf-token', csrf)
+          .send({ topic: 'Zebra grazing' })
+          .expect(200)
+      ).body.conceptId,
+    ).toBeTruthy();
   });
 });

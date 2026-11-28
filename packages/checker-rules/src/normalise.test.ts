@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { normaliseForSpan, spanAppearsIn } from './normalise.ts';
 
-const S56 = 'An agreement to do an act impossible in itself is void.\n\nContract to do act afterwards impossible or unlawful.—A contract to do an act which, after the contract is made, becomes impossible ... becomes void when the act becomes impossible or unlawful.';
+const S56 =
+  'An agreement to do an act impossible in itself is void.\n\nContract to do act afterwards impossible or unlawful.—A contract to do an act which, after the contract is made, becomes impossible ... becomes void when the act becomes impossible or unlawful.';
 
 describe('span check normalisation (C2)', () => {
   it('ignores spacing, line breaks and dash style', () => {

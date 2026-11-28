@@ -22,7 +22,8 @@ type StepKey = (typeof BUILD_STEPS)[number]['key'];
 /** Plain words for a failed build (LLD §12.6, §12.8): what happened and what to do. */
 export const FAILURE_TEXT: Record<string, string> = {
   BUDGET_EXHAUSTED: 'Your monthly limit is reached; your administrator can raise it.',
-  SERVICE_UNAVAILABLE: 'The checking service is busy or down right now. Try again in a few minutes; finished parts are kept.',
+  SERVICE_UNAVAILABLE:
+    'The checking service is busy or down right now. Try again in a few minutes; finished parts are kept.',
   BUILD_TIMEOUT: 'This lecture took too long to prepare. Try again; finished parts are kept.',
 };
 
@@ -42,7 +43,13 @@ export function reduceBuild(state: BuildState, e: LiveEvent, lectureId: string):
       if (e.step === 'saving') return state;
       const order = BUILD_STEPS.map((s) => s.key);
       const done = new Set(order.slice(0, order.indexOf(e.step)));
-      return { ...state, current: e.step, done, failed: null, parts: { ...state.parts, total: e.partsTotal ?? state.parts.total } };
+      return {
+        ...state,
+        current: e.step,
+        done,
+        failed: null,
+        parts: { ...state.parts, total: e.partsTotal ?? state.parts.total },
+      };
     }
     case 'build.outline':
       return { ...state, outline: true };
@@ -57,7 +64,14 @@ export function reduceBuild(state: BuildState, e: LiveEvent, lectureId: string):
   }
 }
 
-export const initialBuild: BuildState = { current: null, done: new Set(), outline: false, parts: { ready: 0, total: null }, finished: false, failed: null };
+export const initialBuild: BuildState = {
+  current: null,
+  done: new Set(),
+  outline: false,
+  parts: { ready: 0, total: null },
+  finished: false,
+  failed: null,
+};
 
 export function BuildPage() {
   const { lectureId = '' } = useParams();
@@ -65,11 +79,19 @@ export function BuildPage() {
   const qc = useQueryClient();
   const [state, setState] = useState<BuildState>(initialBuild);
   const [retrying, setRetrying] = useState(false);
-  const lecture = useQuery({ queryKey: queryKeys.lecture(lectureId), queryFn: () => api.lecture(lectureId), enabled: !!lectureId });
+  const lecture = useQuery({
+    queryKey: queryKeys.lecture(lectureId),
+    queryFn: () => api.lecture(lectureId),
+    enabled: !!lectureId,
+  });
 
   useEventStream((e) => {
     setState((s) => reduceBuild(s, e, lectureId));
-    if ('lectureId' in e && e.lectureId === lectureId && (e.type === 'build.outline' || e.type === 'build.done' || e.type === 'build.failed')) {
+    if (
+      'lectureId' in e &&
+      e.lectureId === lectureId &&
+      (e.type === 'build.outline' || e.type === 'build.done' || e.type === 'build.failed')
+    ) {
       void qc.invalidateQueries({ queryKey: queryKeys.lecture(lectureId) });
     }
   });
@@ -99,8 +121,12 @@ export function BuildPage() {
   return (
     <div className="mx-auto max-w-xl">
       <h1 className="mb-1 text-2xl font-semibold">Preparing your lecture</h1>
-      <p className="mb-8 text-sm text-muted">{saved?.topic ? `${saved.topic}. ` : ''}You can leave this page; the lecture keeps building.</p>
-      {lecture.isError && !state.done.size && <LoadError what="This lecture's progress" onRetry={() => void lecture.refetch()} className="mb-6" />}
+      <p className="mb-8 text-sm text-muted">
+        {saved?.topic ? `${saved.topic}. ` : ''}You can leave this page; the lecture keeps building.
+      </p>
+      {lecture.isError && !state.done.size && (
+        <LoadError what="This lecture's progress" onRetry={() => void lecture.refetch()} className="mb-6" />
+      )}
       <ol className="space-y-4" aria-live="polite">
         {BUILD_STEPS.map((s) => {
           const isDone = finished || state.done.has(s.key);
@@ -140,7 +166,9 @@ export function BuildPage() {
 
       {failed && (
         <div role="alert" className="mt-6 space-y-3">
-          <p className="text-sm text-danger">{FAILURE_TEXT[failed] ?? 'The lecture could not be finished. You can try again; finished parts are kept.'}</p>
+          <p className="text-sm text-danger">
+            {FAILURE_TEXT[failed] ?? 'The lecture could not be finished. You can try again; finished parts are kept.'}
+          </p>
           {failed !== 'BUDGET_EXHAUSTED' && (
             <Button variant="secondary" onClick={() => void retry()} disabled={retrying}>
               Try again
@@ -149,7 +177,12 @@ export function BuildPage() {
         </div>
       )}
       <div className="mt-8">
-        <Button variant="primary" size="lg" disabled={!finished} onClick={() => void navigate(`/lectures/${lectureId}`)}>
+        <Button
+          variant="primary"
+          size="lg"
+          disabled={!finished}
+          onClick={() => void navigate(`/lectures/${lectureId}`)}
+        >
           Open in Studio
         </Button>
       </div>

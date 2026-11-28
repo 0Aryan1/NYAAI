@@ -1,7 +1,19 @@
 import { cn } from '@/shared/lib/utils';
 
 /** A row of tabs (or filters). Arrow keys move along the row. */
-export function Tabs<T extends string>({ value, onChange, options, label, className }: { value: T; onChange: (v: T) => void; options: { value: T; label: string; count?: number }[]; label: string; className?: string }) {
+export function Tabs<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+  className,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string; count?: number }[];
+  label: string;
+  className?: string;
+}) {
   return (
     <div role="tablist" aria-label={label} className={cn('flex gap-1 border-b border-border', className)}>
       {options.map((o, i) => (

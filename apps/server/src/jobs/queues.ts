@@ -42,11 +42,21 @@ export interface OpsJobData {
   userId?: string;
   collegeId?: string;
   requestedAt?: string;
-  mapping?: { oldSections: string[]; newSections: string[]; relation: MappingRelation; change: 'changed' | 'unsigned' | 'removed' };
+  mapping?: {
+    oldSections: string[];
+    newSections: string[];
+    relation: MappingRelation;
+    change: 'changed' | 'unsigned' | 'removed';
+  };
 }
 
 /** ops.mapping_changed: retried, so a line never keeps a green it no longer has. */
-export const MAPPING_JOB_OPTIONS: JobsOptions = { attempts: 5, backoff: { type: 'exponential', delay: 10_000 }, removeOnComplete: 200, removeOnFail: 500 };
+export const MAPPING_JOB_OPTIONS: JobsOptions = {
+  attempts: 5,
+  backoff: { type: 'exponential', delay: 10_000 },
+  removeOnComplete: 200,
+  removeOnFail: 500,
+};
 
 /** build.lecture: ids only; the teacher's identity is set with SET LOCAL from these (LLD §5.1). */
 export interface BuildJobData {
@@ -97,7 +107,12 @@ export interface ResearchJobData {
   ownerId: string;
   collegeId: string;
 }
-export const RESEARCH_JOB_OPTIONS: JobsOptions = { attempts: 2, backoff: { type: 'exponential', delay: 20_000 }, removeOnComplete: 500, removeOnFail: 500 };
+export const RESEARCH_JOB_OPTIONS: JobsOptions = {
+  attempts: 2,
+  backoff: { type: 'exponential', delay: 20_000 },
+  removeOnComplete: 500,
+  removeOnFail: 500,
+};
 export const RESEARCH_TIMEOUT_MS = 4 * 60 * 1000;
 
 /** LLD §5: 3 retries with backoff 30 s → 2 min → 8 min; 10-minute timeout is enforced in the processor. */
@@ -108,5 +123,6 @@ export const INGEST_JOB_OPTIONS: JobsOptions = {
   removeOnComplete: 500,
   removeOnFail: 500,
 };
-export const ingestBackoff = (attemptsMade: number) => INGEST_BACKOFF_MS[Math.min(attemptsMade, INGEST_BACKOFF_MS.length) - 1] ?? 480_000;
+export const ingestBackoff = (attemptsMade: number) =>
+  INGEST_BACKOFF_MS[Math.min(attemptsMade, INGEST_BACKOFF_MS.length) - 1] ?? 480_000;
 export const INGEST_TIMEOUT_MS = 10 * 60 * 1000;

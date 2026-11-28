@@ -22,7 +22,8 @@ interface FencedSource {
 /** The SOURCES block: `<<<b S1 · header>>>\ntext\n<<<b end>>>`. */
 export function fencedSources(block: string): FencedSource[] {
   const out: FencedSource[] = [];
-  for (const m of block.matchAll(/<<<(\w+) (S\d) · ([^\n]*)>>>\n([\s\S]*?)\n<<<\1 end>>>/g)) out.push({ tag: m[2]!, header: m[3]!, text: m[4]! });
+  for (const m of block.matchAll(/<<<(\w+) (S\d) · ([^\n]*)>>>\n([\s\S]*?)\n<<<\1 end>>>/g))
+    out.push({ tag: m[2]!, header: m[3]!, text: m[4]! });
   return out;
 }
 
@@ -30,7 +31,9 @@ export function fencedSources(block: string): FencedSource[] {
 export function quotable(text: string): string | null {
   const clean = text.replace(/\[para [^\]]*\]\s*/g, '');
   const sentences = clean.split(/(?<=[.;:])\s+/).map((s) => s.trim());
-  const pick = sentences.find((s) => s.length >= 40 && s.length <= 300 && !/\d{3,}/.test(s.slice(0, 4))) ?? clean.slice(0, 200).trim();
+  const pick =
+    sentences.find((s) => s.length >= 40 && s.length <= 300 && !/\d{3,}/.test(s.slice(0, 4))) ??
+    clean.slice(0, 200).trim();
   if (pick.length < 12) return null;
   // The span must be in the source exactly: take it from the original text.
   const at = text.indexOf(pick.slice(0, 30));
@@ -43,10 +46,34 @@ function plan(task: string) {
   const bridge = /COURSE BRIDGE: yes/.test(task);
   const must = /MUST-INCLUDE EXAMPLE/.test(task);
   const parts = [
-    ...(recap ? [{ title: 'Recap of last class', minutes: 4, kind: 'recap', questions: ['What did we learn last time?'], mustInclude: false }] : []),
-    { title: `What ${topic} means`, minutes: 20, kind: 'content', questions: [`What is ${topic}?`, `When does ${topic} apply?`], mustInclude: must },
-    { title: `${topic} in the courts`, minutes: 20, kind: 'content', questions: [`How have courts applied ${topic}?`], mustInclude: false },
-    ...(bridge ? [{ title: 'Next class', minutes: 3, kind: 'bridge', questions: ['What comes next?'], mustInclude: false }] : []),
+    ...(recap
+      ? [
+          {
+            title: 'Recap of last class',
+            minutes: 4,
+            kind: 'recap',
+            questions: ['What did we learn last time?'],
+            mustInclude: false,
+          },
+        ]
+      : []),
+    {
+      title: `What ${topic} means`,
+      minutes: 20,
+      kind: 'content',
+      questions: [`What is ${topic}?`, `When does ${topic} apply?`],
+      mustInclude: must,
+    },
+    {
+      title: `${topic} in the courts`,
+      minutes: 20,
+      kind: 'content',
+      questions: [`How have courts applied ${topic}?`],
+      mustInclude: false,
+    },
+    ...(bridge
+      ? [{ title: 'Next class', minutes: 3, kind: 'bridge', questions: ['What comes next?'], mustInclude: false }]
+      : []),
   ];
   return { parts, leftOut: [] };
 }
@@ -60,16 +87,35 @@ function write(task: string, context: string[]) {
     .map((s) => ({ s, span: quotable(s.text) }))
     .filter((x): x is { s: FencedSource; span: string } => !!x.span);
   const example = /<<<\w+ teacher example to use in this part>>>\n([\s\S]*?)\n<<<\w+ end>>>/.exec(task)?.[1];
-  type Line = { lineKey: string; text: string; kind: 'claim' | 'teaching' | 'example' | 'question'; claims: { text: string; type: 'rule'; tag: 'S1'; span: string }[] };
+  type Line = {
+    lineKey: string;
+    text: string;
+    kind: 'claim' | 'teaching' | 'example' | 'question';
+    claims: { text: string; type: 'rule'; tag: 'S1'; span: string }[];
+  };
   const lines: Line[] = [
-    ...claims.map((c, i) => ({ lineKey: `l${i + 1}`, text: c.span, kind: 'claim' as const, claims: [{ text: c.span, type: 'rule' as const, tag: c.s.tag as 'S1', span: c.span }] })),
+    ...claims.map((c, i) => ({
+      lineKey: `l${i + 1}`,
+      text: c.span,
+      kind: 'claim' as const,
+      claims: [{ text: c.span, type: 'rule' as const, tag: c.s.tag as 'S1', span: c.span }],
+    })),
     { lineKey: 'q', text: 'Why might the law draw the line here?', kind: 'question' as const, claims: [] },
     ...(example ? [{ lineKey: 'ex', text: example.slice(0, 380), kind: 'example' as const, claims: [] }] : []),
   ];
-  const slides: { layout: 'bullets'; title: string; lines: Line[]; notes: never[] }[] = [{ layout: 'bullets', title: title.slice(0, 90), lines: lines.slice(0, 7), notes: [] }];
+  const slides: { layout: 'bullets'; title: string; lines: Line[]; notes: never[] }[] = [
+    { layout: 'bullets', title: title.slice(0, 90), lines: lines.slice(0, 7), notes: [] },
+  ];
   // The first part plants one unsourced statement of law: the checks flag it, and the teacher verifies it.
   if (partIndex === 0 || /, the first part/.test(task)) {
-    slides.push({ layout: 'bullets' as const, title: 'A point to check', lines: [{ lineKey: 'y', text: 'Section 56 makes such an agreement void.', kind: 'teaching' as const, claims: [] }], notes: [] });
+    slides.push({
+      layout: 'bullets' as const,
+      title: 'A point to check',
+      lines: [
+        { lineKey: 'y', text: 'Section 56 makes such an agreement void.', kind: 'teaching' as const, claims: [] },
+      ],
+      notes: [],
+    });
   }
   return { written: { partIndex, slides, notFound: [], leftOut: [] }, repairs: null };
 }
@@ -78,7 +124,10 @@ const items = (task: string) => [...task.matchAll(/ITEM id=(\S+)/g)].map((m) => 
 
 export function createFakeGateway(): Gateway {
   return {
-    async run<S extends z.ZodType>(req: GatewayRequest<S>, usage: Parameters<Gateway['run']>[1]): Promise<GatewayResult<z.infer<S>>> {
+    async run<S extends z.ZodType>(
+      req: GatewayRequest<S>,
+      usage: Parameters<Gateway['run']>[1],
+    ): Promise<GatewayResult<z.infer<S>>> {
       await usage({ provider: 'anthropic', model: 'fake', purpose: req.prompt.id, costMicroUsd: 0 });
       const ctx = req.context ?? [];
       let data: unknown;
@@ -97,7 +146,14 @@ export function createFakeGateway(): Gateway {
             .slice(0, 2)
             .map((s) => ({ s, span: quotable(s.text) }))
             .filter((x): x is { s: FencedSource; span: string } => !!x.span);
-          data = { lines: claims.map((c) => ({ text: c.span, kind: 'claim', claims: [{ text: c.span, type: 'rule', tag: c.s.tag, span: c.span }] })), notFound: [] };
+          data = {
+            lines: claims.map((c) => ({
+              text: c.span,
+              kind: 'claim',
+              claims: [{ text: c.span, type: 'rule', tag: c.s.tag, span: c.span }],
+            })),
+            notFound: [],
+          };
           break;
         }
         case 'research.plan': {
@@ -111,7 +167,11 @@ export function createFakeGateway(): Gateway {
           const quoted = rows
             .map((s) => ({ s, span: quotable(s.text) }))
             .filter((x): x is { s: FencedSource; span: string } => !!x.span);
-          const line = (x: { s: FencedSource; span: string }) => ({ text: x.span, kind: 'claim', claims: [{ text: x.span, type: 'rule', tag: x.s.tag, span: x.span }] });
+          const line = (x: { s: FencedSource; span: string }) => ({
+            text: x.span,
+            kind: 'claim',
+            claims: [{ text: x.span, type: 'rule', tag: x.s.tag, span: x.span }],
+          });
           data = {
             shortAnswer: quoted.slice(0, 1).map(line),
             keyPoints: quoted.slice(1, 4).map(line),
@@ -129,7 +189,9 @@ export function createFakeGateway(): Gateway {
           data = { verdicts: items(req.task).map((id) => ({ id, reason: 'The span says this.', verdict: 'yes' })) };
           break;
         case 'checker.second':
-          data = { verdicts: items(req.task).map((id) => ({ id, reason: 'Supported.', verdict: 'yes', correctedClaim: null })) };
+          data = {
+            verdicts: items(req.task).map((id) => ({ id, reason: 'Supported.', verdict: 'yes', correctedClaim: null })),
+          };
           break;
         case 'checker.unsourced':
           data = { verdicts: items(req.task).map((id) => ({ id, reason: 'States law.', statesLaw: true })) };
@@ -138,7 +200,12 @@ export function createFakeGateway(): Gateway {
           data = { query: /Her search: (.*)/.exec(req.task)?.[1] ?? req.task.slice(0, 300) };
           break;
         case 'learn.summary':
-          data = { summary: `The class covered ${/LECTURE: (.*)/.exec(req.task)?.[1] ?? 'the topic'}.`, terms: [], runningExample: null, openThreads: [] };
+          data = {
+            summary: `The class covered ${/LECTURE: (.*)/.exec(req.task)?.[1] ?? 'the topic'}.`,
+            terms: [],
+            runningExample: null,
+            openThreads: [],
+          };
           break;
         default:
           throw new Error(`the fake gateway has no answer for ${req.prompt.id}`);

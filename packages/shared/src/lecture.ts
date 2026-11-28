@@ -5,7 +5,18 @@ import { LENGTH_CHOICES } from './home.ts';
  * AI outputs (LLD §8.1, §9). Forced as JSON schema by the gateway and validated again here.
  * ------------------------------------------------------------------------------------------------------------- */
 
-export const ClaimType = z.enum(['rule', 'holding', 'date', 'punishment', 'time_limit', 'mapping', 'quote', 'fact', 'example', 'news_report']);
+export const ClaimType = z.enum([
+  'rule',
+  'holding',
+  'date',
+  'punishment',
+  'time_limit',
+  'mapping',
+  'quote',
+  'fact',
+  'example',
+  'news_report',
+]);
 export type ClaimType = z.infer<typeof ClaimType>;
 
 export const Claim = z.object({
@@ -20,7 +31,17 @@ export const Claim = z.object({
 export type Claim = z.infer<typeof Claim>;
 
 export const LineKind = z.enum(['claim', 'teaching', 'example', 'question', 'transition']);
-export const SlideLayout = z.enum(['title', 'bullets', 'two_column', 'case_box', 'quote', 'question', 'example', 'recap', 'bridge']);
+export const SlideLayout = z.enum([
+  'title',
+  'bullets',
+  'two_column',
+  'case_box',
+  'quote',
+  'question',
+  'example',
+  'recap',
+  'bridge',
+]);
 
 export const WrittenLine = z.object({
   lineKey: z.string().max(40),
@@ -73,14 +94,29 @@ export const SupportVerdicts = z.object({
   verdicts: z.array(z.object({ id: z.string(), reason: z.string().max(400), verdict: SupportVerdict })),
 });
 export const SecondVerdicts = z.object({
-  verdicts: z.array(z.object({ id: z.string(), reason: z.string().max(400), verdict: SupportVerdict, correctedClaim: z.string().max(400).nullable() })),
+  verdicts: z.array(
+    z.object({
+      id: z.string(),
+      reason: z.string().max(400),
+      verdict: SupportVerdict,
+      correctedClaim: z.string().max(400).nullable(),
+    }),
+  ),
 });
 /**
  * research.gaps: what the research for a lecture still misses, as library search questions (at most 5; empty when
  * the research is enough). The reason comes first so the question follows from it.
  */
 export const GapQuestions = z.object({
-  questions: z.array(z.object({ why: z.string().max(300), part: z.number().int().min(1).max(8), question: z.string().min(5).max(300) })).max(5),
+  questions: z
+    .array(
+      z.object({
+        why: z.string().max(300),
+        part: z.number().int().min(1).max(8),
+        question: z.string().min(5).max(300),
+      }),
+    )
+    .max(5),
 });
 export type GapQuestions = z.infer<typeof GapQuestions>;
 /** checker.unsourced: does a line with no source state law? */
@@ -115,7 +151,13 @@ export const PrepareLecture = z.object({
   styleKey: z.enum(['usual', 'exam', 'discussion']),
   mustInclude: z.object({ text: z.string().trim().max(1000).optional(), exampleId: z.uuid().optional() }).optional(),
   anythingSpecial: z.string().trim().max(500).optional(),
-  filters: z.object({ jurisdiction: z.string().default('IN'), asOn: z.iso.date().optional(), comparative: z.boolean().default(false) }).default({ jurisdiction: 'IN', comparative: false }),
+  filters: z
+    .object({
+      jurisdiction: z.string().default('IN'),
+      asOn: z.iso.date().optional(),
+      comparative: z.boolean().default(false),
+    })
+    .default({ jurisdiction: 'IN', comparative: false }),
   ambiguityChoice: z.uuid().optional(),
   /** HOME-10: she saw that earlier lectures this one builds on are not taught yet, and goes ahead. */
   prereqAck: z.boolean().optional(),
@@ -145,9 +187,13 @@ export const LectureSummary = z.object({
   readyAt: z.string().nullable(),
   taughtOn: z.string().nullable(),
   /** HLD F8.6: an earlier taught lecture of the course was changed after this one was prepared. */
-  mayNeedUpdate: z.object({ since: z.string(), from: z.array(z.object({ lectureId: z.uuid(), label: z.string() })) }).nullable(),
+  mayNeedUpdate: z
+    .object({ since: z.string(), from: z.array(z.object({ lectureId: z.uuid(), label: z.string() })) })
+    .nullable(),
   /** The course and the lecture's place in its plan (null for a one-off). */
-  course: z.object({ id: z.uuid(), name: z.string(), unitId: z.uuid().nullable(), position: z.number().int().nullable() }).nullable(),
+  course: z
+    .object({ id: z.uuid(), name: z.string(), unitId: z.uuid().nullable(), position: z.number().int().nullable() })
+    .nullable(),
 });
 export type LectureSummary = z.infer<typeof LectureSummary>;
 
@@ -162,7 +208,15 @@ export const SlideLine = z.object({
   flag: z.enum(['yellow', 'grey', 'coverage']).nullable(),
   flagReason: z.string().nullable(),
   /** e.g. { tag: 'S3', label: 's. 56 ICA' } */
-  sources: z.array(z.object({ tag: z.string(), citationId: z.uuid(), label: z.string(), provisional: z.boolean(), caseStatus: z.string().nullable() })),
+  sources: z.array(
+    z.object({
+      tag: z.string(),
+      citationId: z.uuid(),
+      label: z.string(),
+      provisional: z.boolean(),
+      caseStatus: z.string().nullable(),
+    }),
+  ),
   risk: z.enum(['normal', 'high']),
   /** She changed or added this line in the Studio ("edited by you"). */
   edited: z.boolean().default(false),
@@ -198,7 +252,9 @@ export const CitationSource = z.object({
   url: z.string().nullable(),
   provisional: z.boolean(),
   caseStatus: z.string().nullable(),
-  checks: z.array(z.object({ name: z.string(), result: z.enum(['pass', 'fail', 'grey', 'skipped']), detail: z.string().nullable() })),
+  checks: z.array(
+    z.object({ name: z.string(), result: z.enum(['pass', 'fail', 'grey', 'skipped']), detail: z.string().nullable() }),
+  ),
   /** Why this source was chosen: its relevance to the question (0–1) and the plain-words authority reasons. */
   whyChosen: z.object({ relevance: z.number().nullable(), reasons: z.array(z.string()) }).nullable(),
 });
@@ -222,7 +278,15 @@ export const CoverageResponse = z.object({
   /** Items covered, and items counted (left-out-by-her excluded), so the panel says "3 of 5 covered", not a bare %. */
   covered: z.number().int(),
   counted: z.number().int(),
-  groups: z.array(z.object({ sectionKey: z.string(), title: z.string(), missing: z.number().int(), total: z.number().int(), items: z.array(CoverageItem) })),
+  groups: z.array(
+    z.object({
+      sectionKey: z.string(),
+      title: z.string(),
+      missing: z.number().int(),
+      total: z.number().int(),
+      items: z.array(CoverageItem),
+    }),
+  ),
   leftOut: z.array(CoverageItem),
   notFound: z.array(z.object({ partIndex: z.number().int(), question: z.string() })),
 });
@@ -233,7 +297,12 @@ export const CoverageAdded = z.object({ slideId: z.uuid(), lineKey: z.string() }
 export type CoverageAdded = z.infer<typeof CoverageAdded>;
 
 /** `details.items` of a 409 COVERAGE_CHANGED: items that removing the unverified lines left uncovered. */
-export const CoverageChangedItem = z.object({ id: z.uuid(), label: z.string(), sectionKey: z.string(), canAdd: z.boolean() });
+export const CoverageChangedItem = z.object({
+  id: z.uuid(),
+  label: z.string(),
+  sectionKey: z.string(),
+  canAdd: z.boolean(),
+});
 export type CoverageChangedItem = z.infer<typeof CoverageChangedItem>;
 
 /**

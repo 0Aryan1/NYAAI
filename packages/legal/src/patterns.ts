@@ -35,4 +35,9 @@ export const STATUTE_PATTERNS = {
 export type StatuteMarker = keyof typeof STATUTE_PATTERNS;
 
 /** Attachments that must never be stored apart from the rule they qualify (HLD 5.1 Layer 1). */
-export const ATTACHED_MARKERS: ReadonlySet<StatuteMarker> = new Set(['proviso', 'explanation', 'illustration', 'exception']);
+export const ATTACHED_MARKERS: ReadonlySet<StatuteMarker> = new Set([
+  'proviso',
+  'explanation',
+  'illustration',
+  'exception',
+]);

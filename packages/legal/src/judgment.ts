@@ -13,7 +13,8 @@
  */
 
 export type OpinionType = 'majority' | 'concurring' | 'dissent' | 'separate_no_majority' | 'unknown';
-export type ParaRole = 'facts' | 'arguments' | 'lower_court_summary' | 'discussion' | 'holding' | 'headnote' | 'unknown';
+export type ParaRole =
+  'facts' | 'arguments' | 'lower_court_summary' | 'discussion' | 'holding' | 'headnote' | 'unknown';
 
 export interface JudgmentBlock {
   text: string;
@@ -146,23 +147,41 @@ const INLINE_SIGNATURE = /(?:^|[.;]\s+)([A-Z][A-Z.'\s]{2,40}),?\s*(C\.\s?J\.|J\.
 /** "R.F. NARIMAN, J." alone in a block: the next block starts that judge's opinion. */
 const SIGNATURE_ALONE = /^\s*([A-Z][A-Za-z.'\s]{1,60}?),?\s*(C\.\s?J\.(?:I\.)?|CJI\.?|JJ?\.)\s*$/;
 /** Judges' signature lines at the end ("……J. (PINAKI CHANDRA GHOSE)", "New Delhi; April 11, 2017"). */
-const SIGNATURE_LINE = /^[\s.…]*(?:J\.|CJI\.?)\s*\(|(?:\.|…){5,}\s*J\.|^\s*New\s+Delhi[;,]?\s+[A-Z][a-z]+\s+\d{1,2},?\s+\d{4}\.?\s*$|^\s*\(\s*[A-Z][A-Z.\s]{2,40}\)\s*(?:New\s+Delhi.*)?$|^\s*(?:New\s+Delhi[;,]?\s*)?[A-Z][a-z]+\s+\d{1,2},\s*\d{4}\.?\s*$/;
-const OPENERS = /^\s*(?:I|We)\s+(?:have\s+had\s+the\s+(?:advantage|benefit|privilege)\s+of\s+(?:reading|perusing|going through)|respectfully\s+(?:disagree|differ)|agree\s+with\s+the\s+conclusion|regret\s+(?:that\s+)?(?:I|we)\s+(?:am|are)\s+unable\s+to\s+agree)/i;
-const DELIVERED_BY = /judg(?:e)?ment\s+of\s+(.+?),?\s+(?:was|were)\s+delivered\s+by\s+([A-Z][A-Za-z.'\s]+?),?\s*(?:C\.\s?J\.|J\.|j\.)/i;
-const FOR_THE_BENCH = /\b(?:for|on behalf of)\s+(?:the\s+)?(?:Bench|Court|myself and)\b|\bdelivered the judgment of the Court\b/i;
+const SIGNATURE_LINE =
+  /^[\s.…]*(?:J\.|CJI\.?)\s*\(|(?:\.|…){5,}\s*J\.|^\s*New\s+Delhi[;,]?\s+[A-Z][a-z]+\s+\d{1,2},?\s+\d{4}\.?\s*$|^\s*\(\s*[A-Z][A-Z.\s]{2,40}\)\s*(?:New\s+Delhi.*)?$|^\s*(?:New\s+Delhi[;,]?\s*)?[A-Z][a-z]+\s+\d{1,2},\s*\d{4}\.?\s*$/;
+const OPENERS =
+  /^\s*(?:I|We)\s+(?:have\s+had\s+the\s+(?:advantage|benefit|privilege)\s+of\s+(?:reading|perusing|going through)|respectfully\s+(?:disagree|differ)|agree\s+with\s+the\s+conclusion|regret\s+(?:that\s+)?(?:I|we)\s+(?:am|are)\s+unable\s+to\s+agree)/i;
+const DELIVERED_BY =
+  /judg(?:e)?ment\s+of\s+(.+?),?\s+(?:was|were)\s+delivered\s+by\s+([A-Z][A-Za-z.'\s]+?),?\s*(?:C\.\s?J\.|J\.|j\.)/i;
+const FOR_THE_BENCH =
+  /\b(?:for|on behalf of)\s+(?:the\s+)?(?:Bench|Court|myself and)\b|\bdelivered the judgment of the Court\b/i;
 const COURT_ORDER = /^\s*(?:By\s+(?:the\s+)?Court\s*[:.—-]|ORDER\s*$|O\s*R\s*D\s*E\s*R\s*$)/i;
 
-const DISSENT_SIGNAL = /\bdissent|\brespectfully\s+(?:disagree|differ)|\bunable\s+to\s+(?:agree|concur)|\bgo\s+further\s+and\s+hold|\bwould\s+(?:issue|allow|dismiss|set\s+aside|quash)\b/i;
-const CONCUR_SIGNAL = /\b(?:I|we)\s+(?:agree|concur)\s+(?:with|in)\s+(?:the\s+)?(?:conclusion|order|result|judgment)\b|\bconcur(?:ring)?\s+in\s+the\s+result\b/i;
+const DISSENT_SIGNAL =
+  /\bdissent|\brespectfully\s+(?:disagree|differ)|\bunable\s+to\s+(?:agree|concur)|\bgo\s+further\s+and\s+hold|\bwould\s+(?:issue|allow|dismiss|set\s+aside|quash)\b/i;
+const CONCUR_SIGNAL =
+  /\b(?:I|we)\s+(?:agree|concur)\s+(?:with|in)\s+(?:the\s+)?(?:conclusion|order|result|judgment)\b|\bconcur(?:ring)?\s+in\s+the\s+result\b/i;
 
-const ARGUMENTS = /\blearned\s+(?:senior\s+)?(?:counsel|advocate|Attorney[-\s]General|Solicitor[-\s]General)\b.{0,160}\b(?:submit|contend|argu|urg|plead|point)|\bit\s+(?:was|is|has\s+been)\s+(?:urged|contended|argued|submitted)\b|\bon\s+behalf\s+of\s+the\s+(?:appellant|respondent|petitioner)s?\b.{0,80}\b(?:submit|contend|argu|urg)|\b(?:Mr|Mrs|Ms|Shri|Dr)\.?\s+[A-Z][\w.]*(?:\s+[A-Z][\w.]*)?,?.{0,80}\b(?:appeared|argued|contended|submitted|urged|put\s+forward|pressed)\b|\b(?:argument|contention|submission)s?\b.{0,40}\b(?:advanced|put\s+forward|raised|pressed)\b/i;
-const LOWER_COURT = /\b(?:the\s+)?(?:High\s+Court|trial\s+(?:court|judge)|Tribunal|Appellate\s+Tribunal|learned\s+(?:trial\s+)?Judge|first\s+appellate\s+court|District\s+Judge|Division\s+Bench)\b.{0,80}\b(?:held|observed|found|came\s+to\s+the\s+conclusion|took\s+the\s+view|decided|dismissed|decreed)\b/i;
-const HOLDING = /\bwe\s+hold\b|\bin\s+view\s+of\s+the\s+(?:above|foregoing)\b|\b(?:appeals?|petitions?|writ\s+petitions?)\s+(?:is|are|stands?)\s+(?:accordingly\s+)?(?:allowed|dismissed|partly\s+allowed|disposed\s+of)\b|\bin\s+the\s+result\b|\bfor\s+these\s+reasons\b|\b(?:appeals?|petitions?|suit|decree|order)\b.{0,40}\baccordingly\b|\baccordingly\b.{0,60}\b(?:allowed|dismissed|set\s+aside|quashed|disposed\s+of|affirmed)\b/i;
+const ARGUMENTS =
+  /\blearned\s+(?:senior\s+)?(?:counsel|advocate|Attorney[-\s]General|Solicitor[-\s]General)\b.{0,160}\b(?:submit|contend|argu|urg|plead|point)|\bit\s+(?:was|is|has\s+been)\s+(?:urged|contended|argued|submitted)\b|\bon\s+behalf\s+of\s+the\s+(?:appellant|respondent|petitioner)s?\b.{0,80}\b(?:submit|contend|argu|urg)|\b(?:Mr|Mrs|Ms|Shri|Dr)\.?\s+[A-Z][\w.]*(?:\s+[A-Z][\w.]*)?,?.{0,80}\b(?:appeared|argued|contended|submitted|urged|put\s+forward|pressed)\b|\b(?:argument|contention|submission)s?\b.{0,40}\b(?:advanced|put\s+forward|raised|pressed)\b/i;
+const LOWER_COURT =
+  /\b(?:the\s+)?(?:High\s+Court|trial\s+(?:court|judge)|Tribunal|Appellate\s+Tribunal|learned\s+(?:trial\s+)?Judge|first\s+appellate\s+court|District\s+Judge|Division\s+Bench)\b.{0,80}\b(?:held|observed|found|came\s+to\s+the\s+conclusion|took\s+the\s+view|decided|dismissed|decreed)\b/i;
+const HOLDING =
+  /\bwe\s+hold\b|\bin\s+view\s+of\s+the\s+(?:above|foregoing)\b|\b(?:appeals?|petitions?|writ\s+petitions?)\s+(?:is|are|stands?)\s+(?:accordingly\s+)?(?:allowed|dismissed|partly\s+allowed|disposed\s+of)\b|\bin\s+the\s+result\b|\bfor\s+these\s+reasons\b|\b(?:appeals?|petitions?|suit|decree|order)\b.{0,40}\baccordingly\b|\baccordingly\b.{0,60}\b(?:allowed|dismissed|set\s+aside|quashed|disposed\s+of|affirmed)\b/i;
 /** The court speaking in its own voice about its conclusion: decides the role even when counsel is mentioned too. */
-const COURT_CONCLUSION = /\bwe\s+hold\b|\bwe\s+are\s+(?:clearly\s+)?of\s+(?:the\s+)?(?:view|opinion)\b|\bin\s+our\s+(?:view|opinion|judgment)\b|\b(?:the\s+)?(?:appeals?|petitions?|writ\s+petitions?)\s+(?:is|are|stands?)\s+(?:accordingly\s+)?(?:allowed|dismissed|partly\s+allowed)\b|\bthe\s+result\s+is\s+that\b/i;
-const ISSUE = /\b(?:question|point|issue)s?\s+(?:that|which)?\s*(?:arises?|falls?|requires?|calls?)\s+for\s+(?:our\s+)?(?:consideration|determination|decision)|\bthe\s+(?:only|sole|main|short|real)\s+(?:question|point|issue)\b/i;
+const COURT_CONCLUSION =
+  /\bwe\s+hold\b|\bwe\s+are\s+(?:clearly\s+)?of\s+(?:the\s+)?(?:view|opinion)\b|\bin\s+our\s+(?:view|opinion|judgment)\b|\b(?:the\s+)?(?:appeals?|petitions?|writ\s+petitions?)\s+(?:is|are|stands?)\s+(?:accordingly\s+)?(?:allowed|dismissed|partly\s+allowed)\b|\bthe\s+result\s+is\s+that\b/i;
+const ISSUE =
+  /\b(?:question|point|issue)s?\s+(?:that|which)?\s*(?:arises?|falls?|requires?|calls?)\s+for\s+(?:our\s+)?(?:consideration|determination|decision)|\bthe\s+(?:only|sole|main|short|real)\s+(?:question|point|issue)\b/i;
 
-const lastName = (s: string) => s.replace(/\b(?:CJI|C\.?\s?J\.?|JJ?\.?|Hon'?ble|Mr\.?|Justice)\b/gi, '').replace(/[^A-Za-z\s]/g, ' ').trim().split(/\s+/).pop()?.toLowerCase() ?? '';
+const lastName = (s: string) =>
+  s
+    .replace(/\b(?:CJI|C\.?\s?J\.?|JJ?\.?|Hon'?ble|Mr\.?|Justice)\b/gi, '')
+    .replace(/[^A-Za-z\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .pop()
+    ?.toLowerCase() ?? '';
 
 /** How far the court's own numbering runs through the blocks (see `courtNumbering`). */
 export function courtNumberingStats(blocks: JudgmentBlock[]): { accepted: number; own: number; coverage: number } {
@@ -242,7 +261,11 @@ function splitInlineSignatures(blocks: JudgmentBlock[]): WorkingBlock[] {
     }
     const signature = JUDGE_SIGNATURE.exec(b.text);
     if (signature && signature[1]!.split(/\s+/).length <= 5) {
-      out.push({ ...b, text: b.text.slice(signature[0].length).trim() || b.text, opinionStart: { judge: signature[1]!.trim() } });
+      out.push({
+        ...b,
+        text: b.text.slice(signature[0].length).trim() || b.text,
+        opinionStart: { judge: signature[1]!.trim() },
+      });
       continue;
     }
     if (OPENERS.test(b.text)) {
@@ -294,8 +317,10 @@ function mergeContinuations(blocks: WorkingBlock[], courtNumbers: boolean): Unit
     const brokenAtPage = prev ? /^[a-z(,;]/.test(b.text) || !/[.:;?!"”)\]]\s*$/.test(prev.text) : false;
     // With court numbering, unnumbered blocks join the paragraph before them, unless it has already grown long and
     // this block starts cleanly (Kanoon lost its number): then it is a continuation of its own, never given a number.
-    const tooLong = courtNumbers && prev !== undefined && prev.text.length > MAX_MERGED_CHARS && !b.quoted && !brokenAtPage;
-    const continues = prev && !b.opinionStart && !b.courtOrder && !tooLong && (courtNumbers ? expected > 1 : b.quoted || brokenAtPage);
+    const tooLong =
+      courtNumbers && prev !== undefined && prev.text.length > MAX_MERGED_CHARS && !b.quoted && !brokenAtPage;
+    const continues =
+      prev && !b.opinionStart && !b.courtOrder && !tooLong && (courtNumbers ? expected > 1 : b.quoted || brokenAtPage);
     if (continues) prev.text = `${prev.text}\n${b.text}`;
     else units.push({ ...b, courtNo: null, continuesNo: tooLong ? (prev.courtNo ?? prev.continuesNo ?? null) : null });
   }
@@ -306,7 +331,8 @@ export function splitJudgment(input: JudgmentInput): SplitJudgment {
   const benchSize = input.bench.length;
   // Appearances ("X, for the appellant.") are not judgment text.
   const kept = input.blocks.filter(
-    (b) => !(b.text.length < 400 && APPEARANCE.test(b.text) && !/\bheld\b/i.test(b.text)) && !SIGNATURE_LINE.test(b.text),
+    (b) =>
+      !(b.text.length < 400 && APPEARANCE.test(b.text) && !/\bheld\b/i.test(b.text)) && !SIGNATURE_LINE.test(b.text),
   );
   const split = splitInlineSignatures(kept);
   // Blocks before the first opinion start (when it comes early) are the case caption: jurisdiction line, parties.
@@ -317,9 +343,15 @@ export function splitJudgment(input: JudgmentInput): SplitJudgment {
 
   // Who formed the majority, when the judgment says so (the sentence sits in the caption, so look before dropping it).
   const delivered = split.map((b) => DELIVERED_BY.exec(b.text)).find(Boolean);
-  const majorityJudges = delivered ? delivered[1]!.split(/,|\band\b/).map(lastName).filter(Boolean) : [];
+  const majorityJudges = delivered
+    ? delivered[1]!
+        .split(/,|\band\b/)
+        .map(lastName)
+        .filter(Boolean)
+    : [];
   if (delivered) majorityJudges.push(lastName(delivered[2]!));
-  else if (input.reporterNote?.majority.length) majorityJudges.push(...input.reporterNote.majority.map(lastName).filter(Boolean));
+  else if (input.reporterNote?.majority.length)
+    majorityJudges.push(...input.reporterNote.majority.map(lastName).filter(Boolean));
   const noted = (list: string[] | undefined) => new Set((list ?? []).map(lastName).filter(Boolean));
   const dissenters = noted(input.reporterNote?.dissenting);
   const concurrers = noted(input.reporterNote?.concurring);
@@ -328,7 +360,8 @@ export function splitJudgment(input: JudgmentInput): SplitJudgment {
   // Group blocks into opinions.
   const groups: { judge: string | null; blocks: Unit[]; courtOrder: boolean }[] = [];
   for (const b of blocks) {
-    if (b.opinionStart || groups.length === 0) groups.push({ judge: b.opinionStart?.judge ?? input.author ?? null, blocks: [], courtOrder: false });
+    if (b.opinionStart || groups.length === 0)
+      groups.push({ judge: b.opinionStart?.judge ?? input.author ?? null, blocks: [], courtOrder: false });
     if (b.courtOrder) groups.push({ judge: null, blocks: [], courtOrder: true });
     groups[groups.length - 1]!.blocks.push(b);
   }
@@ -346,8 +379,11 @@ export function splitJudgment(input: JudgmentInput): SplitJudgment {
     if (dissenters.size || concurrers.size) {
       // Every other opinion is accounted for, and the dissenters are fewer than half the Bench: the one opinion
       // left is the Court's (Gayatri Balasamy, 2025: one dissent of five; Vidya Drolia, 2020: one concurrence).
-      const unnamed = opinionGroups.filter((x) => !x.judge || (!dissenters.has(lastName(x.judge)) && !concurrers.has(lastName(x.judge))));
-      if (unnamed.length === 1 && unnamed[0] === g && benchSize > 0 && dissenters.size < benchSize / 2) return 'majority';
+      const unnamed = opinionGroups.filter(
+        (x) => !x.judge || (!dissenters.has(lastName(x.judge)) && !concurrers.has(lastName(x.judge))),
+      );
+      if (unnamed.length === 1 && unnamed[0] === g && benchSize > 0 && dissenters.size < benchSize / 2)
+        return 'majority';
     }
     if (majorityJudges.length) {
       if (judge && majorityJudges.includes(judge)) return majorityIsBench ? 'majority' : 'unknown';
@@ -367,8 +403,17 @@ export function splitJudgment(input: JudgmentInput): SplitJudgment {
   const base = year ? `${input.caseName} (${year})` : input.caseName;
   if (input.headnote) {
     chunks.push({
-      seq: 1, kind: 'headnote', paraNo: null, paraNoSource: null, pageNo: null, opinion: null, opinionIndex: null,
-      judge: null, role: 'headnote', header: `${base} › Headnote (reporter's summary)`, text: input.headnote,
+      seq: 1,
+      kind: 'headnote',
+      paraNo: null,
+      paraNoSource: null,
+      pageNo: null,
+      opinion: null,
+      opinionIndex: null,
+      judge: null,
+      role: 'headnote',
+      header: `${base} › Headnote (reporter's summary)`,
+      text: input.headnote,
     });
   }
 
@@ -386,7 +431,10 @@ export function splitJudgment(input: JudgmentInput): SplitJudgment {
       let role = ruleRole(b.text);
       if (g.courtOrder) role = 'holding';
       if (!role && gi === 0 && firstIssue > 0 && bi < firstIssue) role = 'facts';
-      const opinionLabel = op.type === 'majority' ? '' : ` › ${op.type === 'separate_no_majority' ? 'separate opinion' : op.type}${op.judge ? ` (${op.judge})` : ''}`;
+      const opinionLabel =
+        op.type === 'majority'
+          ? ''
+          : ` › ${op.type === 'separate_no_majority' ? 'separate opinion' : op.type}${op.judge ? ` (${op.judge})` : ''}`;
       chunks.push({
         seq: chunks.length + 1,
         kind: useCourtNumbers ? 'paragraph' : 'paragraph_block',

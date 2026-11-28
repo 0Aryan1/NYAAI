@@ -34,17 +34,37 @@ interface MetaValue {
 interface SearchBody {
   _embedded?: {
     searchResult?: {
-      _embedded?: { objects?: { _embedded?: { indexableObject?: { uuid: string; name: string; handle?: string; metadata?: Record<string, MetaValue[]> } } }[] };
+      _embedded?: {
+        objects?: {
+          _embedded?: {
+            indexableObject?: { uuid: string; name: string; handle?: string; metadata?: Record<string, MetaValue[]> };
+          };
+        }[];
+      };
     };
   };
 }
 interface ItemBody {
-  _embedded?: { bundles?: { _embedded?: { bundles?: { name: string; _embedded?: { bitstreams?: { _embedded?: { bitstreams?: { uuid: string; name: string }[] } } } }[] } } };
+  _embedded?: {
+    bundles?: {
+      _embedded?: {
+        bundles?: {
+          name: string;
+          _embedded?: { bitstreams?: { _embedded?: { bitstreams?: { uuid: string; name: string }[] } } };
+        }[];
+      };
+    };
+  };
 }
 
 const first = (md: Record<string, MetaValue[]> | undefined, key: string) => md?.[key]?.[0]?.value ?? null;
 /** Keep the words of a name only: no quotes, colons or query syntax reach the search. */
-const safeName = (s: string) => s.replace(/^the\s+/i, '').replace(/[^A-Za-z0-9 ()&'-]+/g, ' ').replace(/\s+/g, ' ').trim();
+const safeName = (s: string) =>
+  s
+    .replace(/^the\s+/i, '')
+    .replace(/[^A-Za-z0-9 ()&'-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 export function createIndiaCode(cfg: IndiaCodeConfig = {}): IndiaCode {
   const base = cfg.baseUrl ?? 'https://indiacode.gov.in';
@@ -66,8 +86,12 @@ export function createIndiaCode(cfg: IndiaCodeConfig = {}): IndiaCode {
       // No act_year filter: India Code files some Acts under the year of their Act number, not the year in their
       // name (the Gram Nyayalayas Act, 2008 is Act 4 of 2009, filed as 2009). The year is read from the title
       // instead, and pickAct compares it.
-      const q = ['dc.identifier.collection:ACT', 'dc.identifier.state_name:CENTRAL', `dc.title:"${title}"`].join(' AND ');
-      const body = await getJson<SearchBody>(`/server/api/discover/search/objects?query=${encodeURIComponent(q)}&dsoType=ITEM&size=20`);
+      const q = ['dc.identifier.collection:ACT', 'dc.identifier.state_name:CENTRAL', `dc.title:"${title}"`].join(
+        ' AND ',
+      );
+      const body = await getJson<SearchBody>(
+        `/server/api/discover/search/objects?query=${encodeURIComponent(q)}&dsoType=ITEM&size=20`,
+      );
       return (body._embedded?.searchResult?._embedded?.objects ?? []).flatMap((o) => {
         const it = o._embedded?.indexableObject;
         if (!it) return [];
@@ -93,7 +117,9 @@ export function createIndiaCode(cfg: IndiaCodeConfig = {}): IndiaCode {
       const body = await getJson<ItemBody>(`/server/api/core/items/${itemId}?embed=bundles/bitstreams`);
       const original = body._embedded?.bundles?._embedded?.bundles?.find((b) => b.name === 'ORIGINAL');
       const files = original?._embedded?.bitstreams?._embedded?.bitstreams ?? [];
-      const english = files.find((f) => /^a\d{4}-\d+\.pdf$/i.test(f.name)) ?? files.find((f) => /\.pdf$/i.test(f.name) && !/^h/i.test(f.name));
+      const english =
+        files.find((f) => /^a\d{4}-\d+\.pdf$/i.test(f.name)) ??
+        files.find((f) => /\.pdf$/i.test(f.name) && !/^h/i.test(f.name));
       return english ? `${base}/server/api/core/bitstreams/${english.uuid}/content` : null;
     },
   };

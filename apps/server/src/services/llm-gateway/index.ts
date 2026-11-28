@@ -78,7 +78,15 @@ const isOutage = (err: unknown) =>
   err instanceof Anthropic.InternalServerError ||
   (err instanceof Anthropic.APIError && (err.status === 529 || (err.status ?? 0) >= 500));
 
-export function costMicroUsd(model: string, u: { input_tokens: number; output_tokens: number; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null }): number {
+export function costMicroUsd(
+  model: string,
+  u: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens?: number | null;
+    cache_read_input_tokens?: number | null;
+  },
+): number {
   const p = PRICES[model] ?? PRICES['claude-opus-5-5']!;
   const input = u.input_tokens + 1.25 * (u.cache_creation_input_tokens ?? 0) + 0.1 * (u.cache_read_input_tokens ?? 0);
   return Math.ceil(input * p.in + u.output_tokens * p.out); // $/M tokens = µ$/token
@@ -181,7 +189,8 @@ export function createGateway(cfg: GatewayConfig): Gateway {
           schemaFailures = 0;
           continue;
         }
-        if (tier === 'heavy' && schemaFailures >= 2) throw new GatewayError(`${req.prompt.id}: reply did not match its schema`, 'schema');
+        if (tier === 'heavy' && schemaFailures >= 2)
+          throw new GatewayError(`${req.prompt.id}: reply did not match its schema`, 'schema');
       }
     },
   };

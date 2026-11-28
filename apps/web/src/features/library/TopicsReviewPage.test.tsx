@@ -11,7 +11,23 @@ const S = '22222222-2222-4222-8222-222222222222';
 function setup() {
   vi.spyOn(api, 'topicCases').mockResolvedValue({
     unconfirmed: 1,
-    topics: [{ conceptId: C, name: 'Appointment of arbitrators', subject: 'ADR', cases: [{ sourceId: S, title: 'S.B.P. & Co. v. Patel Engineering', court: 'Supreme Court of India', year: 2005, confirmedAt: null, confirmedBy: null }] }],
+    topics: [
+      {
+        conceptId: C,
+        name: 'Appointment of arbitrators',
+        subject: 'ADR',
+        cases: [
+          {
+            sourceId: S,
+            title: 'S.B.P. & Co. v. Patel Engineering',
+            court: 'Supreme Court of India',
+            year: 2005,
+            confirmedAt: null,
+            confirmedBy: null,
+          },
+        ],
+      },
+    ],
   });
   const remove = vi.spyOn(api, 'removeTopicCase').mockResolvedValue(undefined);
   const restore = vi.spyOn(api, 'restoreTopicCase').mockResolvedValue(undefined);
@@ -36,7 +52,9 @@ describe('confirming leading cases: every decision is asked twice, and can be un
     const { remove, restore } = setup();
     fireEvent.click(await screen.findByRole('button', { name: 'Not this topic' }));
     expect(remove).not.toHaveBeenCalled();
-    expect(screen.getByText(/Remove from Appointment of arbitrators\? Lectures on this topic will stop teaching it\./)).toBeTruthy();
+    expect(
+      screen.getByText(/Remove from Appointment of arbitrators\? Lectures on this topic will stop teaching it\./),
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(remove).not.toHaveBeenCalled();

@@ -59,19 +59,32 @@ export function createWebSearch(cfg: WebSearchConfig, usage: UsageSink): WebSear
     async findLeads(query, max = 5) {
       const res = await doFetch(`${base}/search`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${cfg.apiKey}`, 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ query: query.slice(0, 400), max_results: Math.min(max * 2, 20), max_tokens_per_page: 256, search_domain_filter: allow.slice(0, MAX_DOMAINS) }),
+        headers: {
+          authorization: `Bearer ${cfg.apiKey}`,
+          'content-type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify({
+          query: query.slice(0, 400),
+          max_results: Math.min(max * 2, 20),
+          max_tokens_per_page: 256,
+          search_domain_filter: allow.slice(0, MAX_DOMAINS),
+        }),
         signal: AbortSignal.timeout(45_000),
       });
       if (!res.ok) throw new Error(`Web search failed: HTTP ${res.status}`);
       await usage({ provider: 'perplexity', purpose: 'web.leads', units: 1, costMicroUsd: cfg.costMicroUsd ?? 5_000 });
-      const body = (await res.json()) as { results?: { title?: string; url?: string; last_updated?: string; date?: string }[] };
+      const body = (await res.json()) as {
+        results?: { title?: string; url?: string; last_updated?: string; date?: string }[];
+      };
       const seen = new Set<string>();
-      const candidates = (body.results ?? []).filter((r): r is { title?: string; url: string; last_updated?: string; date?: string } => {
-        if (!r.url || seen.has(r.url) || !onAllowlist(r.url, allow)) return false;
-        seen.add(r.url);
-        return true;
-      });
+      const candidates = (body.results ?? []).filter(
+        (r): r is { title?: string; url: string; last_updated?: string; date?: string } => {
+          if (!r.url || seen.has(r.url) || !onAllowlist(r.url, allow)) return false;
+          seen.add(r.url);
+          return true;
+        },
+      );
       const picked = candidates.slice(0, max);
       const checks = await Promise.all(picked.map((r) => opens(r.url)));
       return picked.map((r, i) => ({

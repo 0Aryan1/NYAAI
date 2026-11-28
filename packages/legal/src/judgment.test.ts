@@ -25,7 +25,9 @@ describe('Satyabrata Ghose v. Mugneeram Bangur (1953): single opinion, old repor
   });
 
   it('rejoins a paragraph that the printed report broke across a page', () => {
-    const joined = paras.find((c) => c.text.includes('It must be borne in mind, however, that section 56 lays down a rule of positive law'));
+    const joined = paras.find((c) =>
+      c.text.includes('It must be borne in mind, however, that section 56 lays down a rule of positive law'),
+    );
     expect(joined).toBeTruthy();
     expect(joined!.text.indexOf('in its practical and not literal sense')).toBeGreaterThan(0);
     expect(paras.some((c) => /^[a-z]/.test(c.text))).toBe(false);
@@ -73,7 +75,10 @@ describe('Energy Watchdog v. CERC (2017): court numbering', () => {
     const court = r.chunks.filter((c) => c.paraNoSource === 'court');
     expect(court.map((c) => c.paraNo)).toEqual(Array.from({ length: 55 }, (_, i) => String(i + 1)));
     // Paras 17 and 46 quote long guidelines: their later part is its own chunk, labelled as a continuation.
-    expect(r.chunks.filter((c) => c.paraNoSource !== 'court').map((c) => c.paraNo)).toEqual(['17 (cont.)', '46 (cont.)']);
+    expect(r.chunks.filter((c) => c.paraNoSource !== 'court').map((c) => c.paraNo)).toEqual([
+      '17 (cont.)',
+      '46 (cont.)',
+    ]);
     expect(r.chunks.every((c) => c.kind === 'paragraph' && c.text.length < 20_000)).toBe(true);
   });
 
@@ -85,11 +90,23 @@ describe('Energy Watchdog v. CERC (2017): court numbering', () => {
 
 describe('rules', () => {
   it('does not call a narrative "accordingly" a holding', () => {
-    expect(ruleRole('Accordingly, it provided for licensees who could supply electricity in a specified area.')).toBeNull();
+    expect(
+      ruleRole('Accordingly, it provided for licensees who could supply electricity in a specified area.'),
+    ).toBeNull();
     expect(ruleRole('The appeal is accordingly dismissed with costs.')).toBe('holding');
-    expect(ruleRole('Learned counsel for the appellant submitted that the contract stood frustrated.')).toBe('arguments');
-    expect(ruleRole('Mr. X contended that the rise in price frustrated the contract. We are of the view that neither clause applies.')).toBe('holding');
-    expect(ruleRole('That is the law both in India and in England, and there is, in our opinion, no general rule as contended by Mr. Chatterjee.')).toBe('holding');
+    expect(ruleRole('Learned counsel for the appellant submitted that the contract stood frustrated.')).toBe(
+      'arguments',
+    );
+    expect(
+      ruleRole(
+        'Mr. X contended that the rise in price frustrated the contract. We are of the view that neither clause applies.',
+      ),
+    ).toBe('holding');
+    expect(
+      ruleRole(
+        'That is the law both in India and in England, and there is, in our opinion, no general rule as contended by Mr. Chatterjee.',
+      ),
+    ).toBe('holding');
     expect(ruleRole('The High Court held that the contract was not frustrated.')).toBe('lower_court_summary');
   });
 
@@ -126,7 +143,12 @@ describe('Kanoon adapter', () => {
       ].join('\n'),
     };
     const j = kanoonToJudgment(doc);
-    expect(j).toMatchObject({ caseName: 'A v. B', decidedOn: '1960-01-02', court: 'Supreme Court of India', author: 'X. Judge' });
+    expect(j).toMatchObject({
+      caseName: 'A v. B',
+      decidedOn: '1960-01-02',
+      court: 'Supreme Court of India',
+      author: 'X. Judge',
+    });
     expect(j.bench).toHaveLength(3);
     expect(j.citations).toEqual(['1960 AIR 1', '1960 SCR 5']);
     expect(j.headnote).toBe('ACT: Contract Act, s. 56.\nThe doctrine applies.');
@@ -142,7 +164,10 @@ describe('Kanoon adapter', () => {
 describe('court list', () => {
   it('recognises the Supreme Court and High Courts, and rejects unknown names', async () => {
     const { identifyCourt } = await import('./courts.ts');
-    expect(identifyCourt('Supreme Court of India')).toEqual({ court: 'Supreme Court of India', level: 'supreme_court' });
+    expect(identifyCourt('Supreme Court of India')).toEqual({
+      court: 'Supreme Court of India',
+      level: 'supreme_court',
+    });
     expect(identifyCourt('Patna High Court')).toEqual({ court: 'Patna High Court', level: 'high_court' });
     expect(identifyCourt('Madras High Court - Madurai Bench')?.level).toBe('high_court');
     expect(identifyCourt('Court of Nowhere')).toBeNull();
@@ -161,11 +186,15 @@ describe('PASL Wind Solutions (2021): quoted statute sections carry their own nu
     headnote: null,
     blocks: [
       block('1. Leave granted.'),
-      block('2. The present appeal raises an interesting question as to whether two companies incorporated in India can choose a foreign forum.'),
+      block(
+        '2. The present appeal raises an interesting question as to whether two companies incorporated in India can choose a foreign forum.',
+      ),
       block('3. The Foreign Awards Act, 1961 provided as follows:'),
       block('4. Effect of foreign awards.—A foreign award shall be treated as binding for all purposes.'),
       block('5. Filing of foreign awards in court.—Any person interested in a foreign award may apply to any court.'),
-      block('6. Enforcement of foreign awards.—Where the court is satisfied that the foreign award is enforceable, it shall order.'),
+      block(
+        '6. Enforcement of foreign awards.—Where the court is satisfied that the foreign award is enforceable, it shall order.',
+      ),
       block('4. The award was made in Zurich. The respondent resisted enforcement in the High Court.'),
       block('5. The learned Single Judge held that the award was enforceable.'),
       block('6. Shri Rao argued that two Indian parties cannot derogate from Indian law.'),
@@ -184,15 +213,49 @@ describe('PASL Wind Solutions (2021): quoted statute sections carry their own nu
 
 describe('court numbering that skips a number or restarts for the next opinion', () => {
   const block = (text: string) => ({ text, page: null, quoted: false });
-  const base = { caseName: 'A v. B', decidedOn: '2012-09-06', court: 'Supreme Court of India', citations: [], author: null, bench: ['X', 'Y'], headnote: null };
-  const paras = (texts: string[]) => splitJudgment({ ...base, blocks: texts.map(block) }).chunks.filter((c) => c.kind !== 'headnote').map((c) => c.paraNo);
-  const run = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => `${from + i}. Paragraph ${from + i} of the judgment, stated in full.`);
+  const base = {
+    caseName: 'A v. B',
+    decidedOn: '2012-09-06',
+    court: 'Supreme Court of India',
+    citations: [],
+    author: null,
+    bench: ['X', 'Y'],
+    headnote: null,
+  };
+  const paras = (texts: string[]) =>
+    splitJudgment({ ...base, blocks: texts.map(block) })
+      .chunks.filter((c) => c.kind !== 'headnote')
+      .map((c) => c.paraNo);
+  const run = (from: number, to: number) =>
+    Array.from(
+      { length: to - from + 1 },
+      (_, i) => `${from + i}. Paragraph ${from + i} of the judgment, stated in full.`,
+    );
 
   it('follows a skipped number when the next one confirms it (BALCO: 187 → 189)', () => {
-    expect(paras([...run(1, 6), '8. The judgment continues after a skipped number.', ...run(9, 10)])).toEqual(['1', '2', '3', '4', '5', '6', '8', '9', '10']);
+    expect(paras([...run(1, 6), '8. The judgment continues after a skipped number.', ...run(9, 10)])).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '8',
+      '9',
+      '10',
+    ]);
   });
   it('does not follow a quoted list of numbers', () => {
-    expect(paras([...run(1, 6), '9. A quoted extract numbered nine.', 'and its text', ...run(7, 8)])).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+    expect(paras([...run(1, 6), '9. A quoted extract numbered nine.', 'and its text', ...run(7, 8)])).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+    ]);
   });
   it('starts again at 1 for a second opinion (S.B.P. & Co., 2005)', () => {
     expect(paras([...run(1, 7), ...run(1, 3)])).toEqual(['1', '2', '3', '4', '5', '6', '7', '1', '2', '3']);
@@ -201,8 +264,14 @@ describe('court numbering that skips a number or restarts for the next opinion',
 
 describe('kanoonToJudgment: a judgment delivered as one preformatted block', () => {
   it('reads the paragraphs from the <pre> text', () => {
-    const para = (n: number) => `      ${n}.    Paragraph ${n} of the judgment discusses the arbitration agreement\n      between the parties at some length, and it continues on this line.`;
-    const pre = ['                        IN THE SUPREME COURT OF INDIA', '                              J U D G M E N  T', ...Array.from({ length: 40 }, (_, i) => para(i + 1)), '      12'].join('\n\n');
+    const para = (n: number) =>
+      `      ${n}.    Paragraph ${n} of the judgment discusses the arbitration agreement\n      between the parties at some length, and it continues on this line.`;
+    const pre = [
+      '                        IN THE SUPREME COURT OF INDIA',
+      '                              J U D G M E N  T',
+      ...Array.from({ length: 40 }, (_, i) => para(i + 1)),
+      '      12',
+    ].join('\n\n');
     const r = kanoonToJudgment({
       tid: 92712826,
       title: 'Chloro Controls(I) P.Ltd vs Severn Trent Water Purification Inc ... on 28 September, 2012',
@@ -217,7 +286,16 @@ describe('kanoonToJudgment: a judgment delivered as one preformatted block', () 
 
 describe('sub-paragraph numbering (e-SCR, PASL Wind 2021)', () => {
   const b = (text: string, quoted = false) => ({ text, page: 1, quoted });
-  const input = (blocks: ReturnType<typeof b>[]) => ({ caseName: 'PASL v. GE', decidedOn: '2021-04-20', court: 'Supreme Court of India', citations: [], author: null, bench: [], headnote: null, blocks });
+  const input = (blocks: ReturnType<typeof b>[]) => ({
+    caseName: 'PASL v. GE',
+    decidedOn: '2021-04-20',
+    court: 'Supreme Court of India',
+    citations: [],
+    author: null,
+    bench: [],
+    headnote: null,
+    blocks,
+  });
 
   it('numbers "3.1.", "3.2." as the court’s, and a quoted clause "6.1" inside them as part of the paragraph', () => {
     const split = splitJudgment(
@@ -238,7 +316,15 @@ describe('sub-paragraph numbering (e-SCR, PASL Wind 2021)', () => {
   });
 
   it('reads "NAME, CJI" as the start of an opinion', () => {
-    const split = splitJudgment(input([b('DR. DHANANJAYA Y CHANDRACHUD, CJI'), b('1. The reference is answered.'), b('2. Ordered accordingly.'), b('3. No costs.'), b('4. Disposed of.')]));
+    const split = splitJudgment(
+      input([
+        b('DR. DHANANJAYA Y CHANDRACHUD, CJI'),
+        b('1. The reference is answered.'),
+        b('2. Ordered accordingly.'),
+        b('3. No costs.'),
+        b('4. Disposed of.'),
+      ]),
+    );
     expect(split.opinions[0]!.judge).toBe('DR. DHANANJAYA Y CHANDRACHUD');
   });
 });

@@ -92,13 +92,17 @@ export function createVoyage(cfg: VoyageConfig, usage: UsageSink): Voyage {
     async embed(texts, inputType, purpose) {
       const vectors: number[][] = [];
       for (const batch of batches(texts)) {
-        const r = await post<{ data: { embedding: number[]; index: number }[]; usage: { total_tokens: number } }>('/embeddings', {
-          input: batch,
-          model: cfg.embedModel,
-          input_type: inputType,
-        });
+        const r = await post<{ data: { embedding: number[]; index: number }[]; usage: { total_tokens: number } }>(
+          '/embeddings',
+          {
+            input: batch,
+            model: cfg.embedModel,
+            input_type: inputType,
+          },
+        );
         const ordered = [...r.data].sort((a, b) => a.index - b.index).map((d) => d.embedding);
-        if (ordered.some((v) => v.length !== EMBED_DIMS)) throw new VoyageError(`expected ${EMBED_DIMS}-dim vectors`, 0);
+        if (ordered.some((v) => v.length !== EMBED_DIMS))
+          throw new VoyageError(`expected ${EMBED_DIMS}-dim vectors`, 0);
         vectors.push(...ordered);
         await usage({
           provider: 'voyage',
@@ -114,13 +118,16 @@ export function createVoyage(cfg: VoyageConfig, usage: UsageSink): Voyage {
 
     async rerank(query, documents, purpose, topK) {
       if (documents.length === 0) return [];
-      const r = await post<{ data: { index: number; relevance_score: number }[]; usage: { total_tokens: number } }>('/rerank', {
-        query,
-        documents,
-        model: cfg.rerankModel,
-        ...(topK ? { top_k: topK } : {}),
-        truncation: true,
-      });
+      const r = await post<{ data: { index: number; relevance_score: number }[]; usage: { total_tokens: number } }>(
+        '/rerank',
+        {
+          query,
+          documents,
+          model: cfg.rerankModel,
+          ...(topK ? { top_k: topK } : {}),
+          truncation: true,
+        },
+      );
       await usage({
         provider: 'voyage',
         model: cfg.rerankModel,

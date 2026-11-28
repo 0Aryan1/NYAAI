@@ -63,7 +63,12 @@ interface LectureRow {
   style_key: string;
   course_id: string | null;
   unit_id: string | null;
-  plan: (LecturePlan & { notFound?: { partIndex: number; question: string }[]; partLeftOut?: Record<string, { item: string; reason: string }[]> }) | null;
+  plan:
+    | (LecturePlan & {
+        notFound?: { partIndex: number; question: string }[];
+        partLeftOut?: Record<string, { item: string; reason: string }[]>;
+      })
+    | null;
   parts_done: number[];
   research: LectureResearch | null;
   must_include_text: string | null;
@@ -80,9 +85,20 @@ interface LectureRow {
 
 const STYLE_WORDS: Record<string, Record<string, string>> = {
   density: { light: 'a few key points per slide', balanced: 'balanced slides', dense: 'detailed slides' },
-  case_first: { rule_first: 'state the rule first, then the cases', case_first: 'open with the case story, then the rule' },
-  structure: { irac: 'issue, rule, application, conclusion', story: 'tell it as a story', questions: 'lead with questions to the class' },
-  language_mix: { english: 'English only', english_hindi_terms: 'English, with Hindi terms where students use them', bilingual: 'English and Hindi' },
+  case_first: {
+    rule_first: 'state the rule first, then the cases',
+    case_first: 'open with the case story, then the rule',
+  },
+  structure: {
+    irac: 'issue, rule, application, conclusion',
+    story: 'tell it as a story',
+    questions: 'lead with questions to the class',
+  },
+  language_mix: {
+    english: 'English only',
+    english_hindi_terms: 'English, with Hindi terms where students use them',
+    bilingual: 'English and Hindi',
+  },
   example_kind: { indian_cases: 'Indian case examples', everyday: 'everyday examples', hypotheticals: 'hypotheticals' },
 };
 const STYLE_KEY: Record<string, string> = {
@@ -91,7 +107,9 @@ const STYLE_KEY: Record<string, string> = {
   discussion: 'a discussion class: questions to the class, case stories, fewer bullet points',
 };
 
-export function teacherBlock(row: Pick<LectureRow, 'style' | 'writing_guide' | 'teaching_language' | 'style_key' | 'level'>): string {
+export function teacherBlock(
+  row: Pick<LectureRow, 'style' | 'writing_guide' | 'teaching_language' | 'style_key' | 'level'>,
+): string {
   const style = Object.entries(row.style)
     .map(([k, v]) => STYLE_WORDS[k]?.[v])
     .filter(Boolean);
@@ -114,7 +132,10 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
     if (deps.publisher) await publishEvent(deps.publisher, job.ownerId, e);
   };
   // Every AI and search cost of this build is logged inside her own transaction, tagged with the lecture.
-  const usage: UsageSink = (row) => tenant((c) => usageSink(c, { collegeId: job.collegeId, ownerId: job.ownerId })({ ...row, lectureId: job.lectureId, traceId }));
+  const usage: UsageSink = (row) =>
+    tenant((c) =>
+      usageSink(c, { collegeId: job.collegeId, ownerId: job.ownerId })({ ...row, lectureId: job.lectureId, traceId }),
+    );
 
   const row = await tenant(async (c) => {
     const r = (
@@ -130,7 +151,8 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
     ).rows[0];
     if (!r) throw new BuildError('NOT_FOUND', 'lecture not found');
     // Budget gate (LLD §5.1): refused before any AI call; a build already past planning finishes.
-    if (!r.plan && Number(r.spent ?? 0) >= Number(r.budget)) throw new BuildError('BUDGET_EXHAUSTED', 'monthly limit reached');
+    if (!r.plan && Number(r.spent ?? 0) >= Number(r.budget))
+      throw new BuildError('BUDGET_EXHAUSTED', 'monthly limit reached');
     await c.query("update lectures set status = 'building', error_code = null where id = $1", [job.lectureId]);
     return r;
   });
@@ -142,12 +164,26 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
   const { concept, mappings, course } = await tenant(async (c) => {
     const concept = row.concept_id ? await conceptHints(c, row.concept_id) : null;
     const mappings = (
-      await c.query<{ old_act: string; new_act: string; relation: MappingRow['relation']; old: string[] | null; new: string[] | null; signed: boolean }>(
+      await c.query<{
+        old_act: string;
+        new_act: string;
+        relation: MappingRow['relation'];
+        old: string[] | null;
+        new: string[] | null;
+        signed: boolean;
+      }>(
         `select m.old_act, m.new_act, m.relation, m.reviewed_at is not null as signed,
                 array_agg(i.section) filter (where i.side = 'old') as old, array_agg(i.section) filter (where i.side = 'new') as new
            from law_mappings m left join law_mapping_items i on i.mapping_id = m.id group by m.id`,
       )
-    ).rows.map((m) => ({ oldAct: m.old_act, newAct: m.new_act, relation: m.relation, oldSections: m.old ?? [], newSections: m.new ?? [], signed: m.signed }));
+    ).rows.map((m) => ({
+      oldAct: m.old_act,
+      newAct: m.new_act,
+      relation: m.relation,
+      oldSections: m.old ?? [],
+      newSections: m.new ?? [],
+      signed: m.signed,
+    }));
     // Course memory (HLD F8.2): what the class has been taught before this lecture, and the next one in the plan.
     const course = row.course_id ? courseContext(await loadUnits(c, row.course_id), row.unit_id) : null;
     return { concept, mappings, course };
@@ -175,11 +211,22 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
       .filter(Boolean)
       .join('\n');
     const teacher = teacherBlock(row);
-    const planned = (await deps.gateway.run({ prompt: PROMPTS['planner.lecture'], schema: LecturePlan, context: [teacher], task, traceId }, usage)).data;
+    const planned = (
+      await deps.gateway.run(
+        { prompt: PROMPTS['planner.lecture'], schema: LecturePlan, context: [teacher], task, traceId },
+        usage,
+      )
+    ).data;
     // Teaching order is fixed in code: the recap opens the class and the bridge closes it.
     const p = { ...planned, parts: orderParts(planned.parts) };
     plan = p;
-    await tenant((c) => c.query('update lectures set plan = $2, prompt_versions = $3 where id = $1', [job.lectureId, p, promptVersions()]));
+    await tenant((c) =>
+      c.query('update lectures set plan = $2, prompt_versions = $3 where id = $1', [
+        job.lectureId,
+        p,
+        promptVersions(),
+      ]),
+    );
   }
   await emit({ type: 'build.outline', lectureId: job.lectureId });
 
@@ -206,8 +253,24 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
   let research = row.research;
   if (!research) {
     research = await researchLecture(
-      { plan, topic: row.topic, level: row.level, filters: row.filters ?? {}, contextAct: ctx.contextAct, conceptId: row.concept_id, notes: attached },
-      { tenant, searchDeps, lookup: deps.lookup, gateway: deps.gateway, usage, traceId, concurrency: deps.partConcurrency ?? 3 },
+      {
+        plan,
+        topic: row.topic,
+        level: row.level,
+        filters: row.filters ?? {},
+        contextAct: ctx.contextAct,
+        conceptId: row.concept_id,
+        notes: attached,
+      },
+      {
+        tenant,
+        searchDeps,
+        lookup: deps.lookup,
+        gateway: deps.gateway,
+        usage,
+        traceId,
+        concurrency: deps.partConcurrency ?? 3,
+      },
     );
     const notes = research;
     await tenant((c) =>
@@ -228,7 +291,9 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
       // The guard again: notes saved by an earlier attempt may name a document she has since removed or replaced.
       sources: onlyAttached(notes.parts[i]?.sources ?? [], attached),
       outcome: notes.parts[i]?.outcome ?? ('not_found' as const),
-      mustCover: notes.mustCover.filter((m) => m.partIndex === i && m.act && m.number).map((m) => ({ label: m.label, act: m.act!, number: m.number! })),
+      mustCover: notes.mustCover
+        .filter((m) => m.partIndex === i && m.act && m.number)
+        .map((m) => ({ label: m.label, act: m.act!, number: m.number! })),
       elsewhere: notes.elsewhere[String(i)] ?? [],
     };
     const out = await runPart(i, p, ctx, { tenant, gateway: deps.gateway, usage, traceId }, brief);
@@ -239,7 +304,12 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
                 plan = jsonb_set(jsonb_set(coalesce(plan, '{}'), '{notFound}', coalesce(plan->'notFound', '[]') || $3::jsonb),
                                  array['partLeftOut', $2::text], $4::jsonb)
           where id = $1`,
-        [job.lectureId, i, JSON.stringify(out.notFound.map((q) => ({ partIndex: i, question: q }))), JSON.stringify(out.leftOut)],
+        [
+          job.lectureId,
+          i,
+          JSON.stringify(out.notFound.map((q) => ({ partIndex: i, question: q }))),
+          JSON.stringify(out.leftOut),
+        ],
       );
     });
     outputs.push(out);
@@ -248,9 +318,20 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
 
   // Finalise: coverage and counts across all parts.
   await emit({ type: 'build.step', lectureId: job.lectureId, step: 'checking' });
-  const finalPlan = await tenant(async (c) => (await c.query<{ plan: LectureRow['plan'] }>('select plan from lectures where id = $1', [job.lectureId])).rows[0]!.plan);
+  const finalPlan = await tenant(
+    async (c) =>
+      (await c.query<{ plan: LectureRow['plan'] }>('select plan from lectures where id = $1', [job.lectureId])).rows[0]!
+        .plan,
+  );
   const leftOut = [...(finalPlan?.leftOut ?? []), ...Object.values(finalPlan?.partLeftOut ?? {}).flat()];
-  const counts = await tenant((c) => finaliseLecture(c, job.lectureId, { ownerId: job.ownerId, collegeId: job.collegeId }, { conceptId: row.concept_id, leftOut }));
+  const counts = await tenant((c) =>
+    finaliseLecture(
+      c,
+      job.lectureId,
+      { ownerId: job.ownerId, collegeId: job.collegeId },
+      { conceptId: row.concept_id, leftOut },
+    ),
+  );
   await emit({ type: 'build.done', lectureId: job.lectureId });
   return counts;
 }
@@ -258,24 +339,41 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
 /** One line for the planner: what the course memory holds, so the recap and bridge are planned only when they fit. */
 function courseTaskLine(ctx: CourseContext): string {
   const recap = hasMemory(ctx) ? 'yes: plan a recap part first' : 'no lecture taught yet: no recap';
-  const bridge = ctx.next ? `yes: plan a bridge part last, to ${lectureNo(ctx.next.position)} ${ctx.next.title}` : 'no next lecture: no bridge';
+  const bridge = ctx.next
+    ? `yes: plan a bridge part last, to ${lectureNo(ctx.next.position)} ${ctx.next.title}`
+    : 'no next lecture: no bridge';
   return `COURSE RECAP: ${recap}. COURSE BRIDGE: ${bridge}.`;
 }
 
 /** The whole lecture as each part's writer sees it (FLOW): titles, minutes, kinds and questions. */
 export function outlineText(parts: LecturePlan['parts']): string {
-  return parts.map((p, i) => `Part ${i + 1}: ${p.title} (${p.minutes} min, ${p.kind}). Answers: ${p.questions.join(' ')}`).join('\n');
+  return parts
+    .map((p, i) => `Part ${i + 1}: ${p.title} (${p.minutes} min, ${p.kind}). Answers: ${p.questions.join(' ')}`)
+    .join('\n');
 }
 
 /** Prompt versions this build used (stored on the lecture; each citation's checks carry their own). */
 function promptVersions() {
-  return Object.fromEntries((['planner.lecture', 'writer.part', 'writer.repair', 'checker.support', 'checker.second', 'learn.summary'] as const).map((id) => [id, PROMPTS[id].version]));
+  return Object.fromEntries(
+    (
+      ['planner.lecture', 'writer.part', 'writer.repair', 'checker.support', 'checker.second', 'learn.summary'] as const
+    ).map((id) => [id, PROMPTS[id].version]),
+  );
 }
 
 /** Marks the lecture failed with a plain error code and tells her stream (called on the last attempt). */
-export async function markFailed(job: BuildJob, deps: Pick<BuildDeps, 'worker' | 'publisher'>, code: string): Promise<void> {
+export async function markFailed(
+  job: BuildJob,
+  deps: Pick<BuildDeps, 'worker' | 'publisher'>,
+  code: string,
+): Promise<void> {
   await withTenant(deps.worker, { userId: job.ownerId, collegeId: job.collegeId, role: 'teacher' }, (c) =>
     c.query("update lectures set status = 'failed', error_code = $2 where id = $1", [job.lectureId, code]),
   );
-  if (deps.publisher) await publishEvent(deps.publisher, job.ownerId, { type: 'build.failed', lectureId: job.lectureId, errorCode: code });
+  if (deps.publisher)
+    await publishEvent(deps.publisher, job.ownerId, {
+      type: 'build.failed',
+      lectureId: job.lectureId,
+      errorCode: code,
+    });
 }

@@ -41,7 +41,12 @@ const fakeVoyage: Voyage = {
   embed: async (texts) => texts.map(fakeVector),
   rerank: async (query, docs) => {
     const q = new Set(words(query.split('Question:').pop() ?? query));
-    return docs.map((d, index) => ({ index, score: q.size ? [...q].filter((x) => new Set(words(d)).has(x)).length / q.size : 0 })).sort((a, b) => b.score - a.score);
+    return docs
+      .map((d, index) => ({
+        index,
+        score: q.size ? [...q].filter((x) => new Set(words(d)).has(x)).length / q.size : 0,
+      }))
+      .sort((a, b) => b.score - a.score);
   },
 };
 
@@ -50,7 +55,13 @@ async function stackUp(): Promise<boolean> {
   const c = new pg.Client({ connectionString: process.env.DATABASE_URL_MIGRATE, connectionTimeoutMillis: 1500 });
   try {
     await c.connect();
-    return (await c.query("select exists (select 1 from information_schema.columns where table_name = 'research_runs' and column_name = 'error_code') as ok")).rows[0]?.ok === true;
+    return (
+      (
+        await c.query(
+          "select exists (select 1 from information_schema.columns where table_name = 'research_runs' and column_name = 'error_code') as ok",
+        )
+      ).rows[0]?.ok === true
+    );
   } catch {
     return false;
   } finally {
@@ -78,7 +89,20 @@ describe.skipIf(!up)('quick Research (integration)', () => {
       const r = await fake.run(req, usage);
       if (plantWrongQuote && req.prompt.id === 'research.write') {
         const d = r.data as { keyPoints: unknown[] };
-        d.keyPoints = [{ text: 'An otter must always swim.', kind: 'claim', claims: [{ text: 'An otter must always swim.', type: 'rule', tag: 'S1', span: `An otter ${w} must always swim in every river` }] }];
+        d.keyPoints = [
+          {
+            text: 'An otter must always swim.',
+            kind: 'claim',
+            claims: [
+              {
+                text: 'An otter must always swim.',
+                type: 'rule',
+                tag: 'S1',
+                span: `An otter ${w} must always swim in every river`,
+              },
+            ],
+          },
+        ];
       }
       return r;
     },
@@ -90,24 +114,59 @@ describe.skipIf(!up)('quick Research (integration)', () => {
     app = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 3 });
     worker = new pg.Pool({ connectionString: process.env.DATABASE_URL_WORKER, max: 4 });
     redis = new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
-    await owner.query("insert into colleges (id, name, slug) values ($1, 'Research Test College', $2)", [college, `rs-${college}`]);
-    for (const [id, email] of [[teacher, `t-${tag}@rs.test`], [other, `o-${tag}@rs.test`]] as const) {
-      await owner.query("insert into users (id, college_id, email, name) values ($1, $2, $3, 'T')", [id, college, email]);
+    await owner.query("insert into colleges (id, name, slug) values ($1, 'Research Test College', $2)", [
+      college,
+      `rs-${college}`,
+    ]);
+    for (const [id, email] of [
+      [teacher, `t-${tag}@rs.test`],
+      [other, `o-${tag}@rs.test`],
+    ] as const) {
+      await owner.query("insert into users (id, college_id, email, name) values ($1, $2, $3, 'T')", [
+        id,
+        college,
+        email,
+      ]);
       await owner.query('insert into teacher_profiles (owner_id, college_id) values ($1, $2)', [id, college]);
-      await owner.query("insert into consents (college_id, owner_id, version, processors) values ($1, $2, $3, '[]')", [college, id, CONSENT_VERSION]);
+      await owner.query("insert into consents (college_id, owner_id, version, processors) values ($1, $2, $3, '[]')", [
+        college,
+        id,
+        CONSENT_VERSION,
+      ]);
       await owner.query('insert into invite_allowlist (college_id, email) values ($1, $2)', [college, email]);
     }
     const g = (await owner.query('select id from colleges where is_global')).rows[0].id;
     const act = `Otter ${w} Act`;
-    await owner.query(`insert into sources (id, college_id, visibility, type, origin, title, act_name, content_hash, status) values ($1, $2, 'shared', 'act', 'india_code', $3, $3, $4, 'live')`, [actId, g, act, `rs-${tag}`]);
+    await owner.query(
+      `insert into sources (id, college_id, visibility, type, origin, title, act_name, content_hash, status) values ($1, $2, 'shared', 'act', 'india_code', $3, $3, $4, 'live')`,
+      [actId, g, act, `rs-${tag}`],
+    );
     await owner.query(
       `insert into chunks (college_id, visibility, source_id, seq, kind, header, act_name, section, source_type, text, content_hash, status, embedding, law_status)
        values ($1, 'shared', $2, 1, 'section', $3, $4, '9', 'act', $5, $6, 'live', $7, 'in_force')`,
-      [g, actId, `${act} › s. 9 Otter rivers`, act, `9. Otter rivers.—An otter ${w} may swim in a river only with the leave of the river warden.`, `rsc-${tag}`, toVector(fakeVector(`otter ${w} swim river warden leave`))],
+      [
+        g,
+        actId,
+        `${act} › s. 9 Otter rivers`,
+        act,
+        `9. Otter rivers.—An otter ${w} may swim in a river only with the leave of the river warden.`,
+        `rsc-${tag}`,
+        toVector(fakeVector(`otter ${w} swim river warden leave`)),
+      ],
     );
     for (const [id, title, date, text] of [
-      [newCase, `Otter ${w} v. River Warden`, '2021-03-01', `We hold that the otter ${w} needs the leave of the river warden before it swims in the river.`],
-      [oldCase, `Heron ${w} v. Otter Board`, '1988-06-01', `The otter ${w} river warden leave was not required in 1988 for a swim in the river.`],
+      [
+        newCase,
+        `Otter ${w} v. River Warden`,
+        '2021-03-01',
+        `We hold that the otter ${w} needs the leave of the river warden before it swims in the river.`,
+      ],
+      [
+        oldCase,
+        `Heron ${w} v. Otter Board`,
+        '1988-06-01',
+        `The otter ${w} river warden leave was not required in 1988 for a swim in the river.`,
+      ],
     ] as const) {
       await owner.query(
         `insert into sources (id, college_id, visibility, type, origin, title, court, court_level, decided_on, content_hash, status)
@@ -125,10 +184,23 @@ describe.skipIf(!up)('quick Research (integration)', () => {
   afterAll(async () => {
     if (!owner) return;
     await owner.query('delete from sources where id = any($1::uuid[])', [[actId, newCase, oldCase]]);
-    const gaps = (await owner.query<{ id: string }>('select id from library_gaps where question ilike $1', [`%${w}%`])).rows.map((r) => r.id);
+    const gaps = (
+      await owner.query<{ id: string }>('select id from library_gaps where question ilike $1', [`%${w}%`])
+    ).rows.map((r) => r.id);
     await owner.query('delete from review_queue where ref_id = any($1::uuid[])', [gaps]);
     await owner.query('delete from library_gaps where id = any($1::uuid[])', [gaps]);
-    for (const t of ['product_events', 'evidence_items', 'research_questions', 'research_runs', 'usage', 'teacher_profiles', 'consents', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
+    for (const t of [
+      'product_events',
+      'evidence_items',
+      'research_questions',
+      'research_runs',
+      'usage',
+      'teacher_profiles',
+      'consents',
+      'invite_allowlist',
+      'users',
+    ])
+      await owner.query(`delete from ${t} where college_id = $1`, [college]);
     await owner.query('delete from colleges where id = $1', [college]);
     await Promise.all([owner.end(), app.end(), worker.end(), redis.quit()]);
   });
@@ -136,29 +208,66 @@ describe.skipIf(!up)('quick Research (integration)', () => {
   const http = () =>
     createApp({
       config: parseConfig({
-        DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL, S3_BUCKET: 'b', S3_ACCESS_KEY_ID: 'k', S3_SECRET_ACCESS_KEY: 's',
-        SESSION_SECRET: 'a'.repeat(32), CSRF_SECRET: 'b'.repeat(32), ALLOWED_EMAIL_DOMAINS: 'rs.test', LOG_LEVEL: 'silent', NODE_ENV: 'development', DEV_LOGIN: 'true',
+        DATABASE_URL: process.env.DATABASE_URL,
+        REDIS_URL: process.env.REDIS_URL,
+        S3_BUCKET: 'b',
+        S3_ACCESS_KEY_ID: 'k',
+        S3_SECRET_ACCESS_KEY: 's',
+        SESSION_SECRET: 'a'.repeat(32),
+        CSRF_SECRET: 'b'.repeat(32),
+        ALLOWED_EMAIL_DOMAINS: 'rs.test',
+        LOG_LEVEL: 'silent',
+        NODE_ENV: 'development',
+        DEV_LOGIN: 'true',
       }),
       logger: pino({ level: 'silent' }),
       pool: app,
       redis,
-      queues: { research: { add: async (name: string, data: never) => (jobs.push({ name, data }), { id: `r-${jobs.length}` }) } as never },
+      queues: {
+        research: {
+          add: async (name: string, data: never) => (jobs.push({ name, data }), { id: `r-${jobs.length}` }),
+        } as never,
+      },
     });
   const signIn = async (email: string, n: number) => {
     const agent = request.agent(http());
-    const login = await agent.post('/api/v1/auth/dev-login').set('x-forwarded-for', `10.88.${tag.charCodeAt(0)}.${n}`).send({ email }).expect(204);
-    return { agent, csrf: decodeURIComponent(([] as string[]).concat(login.headers['set-cookie'] ?? []).find((c) => c.startsWith('nyaai_csrf='))!.split(';')[0]!.slice(11)) };
+    const login = await agent
+      .post('/api/v1/auth/dev-login')
+      .set('x-forwarded-for', `10.88.${tag.charCodeAt(0)}.${n}`)
+      .send({ email })
+      .expect(204);
+    return {
+      agent,
+      csrf: decodeURIComponent(
+        ([] as string[])
+          .concat(login.headers['set-cookie'] ?? [])
+          .find((c) => c.startsWith('nyaai_csrf='))!
+          .split(';')[0]!
+          .slice(11),
+      ),
+    };
   };
   let runId = '';
 
   it('starts a run over HTTP: checked first, ids only in the job, "planning" until the worker takes it', async () => {
     const t = await signIn(`t-${tag}@rs.test`, 1);
-    await request(http()).post('/api/v1/research').send({ question: 'x' }).expect((r) => expect([401, 403]).toContain(r.status));
+    await request(http())
+      .post('/api/v1/research')
+      .send({ question: 'x' })
+      .expect((r) => expect([401, 403]).toContain(r.status));
     await t.agent.post('/api/v1/research').set('x-csrf-token', t.csrf).send({ question: 'short' }).expect(400);
-    const r = await t.agent.post('/api/v1/research').set('x-csrf-token', t.csrf).send({ question: `When may an otter ${w} swim in a river?`, scope: { comparative: false, fromYear: 2000 } }).expect(202);
+    const r = await t.agent
+      .post('/api/v1/research')
+      .set('x-csrf-token', t.csrf)
+      .send({ question: `When may an otter ${w} swim in a river?`, scope: { comparative: false, fromYear: 2000 } })
+      .expect(202);
     runId = r.body.id;
     expect(jobs).toEqual([{ name: 'research.run', data: { runId, ownerId: teacher, collegeId: college } }]);
-    expect((await t.agent.get(`/api/v1/research/${runId}`).expect(200)).body).toMatchObject({ status: 'planning', brief: null, subQuestions: [] });
+    expect((await t.agent.get(`/api/v1/research/${runId}`).expect(200)).body).toMatchObject({
+      status: 'planning',
+      brief: null,
+      subQuestions: [],
+    });
   });
 
   it('the run plans, gathers, writes from the evidence only, checks every line, and saves', async () => {
@@ -180,14 +289,25 @@ describe.skipIf(!up)('quick Research (integration)', () => {
     const act = brief.evidence.find((e: { header: string }) => e.header.includes('s. 9'));
     expect(act).toMatchObject({ statusLabel: 'In force' });
     const judgment = brief.evidence.find((e: { header: string }) => e.header.includes('River Warden'));
-    expect(judgment).toMatchObject({ statusLabel: 'Status not verified', caseStatus: 'not_verified', court: 'Supreme Court of India' });
-    expect(brief.evidence.every((e: { relation: string }) => ['supports', 'limits', 'conflicts'].includes(e.relation))).toBe(true);
-    expect(brief.evidence.every((e: { spans: string[]; text: string }) => e.spans.every((s) => e.text.includes(s)))).toBe(true);
+    expect(judgment).toMatchObject({
+      statusLabel: 'Status not verified',
+      caseStatus: 'not_verified',
+      court: 'Supreme Court of India',
+    });
+    expect(
+      brief.evidence.every((e: { relation: string }) => ['supports', 'limits', 'conflicts'].includes(e.relation)),
+    ).toBe(true);
+    expect(
+      brief.evidence.every((e: { spans: string[]; text: string }) => e.spans.every((s) => e.text.includes(s))),
+    ).toBe(true);
     // Saved rows and the run's cost.
-    const saved = (await owner.query('select count(*)::int n from evidence_items where run_id = $1', [runId])).rows[0].n;
+    const saved = (await owner.query('select count(*)::int n from evidence_items where run_id = $1', [runId])).rows[0]
+      .n;
     expect(saved).toBe(brief.evidence.length);
     // "My research" lists it; it is hers alone.
-    expect((await t.agent.get('/api/v1/research').expect(200)).body.runs.map((x: { id: string }) => x.id)).toContain(runId);
+    expect((await t.agent.get('/api/v1/research').expect(200)).body.runs.map((x: { id: string }) => x.id)).toContain(
+      runId,
+    );
     const o = await signIn(`o-${tag}@rs.test`, 3);
     await o.agent.get(`/api/v1/research/${runId}`).expect(404);
     expect((await o.agent.get('/api/v1/research').expect(200)).body.runs).toEqual([]);
@@ -195,12 +315,22 @@ describe.skipIf(!up)('quick Research (integration)', () => {
 
   it('a quote that is not in the evidence is caught and shown as a point to verify', async () => {
     const t = await signIn(`t-${tag}@rs.test`, 4);
-    const r = await t.agent.post('/api/v1/research').set('x-csrf-token', t.csrf).send({ question: `Must an otter ${w} always swim in the river?` }).expect(202);
+    const r = await t.agent
+      .post('/api/v1/research')
+      .set('x-csrf-token', t.csrf)
+      .send({ question: `Must an otter ${w} always swim in the river?` })
+      .expect(202);
     plantWrongQuote = true;
     await runResearch(jobs.at(-1)!.data, deps());
     plantWrongQuote = false;
     const view = (await t.agent.get(`/api/v1/research/${r.body.id}`).expect(200)).body;
-    expect(view.brief.keyPoints).toEqual([expect.objectContaining({ text: 'An otter must always swim.', flag: 'yellow', reason: 'These words are not in the source' })]);
+    expect(view.brief.keyPoints).toEqual([
+      expect.objectContaining({
+        text: 'An otter must always swim.',
+        flag: 'yellow',
+        reason: 'These words are not in the source',
+      }),
+    ]);
     expect(view.counts.yellow).toBe(1);
 
     // RES-5: Word and PDF carry the flag: a note on the line, and the closing "Please verify" list.
@@ -209,17 +339,33 @@ describe.skipIf(!up)('quick Research (integration)', () => {
       res.on('data', (d: Buffer) => chunks.push(d));
       res.on('end', () => cb(null, Buffer.concat(chunks)));
     };
-    const docx = await t.agent.post(`/api/v1/research/${r.body.id}/export`).set('x-csrf-token', t.csrf).send({ format: 'docx' }).buffer(true).parse(binary).expect(200);
-    expect(docx.headers['content-disposition']).toMatch(/attachment; filename="Research_Must_An_Otter_\w+_Always_Swim_In_The_\d{4}-\d{2}-\d{2}\.docx"/);
+    const docx = await t.agent
+      .post(`/api/v1/research/${r.body.id}/export`)
+      .set('x-csrf-token', t.csrf)
+      .send({ format: 'docx' })
+      .buffer(true)
+      .parse(binary)
+      .expect(200);
+    expect(docx.headers['content-disposition']).toMatch(
+      /attachment; filename="Research_Must_An_Otter_\w+_Always_Swim_In_The_\d{4}-\d{2}-\d{2}\.docx"/,
+    );
     expect(docx.headers['x-lines-to-verify']).toBe('1');
     const zip = await JSZip.loadAsync(docx.body as Buffer);
     const xml = await zip.file('word/document.xml')!.async('string');
     expect(xml).toContain('An otter must always swim.');
     expect(xml).toContain('Please verify (1)');
     expect(xml).toMatch(/<w:footnoteReference w:id="1"\/>/);
-    expect(await zip.file('word/footnotes.xml')!.async('string')).toContain('Please verify: These words are not in the source');
+    expect(await zip.file('word/footnotes.xml')!.async('string')).toContain(
+      'Please verify: These words are not in the source',
+    );
 
-    const pdf = await t.agent.post(`/api/v1/research/${r.body.id}/export`).set('x-csrf-token', t.csrf).send({ format: 'pdf' }).buffer(true).parse(binary).expect(200);
+    const pdf = await t.agent
+      .post(`/api/v1/research/${r.body.id}/export`)
+      .set('x-csrf-token', t.csrf)
+      .send({ format: 'pdf' })
+      .buffer(true)
+      .parse(binary)
+      .expect(200);
     expect(pdf.headers['content-type']).toBe('application/pdf');
     const { text } = await extractText(new Uint8Array(pdf.body as Buffer), { mergePages: true });
     expect(text).toContain('An otter must always swim.');
@@ -227,18 +373,37 @@ describe.skipIf(!up)('quick Research (integration)', () => {
     expect(text).toContain('These words are not in the source');
     // Hers alone, and only when ready.
     const o = await signIn(`o-${tag}@rs.test`, 6);
-    await o.agent.post(`/api/v1/research/${r.body.id}/export`).set('x-csrf-token', o.csrf).send({ format: 'pdf' }).expect(404);
-    await t.agent.post(`/api/v1/research/${r.body.id}/export`).set('x-csrf-token', t.csrf).send({ format: 'rtf' }).expect(400);
+    await o.agent
+      .post(`/api/v1/research/${r.body.id}/export`)
+      .set('x-csrf-token', o.csrf)
+      .send({ format: 'pdf' })
+      .expect(404);
+    await t.agent
+      .post(`/api/v1/research/${r.body.id}/export`)
+      .set('x-csrf-token', t.csrf)
+      .send({ format: 'rtf' })
+      .expect(400);
   });
 
   it('a question the library cannot answer: an honest empty brief, and the library team hears of it', async () => {
     const t = await signIn(`t-${tag}@rs.test`, 5);
-    const r = await t.agent.post('/api/v1/research').set('x-csrf-token', t.csrf).send({ question: `Quokka ${w} moonbeam zephyrs xylophonic?` }).expect(202);
+    const r = await t.agent
+      .post('/api/v1/research')
+      .set('x-csrf-token', t.csrf)
+      .send({ question: `Quokka ${w} moonbeam zephyrs xylophonic?` })
+      .expect(202);
     await runResearch(jobs.at(-1)!.data, deps());
     const view = (await t.agent.get(`/api/v1/research/${r.body.id}`).expect(200)).body;
     expect(view.status).toBe('ready');
-    expect(view.brief).toMatchObject({ shortAnswer: [], evidence: [], notFound: [`Quokka ${w} moonbeam zephyrs xylophonic?`] });
+    expect(view.brief).toMatchObject({
+      shortAnswer: [],
+      evidence: [],
+      notFound: [`Quokka ${w} moonbeam zephyrs xylophonic?`],
+    });
     // The library team has the question.
-    expect((await owner.query('select count(*)::int n from library_gaps where question ilike $1', [`%${w} moonbeam%`])).rows[0].n).toBeGreaterThan(0);
+    expect(
+      (await owner.query('select count(*)::int n from library_gaps where question ilike $1', [`%${w} moonbeam%`]))
+        .rows[0].n,
+    ).toBeGreaterThan(0);
   });
 });

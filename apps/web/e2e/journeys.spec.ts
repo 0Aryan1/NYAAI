@@ -23,10 +23,22 @@ const email = () => {
 async function axe(page: Page, where: string) {
   await page.addScriptTag({ content: AXE });
   const violations = await page.evaluate(async () => {
-    const r = await (window as unknown as { axe: { run: (c: Document, o: object) => Promise<{ violations: { id: string; nodes: { target: string[] }[] }[] }> } }).axe.run(document, {
+    const r = await (
+      window as unknown as {
+        axe: {
+          run: (c: Document, o: object) => Promise<{ violations: { id: string; nodes: { target: string[] }[] }[] }>;
+        };
+      }
+    ).axe.run(document, {
       runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
     });
-    return r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(' | ')}`);
+    return r.violations.map(
+      (v) =>
+        `${v.id}: ${v.nodes
+          .map((n) => n.target.join(' '))
+          .slice(0, 3)
+          .join(' | ')}`,
+    );
   });
   expect(violations, `accessibility on ${where}`).toEqual([]);
 }
@@ -106,8 +118,12 @@ test.describe.serial('teacher journeys', () => {
     // A course from her syllabus (COURSE-2): the reading list is left out.
     await page.goto('/courses');
     await axe(page, 'Courses');
-    await page.locator('input[aria-label="Upload your syllabus"]').setInputFiles({ name: 'syllabus.md', mimeType: 'text/markdown', buffer: Buffer.from(SYLLABUS) });
-    await expect(page.getByRole('textbox', { name: /Lectures, one per line/ })).toHaveValue('Frustration of contract\nImpossibility of performance');
+    await page
+      .locator('input[aria-label="Upload your syllabus"]')
+      .setInputFiles({ name: 'syllabus.md', mimeType: 'text/markdown', buffer: Buffer.from(SYLLABUS) });
+    await expect(page.getByRole('textbox', { name: /Lectures, one per line/ })).toHaveValue(
+      'Frustration of contract\nImpossibility of performance',
+    );
     await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Law of Contract');
     await page.getByRole('checkbox', { name: /Find the sources for every lecture now/ }).uncheck();
     await page.getByRole('button', { name: 'Create course' }).click();
@@ -116,7 +132,10 @@ test.describe.serial('teacher journeys', () => {
     const courseUrl = page.url();
 
     // 2–5. Prepare L01 from the plan: course and topic come with it; she taps length, level and style.
-    await page.getByRole('button', { name: /^Prepare L01/ }).first().click();
+    await page
+      .getByRole('button', { name: /^Prepare L01/ })
+      .first()
+      .click();
     await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Prepare', exact: true })).toBeDisabled(); // none pre-selected
     await pick(page, '50 min');
@@ -143,14 +162,23 @@ test.describe.serial('teacher journeys', () => {
     await expect(drawer.locator('mark')).not.toHaveText(''); // the supporting words, highlighted
     await axe(page, 'Studio: source');
 
-    await page.getByRole('button', { name: /A point to check/ }).first().click();
+    await page
+      .getByRole('button', { name: /A point to check/ })
+      .first()
+      .click();
     await page.getByRole('button', { name: 'Please verify' }).first().click();
     await page.getByRole('button', { name: 'I have checked it: mark verified' }).click();
     await expect(page.getByText('All changes saved')).toBeVisible();
 
-    await page.getByRole('button', { name: /What .* means/ }).first().click();
+    await page
+      .getByRole('button', { name: /What .* means/ })
+      .first()
+      .click();
     // The line's own buttons show when the pointer is over it (or on keyboard focus).
-    const firstLine = page.locator('.group').filter({ has: page.getByRole('button', { name: 'Edit this line', includeHidden: true }) }).first();
+    const firstLine = page
+      .locator('.group')
+      .filter({ has: page.getByRole('button', { name: 'Edit this line', includeHidden: true }) })
+      .first();
     await firstLine.hover();
     await firstLine.getByRole('button', { name: 'Edit this line' }).click();
     const box = page.getByRole('textbox', { name: 'Edit this line' });
@@ -181,7 +209,10 @@ test.describe.serial('teacher journeys', () => {
     await expect(page.getByText('All changes saved')).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'You’re offline' })).toBeHidden();
     await page.reload();
-    await page.getByRole('button', { name: /What .* means/ }).first().click();
+    await page
+      .getByRole('button', { name: /What .* means/ })
+      .first()
+      .click();
     await expect(page.getByText('Written while the connection was down.').first()).toBeVisible(); // it reached the server
 
     // 9. Download the .pptx.
@@ -191,7 +222,10 @@ test.describe.serial('teacher journeys', () => {
     await axe(page, 'Download dialog');
     const seen = dialog.getByRole('checkbox', { name: /I have seen the points to verify/ });
     if (await seen.count()) await seen.check();
-    const [file] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Download' }).click()]);
+    const [file] = await Promise.all([
+      page.waitForEvent('download'),
+      dialog.getByRole('button', { name: 'Download' }).click(),
+    ]);
     expect(file.suggestedFilename()).toMatch(/\.pptx$/);
     await dialog.getByRole('button', { name: 'Close' }).last().click();
 
@@ -201,26 +235,44 @@ test.describe.serial('teacher journeys', () => {
     await expect(page.getByRole('button', { name: 'Mark taught' })).toBeHidden();
     const courseId = courseUrl.split('/').pop()!;
     await expect
-      .poll(async () => ((await (await page.request.get(`/api/v1/courses/${courseId}`)).json()) as { units: { memory: unknown }[] }).units[0]?.memory, { timeout: 60_000 })
+      .poll(
+        async () =>
+          ((await (await page.request.get(`/api/v1/courses/${courseId}`)).json()) as { units: { memory: unknown }[] })
+            .units[0]?.memory,
+        { timeout: 60_000 },
+      )
       .not.toBeNull();
 
     await page.goto(courseUrl);
-    await page.getByRole('button', { name: /^Prepare L02/ }).first().click();
+    await page
+      .getByRole('button', { name: /^Prepare L02/ })
+      .first()
+      .click();
     await pick(page, '50 min');
     await pick(page, 'Standard');
     await pick(page, 'My usual style');
     await page.getByRole('button', { name: 'Prepare', exact: true }).click();
-    await page.waitForURL((u) => /\/lectures\/[0-9a-f-]{36}$/.test(u.pathname) && !lectureUrl.endsWith(u.pathname), { timeout: 180_000 });
+    await page.waitForURL((u) => /\/lectures\/[0-9a-f-]{36}$/.test(u.pathname) && !lectureUrl.endsWith(u.pathname), {
+      timeout: 180_000,
+    });
     await expect(page.getByRole('button', { name: /Recap of last class/ }).first()).toBeVisible();
     const secondLecture = page.url();
 
     // 11. F8.6: she changes the taught L01; L02 read its course memory, so it "may need update" until she says it is fine.
     await page.goto(lectureUrl);
-    await page.getByRole('button', { name: /What .* means/ }).first().click();
-    const l1Line = page.locator('.group').filter({ has: page.getByRole('button', { name: 'Edit this line', includeHidden: true }) }).first();
+    await page
+      .getByRole('button', { name: /What .* means/ })
+      .first()
+      .click();
+    const l1Line = page
+      .locator('.group')
+      .filter({ has: page.getByRole('button', { name: 'Edit this line', includeHidden: true }) })
+      .first();
     await l1Line.hover();
     await l1Line.getByRole('button', { name: 'Edit this line' }).click();
-    await page.getByRole('textbox', { name: 'Edit this line' }).fill('Changed after class: frustration needs a supervening event.');
+    await page
+      .getByRole('textbox', { name: 'Edit this line' })
+      .fill('Changed after class: frustration needs a supervening event.');
     await page.getByRole('textbox', { name: 'Edit this line' }).press('Enter');
     await expect(page.getByText('All changes saved')).toBeVisible();
     await page.goto(courseUrl);
@@ -233,14 +285,22 @@ test.describe.serial('teacher journeys', () => {
     await expect(banner).toBeHidden();
   });
 
-  test('ADM-2 / LIB-1: she reports a wrong fact; the library editor answers; she sees the answer on the line', async ({ page }) => {
+  test('ADM-2 / LIB-1: she reports a wrong fact; the library editor answers; she sees the answer on the line', async ({
+    page,
+  }) => {
     await page.goto('/login');
     await page.getByLabel('Email').fill(email());
     await page.getByLabel('Email').press('Enter');
     await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
     await page.goto(firstLecture);
-    await page.getByRole('button', { name: /What .* means/ }).first().click();
-    const claim = page.locator('.group').filter({ has: page.locator('button[aria-label^="Source 1"]') }).first();
+    await page
+      .getByRole('button', { name: /What .* means/ })
+      .first()
+      .click();
+    const claim = page
+      .locator('.group')
+      .filter({ has: page.locator('button[aria-label^="Source 1"]') })
+      .first();
     const lineText = (await claim.locator('span.leading-relaxed').first().innerText()).trim();
     await claim.hover();
     await claim.getByRole('button', { name: 'Report a wrong fact' }).click();
@@ -283,7 +343,11 @@ test.describe.serial('teacher journeys', () => {
     await mrow.getByRole('button', { name: 'Yes, sign' }).click();
     await page.getByRole('tab', { name: /All/ }).click();
     await expect(page.getByRole('listitem').filter({ hasText: 'E2E test row' })).toContainText('Signed by');
-    await page.getByRole('listitem').filter({ hasText: 'E2E test row' }).getByRole('button', { name: 'Remove' }).click();
+    await page
+      .getByRole('listitem')
+      .filter({ hasText: 'E2E test row' })
+      .getByRole('button', { name: 'Remove' })
+      .click();
     await page.getByRole('button', { name: 'Yes, remove' }).click();
     await expect(page.getByRole('listitem').filter({ hasText: 'E2E test row' })).toHaveCount(0);
 
@@ -294,11 +358,16 @@ test.describe.serial('teacher journeys', () => {
     await page.getByLabel('Email').press('Enter');
     await expect(page.getByRole('heading', { name: 'Prepare a lecture' })).toBeVisible();
     await page.goto(firstLecture);
-    await page.getByRole('button', { name: /What .* means/ }).first().click();
+    await page
+      .getByRole('button', { name: /What .* means/ })
+      .first()
+      .click();
     await expect(page.getByText('The library checked it: the source is right').first()).toBeVisible();
   });
 
-  test('J4 / EXP-1, EXP-2, EXP-6: explore a topic, ask a follow-up from the library, turn it into a lecture', async ({ page }) => {
+  test('J4 / EXP-1, EXP-2, EXP-6: explore a topic, ask a follow-up from the library, turn it into a lecture', async ({
+    page,
+  }) => {
     await page.goto('/login');
     await page.getByLabel('Email').fill(email());
     await page.getByLabel('Email').press('Enter');
@@ -308,7 +377,10 @@ test.describe.serial('teacher journeys', () => {
     await expect(page.getByRole('heading', { name: 'Explore' })).toBeVisible();
     await axe(page, 'Explore');
     await page.getByPlaceholder(/Find a topic/).fill('lis pendens');
-    await page.getByRole('link', { name: /Lis pendens/ }).first().click();
+    await page
+      .getByRole('link', { name: /Lis pendens/ })
+      .first()
+      .click();
 
     // The topic map: key sections and leading cases from the expert's list.
     await expect(page.getByRole('heading', { name: 'Lis pendens', level: 1 })).toBeVisible();
@@ -332,7 +404,9 @@ test.describe.serial('teacher journeys', () => {
     await expect(page.getByRole('combobox')).toHaveValue('Lis pendens');
   });
 
-  test('RES-1, RES-3, RES-4: a quick research run gives an evidence table and a checked brief, kept under My research', async ({ page }) => {
+  test('RES-1, RES-3, RES-4: a quick research run gives an evidence table and a checked brief, kept under My research', async ({
+    page,
+  }) => {
     await page.goto('/login');
     await page.getByLabel('Email').fill(email());
     await page.getByLabel('Email').press('Enter');
@@ -341,7 +415,9 @@ test.describe.serial('teacher journeys', () => {
     await page.getByRole('link', { name: 'Research' }).click();
     await expect(page.getByRole('heading', { name: 'Research', level: 1 })).toBeVisible();
     await axe(page, 'Research');
-    await page.getByLabel('Your question').fill('When can a court set aside an arbitral award as against the public policy of India?');
+    await page
+      .getByLabel('Your question')
+      .fill('When can a court set aside an arbitral award as against the public policy of India?');
     await page.locator('label').filter({ hasText: 'India only' }).first().click();
     await page.getByRole('button', { name: 'Start research' }).click();
 
@@ -360,8 +436,13 @@ test.describe.serial('teacher journeys', () => {
     await page.getByRole('link', { name: /set aside an arbitral award/ }).click();
 
     // RES-5: the brief as Word and as PDF, named from the question.
-    const [word] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Word' }).click()]);
-    expect(word.suggestedFilename()).toMatch(/^Research_When_Can_A_Court_Set_Aside_An_Arbitral_\d{4}-\d{2}-\d{2}\.docx$/);
+    const [word] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Word' }).click(),
+    ]);
+    expect(word.suggestedFilename()).toMatch(
+      /^Research_When_Can_A_Court_Set_Aside_An_Arbitral_\d{4}-\d{2}-\d{2}\.docx$/,
+    );
     await expect(page.getByRole('status').filter({ hasText: /^Saved Research_/ })).toBeVisible();
     const [pdf] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'PDF' }).click()]);
     expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);

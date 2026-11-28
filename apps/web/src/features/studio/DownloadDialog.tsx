@@ -23,7 +23,10 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
   const [done, setDone] = useState<string | null>(null);
   // 409 COVERAGE_CHANGED (LLD §8.5 step 6): removing the unverified lines left these items uncovered. The removal is
   // kept; she adds or leaves out each one, then downloads again.
-  const [changed, setChanged] = useState<{ removed: number; items: (CoverageChangedItem & { answer?: 'added' | 'left_out' })[] } | null>(null);
+  const [changed, setChanged] = useState<{
+    removed: number;
+    items: (CoverageChangedItem & { answer?: 'added' | 'left_out' })[];
+  } | null>(null);
   const answer = async (item: CoverageChangedItem, how: 'added' | 'left_out') => {
     setError(null);
     try {
@@ -46,7 +49,11 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
     try {
       const r = await api.downloadDeck(lecture.id, { mode, acknowledgeOpen: seen });
       saveFile(r.blob, r.fileName);
-      setDone(r.removed ? `Downloaded ${r.fileName}. ${r.removed} unverified ${r.removed === 1 ? 'line was' : 'lines were'} removed from the lecture; Undo on a slide brings a line back.` : `Downloaded ${r.fileName}.`);
+      setDone(
+        r.removed
+          ? `Downloaded ${r.fileName}. ${r.removed} unverified ${r.removed === 1 ? 'line was' : 'lines were'} removed from the lecture; Undo on a slide brings a line back.`
+          : `Downloaded ${r.fileName}.`,
+      );
       if (r.removed) void qc.invalidateQueries({ queryKey: ['lecture', lecture.id] });
     } catch (err) {
       if (err instanceof ApiRequestError && err.body?.error.code === 'COVERAGE_CHANGED') {
@@ -61,12 +68,22 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
   const ready = changed ? changed.items.every((i) => i.answer) : !open || mode === 'remove_unverified' || seen;
 
   return (
-    <dialog ref={dialog} onClose={onClose} aria-labelledby="dl-title" className="m-auto w-full max-w-lg rounded-card border border-border bg-surface p-0 text-text shadow-dialog backdrop:bg-black/40">
+    <dialog
+      ref={dialog}
+      onClose={onClose}
+      aria-labelledby="dl-title"
+      className="m-auto w-full max-w-lg rounded-card border border-border bg-surface p-0 text-text shadow-dialog backdrop:bg-black/40"
+    >
       <div className="flex items-center justify-between border-b border-border px-6 py-4">
         <h2 id="dl-title" className="text-lg font-semibold">
           Download as PowerPoint
         </h2>
-        <button type="button" onClick={() => dialog.current?.close()} className="rounded-control p-1 text-muted hover:bg-bg" aria-label="Close">
+        <button
+          type="button"
+          onClick={() => dialog.current?.close()}
+          className="rounded-control p-1 text-muted hover:bg-bg"
+          aria-label="Close"
+        >
           <X className="size-4" aria-hidden />
         </button>
       </div>
@@ -76,15 +93,20 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
         ) : changed ? (
           <>
             <p>
-              {changed.removed} unverified {changed.removed === 1 ? 'line was' : 'lines were'} removed from the lecture. That left{' '}
-              {changed.items.length === 1 ? 'this part' : 'these parts'} of the sections you teach uncovered:
+              {changed.removed} unverified {changed.removed === 1 ? 'line was' : 'lines were'} removed from the lecture.
+              That left {changed.items.length === 1 ? 'this part' : 'these parts'} of the sections you teach uncovered:
             </p>
             <ul className="space-y-2">
               {changed.items.map((i) => (
-                <li key={i.id} className="flex items-center justify-between gap-2 rounded-control bg-flag-coverage-bg px-3 py-2">
+                <li
+                  key={i.id}
+                  className="flex items-center justify-between gap-2 rounded-control bg-flag-coverage-bg px-3 py-2"
+                >
                   <span className="font-medium">{i.label}</span>
                   {i.answer ? (
-                    <span className="text-xs text-muted">{i.answer === 'added' ? 'Added to its slide' : 'Left out'}</span>
+                    <span className="text-xs text-muted">
+                      {i.answer === 'added' ? 'Added to its slide' : 'Left out'}
+                    </span>
                   ) : (
                     <span className="flex shrink-0 gap-1">
                       {i.canAdd && (
@@ -105,7 +127,10 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
           </>
         ) : (
           <>
-            <p className="text-muted">Speaker notes carry your notes and every source with its exact words. The slides the class sees stay clean.</p>
+            <p className="text-muted">
+              Speaker notes carry your notes and every source with its exact words. The slides the class sees stay
+              clean.
+            </p>
             {open > 0 ? (
               <fieldset className="space-y-2">
                 <legend className="mb-2 flex items-center gap-2 font-medium text-flag-yellow">
@@ -114,11 +139,25 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
                 </legend>
                 {(
                   [
-                    ['with_flags', 'Download with the points written in', 'Each point goes into its slide’s speaker notes, and a hidden last slide lists them all.'],
-                    ['remove_unverified', `Remove the ${open} unverified ${open === 1 ? 'line' : 'lines'} first`, 'They leave the lecture itself, not just the file. Undo on a slide brings one back.'],
+                    [
+                      'with_flags',
+                      'Download with the points written in',
+                      'Each point goes into its slide’s speaker notes, and a hidden last slide lists them all.',
+                    ],
+                    [
+                      'remove_unverified',
+                      `Remove the ${open} unverified ${open === 1 ? 'line' : 'lines'} first`,
+                      'They leave the lecture itself, not just the file. Undo on a slide brings one back.',
+                    ],
                   ] as const
                 ).map(([value, label, hint]) => (
-                  <label key={value} className={cn('block cursor-pointer rounded-control border px-3 py-2', mode === value ? 'border-accent bg-accent/10' : 'border-border')}>
+                  <label
+                    key={value}
+                    className={cn(
+                      'block cursor-pointer rounded-control border px-3 py-2',
+                      mode === value ? 'border-accent bg-accent/10' : 'border-border',
+                    )}
+                  >
                     <span className="flex items-center gap-2 font-medium">
                       <input type="radio" name="dl-mode" checked={mode === value} onChange={() => setMode(value)} />
                       {label}
@@ -128,7 +167,12 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
                 ))}
                 {mode === 'with_flags' && (
                   <label className="mt-2 flex items-start gap-2">
-                    <input type="checkbox" checked={seen} onChange={(e) => setSeen(e.target.checked)} className="mt-1" />
+                    <input
+                      type="checkbox"
+                      checked={seen}
+                      onChange={(e) => setSeen(e.target.checked)}
+                      className="mt-1"
+                    />
                     <span>I have seen the points to verify and will check them before teaching.</span>
                   </label>
                 )}
@@ -139,7 +183,8 @@ export function DownloadDialog({ lecture, onClose }: { lecture: LectureSummary; 
             {lecture.counts.grey > 0 && (
               <p className="flex gap-2 text-muted">
                 <CircleHelp className="mt-0.5 size-4 shrink-0 text-flag-grey" aria-hidden />
-                {lecture.counts.grey} {lecture.counts.grey === 1 ? 'line rests' : 'lines rest'} on cases whose status no law expert has confirmed yet. They are marked in the speaker notes.
+                {lecture.counts.grey} {lecture.counts.grey === 1 ? 'line rests' : 'lines rest'} on cases whose status no
+                law expert has confirmed yet. They are marked in the speaker notes.
               </p>
             )}
             {error && <p className="text-danger">{error}</p>}

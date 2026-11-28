@@ -3,11 +3,22 @@ import type { RetrievedSource } from '../src/services/search/index.ts';
 import { MAX_EVIDENCE, inYears, pickEvidence, statusLabel } from '../src/services/research/index.ts';
 
 let n = 0;
-const src = (over: Partial<RetrievedSource['meta']> & { id?: string } = {}, status: RetrievedSource['status'] = {}): RetrievedSource => {
+const src = (
+  over: Partial<RetrievedSource['meta']> & { id?: string } = {},
+  status: RetrievedSource['status'] = {},
+): RetrievedSource => {
   const id = over.id ?? `c${++n}`;
   return {
-    tag: 'S1', chunkId: id, sourceId: `src-${id}`, header: `Header ${id}`, text: `Text ${id}`, coveredChunkIds: [id],
-    meta: { rolesSampled: false, sourceType: 'judgment', origin: 'court_site', ...over }, status, provisional: false, rerankScore: 0.8,
+    tag: 'S1',
+    chunkId: id,
+    sourceId: `src-${id}`,
+    header: `Header ${id}`,
+    text: `Text ${id}`,
+    coveredChunkIds: [id],
+    meta: { rolesSampled: false, sourceType: 'judgment', origin: 'court_site', ...over },
+    status,
+    provisional: false,
+    rerankScore: 0.8,
     standing: { score: 0.8, relevance: 0.8, reasons: [] },
   };
 };
@@ -30,7 +41,9 @@ describe('the evidence table of a quick run', () => {
     const recent = src({ decidedOn: '2021-05-01' });
     const act = src({ sourceType: 'act' });
     expect([old, recent, act].filter((s) => inYears(s, { fromYear: 2015 }))).toEqual([recent, act]);
-    expect(pickEvidence([[old, recent, act]], { fromYear: 2015, toYear: 2020 }).map((p) => p.source.chunkId)).toEqual([act.chunkId]);
+    expect(pickEvidence([[old, recent, act]], { fromYear: 2015, toYear: 2020 }).map((p) => p.source.chunkId)).toEqual([
+      act.chunkId,
+    ]);
   });
 
   it('the status column says no more than an expert confirmed', () => {

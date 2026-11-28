@@ -48,7 +48,8 @@ export function untar(bytes: Uint8Array): { name: string; data: Uint8Array }[] {
   while (off + 512 <= bytes.length) {
     const header = bytes.subarray(off, off + 512);
     if (header.every((b) => b === 0)) break;
-    const field = (start: number, len: number) => text.decode(header.subarray(start, start + len)).replace(/\0.*$/s, '');
+    const field = (start: number, len: number) =>
+      text.decode(header.subarray(start, start + len)).replace(/\0.*$/s, '');
     const size = parseInt(field(124, 12).trim() || '0', 8);
     const type = field(156, 1);
     const prefix = field(345, 155);
@@ -61,7 +62,7 @@ export function untar(bytes: Uint8Array): { name: string; data: Uint8Array }[] {
       if (m) longName = m[1]!;
     } else if (type === 'L') {
       longName = text.decode(data).replace(/\0.*$/s, '');
-    } else if (type === '0' || type === '' ) {
+    } else if (type === '0' || type === '') {
       out.push({ name, data });
     }
     off += 512 + Math.ceil(size / 512) * 512;
@@ -71,11 +72,19 @@ export function untar(bytes: Uint8Array): { name: string; data: Uint8Array }[] {
 
 const ENTITY: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', middot: '·' };
 const decode = (s: string) =>
-  s.replace(/&(#\d+|[a-z]+);/gi, (m, e: string) => (e[0] === '#' ? String.fromCodePoint(Number(e.slice(1))) : (ENTITY[e.toLowerCase()] ?? m)));
-const strip = (s: string) => decode(s.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+  s.replace(/&(#\d+|[a-z]+);/gi, (m, e: string) =>
+    e[0] === '#' ? String.fromCodePoint(Number(e.slice(1))) : (ENTITY[e.toLowerCase()] ?? m),
+  );
+const strip = (s: string) =>
+  decode(s.replace(/<[^>]+>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /** One catalogue entry: e-SCR's own result HTML for the judgment, as the mirror stored it. */
-export function parseCatalogEntry(json: { raw_html?: string; path?: string; citation_year?: string; nc_display?: string }, folder: string): EscrRecord | null {
+export function parseCatalogEntry(
+  json: { raw_html?: string; path?: string; citation_year?: string; nc_display?: string },
+  folder: string,
+): EscrRecord | null {
   const html = json.raw_html ?? '';
   if (!json.path) return null;
   const title = /<strong>\s*([\s\S]*?)\s*<\/strong>\s*-\s*<span class='escrText'>/.exec(html);
@@ -105,7 +114,10 @@ export function createEscr(cfg: EscrConfig): Escr {
   const memo = new Map<number, Promise<EscrRecord[]>>();
 
   async function get(url: string, limit: number): Promise<Uint8Array> {
-    const res = await fetchImpl(url, { signal: AbortSignal.timeout(180_000), headers: { 'user-agent': 'NYAAI-library-loader/0.1' } });
+    const res = await fetchImpl(url, {
+      signal: AbortSignal.timeout(180_000),
+      headers: { 'user-agent': 'NYAAI-library-loader/0.1' },
+    });
     if (!res.ok) throw new Error(`The Supreme Court Reports mirror returned HTTP ${res.status}.`);
     const bytes = new Uint8Array(await res.arrayBuffer());
     if (bytes.byteLength > limit) throw new Error('The file is larger than expected.');
@@ -161,7 +173,8 @@ export function createEscr(cfg: EscrConfig): Escr {
     async pdf(record) {
       const url = `${base}/data/pdf/year=${record.year}/english/${record.path}_EN.pdf`;
       const bytes = await get(url, MAX_PDF_BYTES);
-      if (new TextDecoder().decode(bytes.subarray(0, 5)) !== '%PDF-') throw new Error('The mirror did not return a PDF.');
+      if (new TextDecoder().decode(bytes.subarray(0, 5)) !== '%PDF-')
+        throw new Error('The mirror did not return a PDF.');
       return { bytes, url };
     },
   };

@@ -38,7 +38,13 @@ const COURT: Record<string, [number, string]> = {
   foreign: [-0.03, 'Foreign court'],
 };
 const OFFICIAL = new Set(['court_site', 'india_code', 'egazette']);
-const COPY: Record<string, string> = { court_site: 'official copy', india_code: 'official copy (India Code)', egazette: 'official copy (Gazette)', indian_kanoon: 'Indian Kanoon copy', upload: 'uploaded copy' };
+const COPY: Record<string, string> = {
+  court_site: 'official copy',
+  india_code: 'official copy (India Code)',
+  egazette: 'official copy (Gazette)',
+  indian_kanoon: 'Indian Kanoon copy',
+  upload: 'uploaded copy',
+};
 const ROLE: Record<string, [number, string]> = {
   holding: [0.02, "the court's decision"],
   discussion: [0.02, "the court's own reasoning"],

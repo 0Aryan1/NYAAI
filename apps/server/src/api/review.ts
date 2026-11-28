@@ -12,14 +12,27 @@
  */
 import express from 'express';
 import { z } from 'zod';
-import { ReviewJudgment, ReviewJudgmentList, SameCaseAnswer, SetCaseStatus, SetParagraphLabel, type CaseStatus } from '@nyaai/shared';
+import {
+  ReviewJudgment,
+  ReviewJudgmentList,
+  SameCaseAnswer,
+  SetCaseStatus,
+  SetParagraphLabel,
+  type CaseStatus,
+} from '@nyaai/shared';
 import { AppError } from '../errors.ts';
 import { requireRole } from '../middleware/auth.ts';
-import { approveSourceChunks, judgmentParagraphs, retireSourceChunks, setParagraphLabel } from '../services/search/index.ts';
+import {
+  approveSourceChunks,
+  judgmentParagraphs,
+  retireSourceChunks,
+  setParagraphLabel,
+} from '../services/search/index.ts';
 
 const Id = z.uuid();
 /** A `date` column as YYYY-MM-DD, read in local time (pg gives local midnight). */
-const isoDate = (d: Date | null) => (d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : null);
+const isoDate = (d: Date | null) =>
+  d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : null;
 type Status = ReviewJudgment['status'];
 
 export function reviewRouter() {
@@ -27,21 +40,46 @@ export function reviewRouter() {
   r.use(['/library/judgments', '/library/paragraphs'], requireRole('library_editor'));
 
   r.get('/library/judgments', async (req, res) => {
-    const rows = await req.db!(async (c) =>
-      (
-        await c.query<{ id: string; title: string; court: string | null; decided_on: Date | null; status: Status; roles_sampled: boolean; paragraphs: number; origin: string; scanned: boolean; case_status: CaseStatus; maybe_same: boolean }>(
-          `select s.id, s.title, s.court, s.decided_on, s.status, s.roles_sampled, s.origin, s.scanned, cs.status as case_status,
+    const rows = await req.db!(
+      async (c) =>
+        (
+          await c.query<{
+            id: string;
+            title: string;
+            court: string | null;
+            decided_on: Date | null;
+            status: Status;
+            roles_sampled: boolean;
+            paragraphs: number;
+            origin: string;
+            scanned: boolean;
+            case_status: CaseStatus;
+            maybe_same: boolean;
+          }>(
+            `select s.id, s.title, s.court, s.decided_on, s.status, s.roles_sampled, s.origin, s.scanned, cs.status as case_status,
                   s.maybe_same_as is not null as maybe_same,
                   (select count(*)::int from chunks k where k.source_id = s.id and k.kind <> 'headnote') as paragraphs
              from sources s left join case_status_v cs on cs.source_id = s.id
             where s.type = 'judgment' and s.visibility = 'shared' and s.status <> 'retired'
             order by s.title`, // a fixed order: a judgment never jumps down the list once she has worked on it
-        )
-      ).rows,
+          )
+        ).rows,
     );
     res.json(
       ReviewJudgmentList.parse({
-        judgments: rows.map((x) => ({ id: x.id, title: x.title, court: x.court, decidedOn: isoDate(x.decided_on), status: x.status, rolesChecked: x.roles_sampled, paragraphs: x.paragraphs, origin: x.origin, scanned: x.scanned, caseStatus: x.case_status ?? 'not_verified', maybeSame: x.maybe_same })),
+        judgments: rows.map((x) => ({
+          id: x.id,
+          title: x.title,
+          court: x.court,
+          decidedOn: isoDate(x.decided_on),
+          status: x.status,
+          rolesChecked: x.roles_sampled,
+          paragraphs: x.paragraphs,
+          origin: x.origin,
+          scanned: x.scanned,
+          caseStatus: x.case_status ?? 'not_verified',
+          maybeSame: x.maybe_same,
+        })),
       }),
     );
   });
@@ -51,9 +89,21 @@ export function reviewRouter() {
     const out = await req.db!(async (c) => {
       const s = (
         await c.query<{
-          id: string; title: string; court: string | null; decided_on: Date | null; url: string | null; status: Status; roles_sampled: boolean;
-          origin: string; citation: string | null; scanned: boolean; expires_at: Date | null;
-          same_id: string | null; same_title: string | null; same_court: string | null; same_decided_on: Date | null;
+          id: string;
+          title: string;
+          court: string | null;
+          decided_on: Date | null;
+          url: string | null;
+          status: Status;
+          roles_sampled: boolean;
+          origin: string;
+          citation: string | null;
+          scanned: boolean;
+          expires_at: Date | null;
+          same_id: string | null;
+          same_title: string | null;
+          same_court: string | null;
+          same_decided_on: Date | null;
         }>(
           `select s.id, s.title, s.court, s.decided_on, s.url, s.status, s.roles_sampled, s.origin, s.citation, s.scanned, s.expires_at,
                   m.id as same_id, m.title as same_title, m.court as same_court, m.decided_on as same_decided_on
@@ -64,13 +114,26 @@ export function reviewRouter() {
       ).rows[0];
       if (!s) return null;
       const copies = (
-        await c.query<{ origin: string; url: string | null; citation: string | null; scanned: boolean; agreement: string | null; in_use: boolean }>(
+        await c.query<{
+          origin: string;
+          url: string | null;
+          citation: string | null;
+          scanned: boolean;
+          agreement: string | null;
+          in_use: boolean;
+        }>(
           'select origin, url, citation, scanned, agreement, in_use from source_copies where source_id = $1 order by in_use desc, created_at',
           [id],
         )
       ).rows;
       const history = (
-        await c.query<{ treatment: CaseStatus; note: string | null; by_case: string | null; confirmed_by: string | null; confirmed_at: Date }>(
+        await c.query<{
+          treatment: CaseStatus;
+          note: string | null;
+          by_case: string | null;
+          confirmed_by: string | null;
+          confirmed_at: Date;
+        }>(
           `select t.treatment::text as treatment, t.note, coalesce(t.citing_case_name, cs.title) as by_case, u.name as confirmed_by, t.confirmed_at
              from case_treatments t left join sources cs on cs.id = t.citing_source_id left join users u on u.id = t.confirmed_by
             where t.cited_source_id = $1 and t.confirmed_at is not null and t.rejected_at is null
@@ -95,11 +158,34 @@ export function reviewRouter() {
         citation: s.citation,
         scanned: s.scanned,
         expiresAt: s.expires_at?.toISOString() ?? null,
-        copies: copies.map((x) => ({ origin: x.origin, url: x.url, citation: x.citation, scanned: x.scanned, agreement: x.agreement === null ? null : Number(x.agreement), inUse: x.in_use })),
+        copies: copies.map((x) => ({
+          origin: x.origin,
+          url: x.url,
+          citation: x.citation,
+          scanned: x.scanned,
+          agreement: x.agreement === null ? null : Number(x.agreement),
+          inUse: x.in_use,
+        })),
         caseStatus: history[0]?.treatment ?? 'not_verified',
-        statusHistory: history.map((h) => ({ status: h.treatment, note: h.note, byCase: h.by_case, confirmedBy: h.confirmed_by, confirmedAt: h.confirmed_at.toISOString() })),
-        maybeSameAs: s.same_id ? { id: s.same_id, title: s.same_title!, court: s.same_court, decidedOn: isoDate(s.same_decided_on) } : null,
-        paragraphs: paragraphs.map((p) => ({ chunkId: p.chunkId, paraNo: p.paraNo, kind: p.kind, opinion: p.opinion, judge: p.judge, role: p.role, text: p.text })),
+        statusHistory: history.map((h) => ({
+          status: h.treatment,
+          note: h.note,
+          byCase: h.by_case,
+          confirmedBy: h.confirmed_by,
+          confirmedAt: h.confirmed_at.toISOString(),
+        })),
+        maybeSameAs: s.same_id
+          ? { id: s.same_id, title: s.same_title!, court: s.same_court, decidedOn: isoDate(s.same_decided_on) }
+          : null,
+        paragraphs: paragraphs.map((p) => ({
+          chunkId: p.chunkId,
+          paraNo: p.paraNo,
+          kind: p.kind,
+          opinion: p.opinion,
+          judge: p.judge,
+          role: p.role,
+          text: p.text,
+        })),
       }),
     );
   });
@@ -116,7 +202,10 @@ export function reviewRouter() {
   r.post('/library/judgments/:id/roles-checked', async (req, res) => {
     const id = Id.parse(req.params.id);
     const ok = await req.db!(async (c) => {
-      const s = await c.query("update sources set roles_sampled = true where id = $1 and type = 'judgment' returning id", [id]);
+      const s = await c.query(
+        "update sources set roles_sampled = true where id = $1 and type = 'judgment' returning id",
+        [id],
+      );
       if (!s.rowCount) return false;
       await c.query(
         `update review_queue set state = 'resolved', resolved_at = now(), assignee_id = app_user(), resolution = jsonb_build_object('action', 'roles_checked')
@@ -133,9 +222,19 @@ export function reviewRouter() {
   r.post('/library/judgments/:id/approve', async (req, res) => {
     const id = Id.parse(req.params.id);
     const ok = await req.db!(async (c) => {
-      const open = await c.query("select 1 from sources s join sources m on m.id = s.maybe_same_as and m.status <> 'retired' where s.id = $1", [id]);
-      if (open.rowCount) throw new AppError('VALIDATION_FAILED', 'First say whether this is the same case as the one already in the library.');
-      const s = await c.query("update sources set status = 'live' where id = $1 and status = 'provisional' returning id", [id]);
+      const open = await c.query(
+        "select 1 from sources s join sources m on m.id = s.maybe_same_as and m.status <> 'retired' where s.id = $1",
+        [id],
+      );
+      if (open.rowCount)
+        throw new AppError(
+          'VALIDATION_FAILED',
+          'First say whether this is the same case as the one already in the library.',
+        );
+      const s = await c.query(
+        "update sources set status = 'live' where id = $1 and status = 'provisional' returning id",
+        [id],
+      );
       if (!s.rowCount) return false;
       await approveSourceChunks(c, id);
       await c.query(
@@ -157,7 +256,12 @@ export function reviewRouter() {
     const id = Id.parse(req.params.id);
     const body = SameCaseAnswer.parse(req.body);
     const ok = await req.db!(async (c) => {
-      const s = (await c.query<{ keep: string }>("select maybe_same_as as keep from sources where id = $1 and type = 'judgment' and maybe_same_as is not null", [id])).rows[0];
+      const s = (
+        await c.query<{ keep: string }>(
+          "select maybe_same_as as keep from sources where id = $1 and type = 'judgment' and maybe_same_as is not null",
+          [id],
+        )
+      ).rows[0];
       if (!s) return false;
       if (!body.same) {
         await c.query('update sources set maybe_same_as = null where id = $1', [id]);

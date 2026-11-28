@@ -10,7 +10,8 @@ describe('textAgreement', () => {
   });
 
   it('reads a copy that holds more (a missing majority opinion) as containing the shorter one', () => {
-    const concurrence = 'I agree with the conclusion that the group of companies doctrine has an independent existence in Indian law.';
+    const concurrence =
+      'I agree with the conclusion that the group of companies doctrine has an independent existence in Indian law.';
     const full = `The majority opinion discusses consent and party autonomy at length. ${concurrence}`;
     const r = textAgreement(concurrence, full);
     expect(r.aInB).toBe(1);
@@ -21,8 +22,14 @@ describe('textAgreement', () => {
 describe('matchChunks', () => {
   const old = [
     { id: 'a', text: '1. Leave granted.' },
-    { id: 'b', text: '2. The present appeal raises an interesting question as to whether two companies incorporated in India can choose a foreign seat.' },
-    { id: 'c', text: '3. A paragraph that the new copy no longer has at all, about something quite different entirely.' },
+    {
+      id: 'b',
+      text: '2. The present appeal raises an interesting question as to whether two companies incorporated in India can choose a foreign seat.',
+    },
+    {
+      id: 'c',
+      text: '3. A paragraph that the new copy no longer has at all, about something quite different entirely.',
+    },
   ];
 
   it('gives a paragraph its old id, and its label only when the text is the same', () => {
@@ -44,12 +51,23 @@ describe('matchChunks', () => {
 });
 
 describe('e-SCR records', () => {
-  const rec = (title: string, decidedOn: string, path: string): EscrRecord => ({ title, citation: null, neutralCitation: null, decidedOn, path, year: decidedOn.slice(0, 4), judges: null, english: true });
+  const rec = (title: string, decidedOn: string, path: string): EscrRecord => ({
+    title,
+    citation: null,
+    neutralCitation: null,
+    decidedOn,
+    path,
+    year: decidedOn.slice(0, 4),
+    judges: null,
+    english: true,
+  });
 
   it('reads e-SCR dates, page spans and titles', () => {
     expect(escrDate('25-11-2014')).toBe('2014-11-25');
     expect(escrPages('2014_13_895_956')).toBe(62);
-    expect(escrCaseName('COX AND KINGS LTD. versus SAP INDIA PVT. LTD. & ANR.')).toBe('COX AND KINGS LTD. v. SAP INDIA PVT. LTD. & ANR.');
+    expect(escrCaseName('COX AND KINGS LTD. versus SAP INDIA PVT. LTD. & ANR.')).toBe(
+      'COX AND KINGS LTD. v. SAP INDIA PVT. LTD. & ANR.',
+    );
   });
 
   it('picks the named case by party words and year, then the longer report', () => {
@@ -58,14 +76,21 @@ describe('e-SCR records', () => {
       rec('ASSOCIATE BUILDERS versus DELHI DEVELOPMENT AUTHORITY', '2014-11-25', '2014_13_895_956'),
       rec('ASSOCIATE BUILDERS versus DELHI DEVELOPMENT AUTHORITY', '2015-02-10', '2015_1_10_12'),
     ];
-    expect(pickEscrRecord('Associate Builders v. Delhi Development Authority', records, { year: 2014 })?.path).toBe('2014_13_895_956');
+    expect(pickEscrRecord('Associate Builders v. Delhi Development Authority', records, { year: 2014 })?.path).toBe(
+      '2014_13_895_956',
+    );
     expect(pickEscrRecord('Kinnari Mullick v. Ghanshyam Das Damani', records, { year: 2017 })).toBeNull();
   });
 
   it('finds a case spelt differently by its date and one party word, and only when that is unique', () => {
-    const records = [rec('VIDYA DEVI versus THE STATE OF HIMACHAL PRADESH & ORS.', '2020-01-08', '2020_1_749_756'), rec('RAM LAL versus STATE OF PUNJAB', '2020-01-08', '2020_1_757_760')];
+    const records = [
+      rec('VIDYA DEVI versus THE STATE OF HIMACHAL PRADESH & ORS.', '2020-01-08', '2020_1_749_756'),
+      rec('RAM LAL versus STATE OF PUNJAB', '2020-01-08', '2020_1_757_760'),
+    ];
     expect(pickEscrRecord('Vidaya Devi v. The State Of Himachal Pradesh', records, { year: 2020 })).toBeNull();
-    expect(pickEscrByDate('Vidaya Devi v. The State Of Himachal Pradesh', records, '2020-01-08')?.path).toBe('2020_1_749_756');
+    expect(pickEscrByDate('Vidaya Devi v. The State Of Himachal Pradesh', records, '2020-01-08')?.path).toBe(
+      '2020_1_749_756',
+    );
     expect(pickEscrByDate('Vidaya Devi v. The State Of Himachal Pradesh', records, '2020-01-09')).toBeNull();
   });
 });

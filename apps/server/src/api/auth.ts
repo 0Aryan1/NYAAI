@@ -25,9 +25,15 @@ interface FoundUser {
 type SignInResult = { ok: true; who: TenantIdentity } | { ok: false; reason: 'not_invited' | 'removed' };
 
 /** Existing user, or an open invite turned into a user on first sign-in. */
-export async function findOrAcceptUser(pool: pg.Pool, email: string, name: string, googleSub: string | null): Promise<SignInResult> {
+export async function findOrAcceptUser(
+  pool: pg.Pool,
+  email: string,
+  name: string,
+  googleSub: string | null,
+): Promise<SignInResult> {
   let row = (await pool.query<FoundUser>('select * from auth_find_user($1)', [email])).rows[0];
-  row ??= (await pool.query<FoundUser>('select * from auth_accept_invite($1, $2, $3)', [email, name, googleSub])).rows[0];
+  row ??= (await pool.query<FoundUser>('select * from auth_accept_invite($1, $2, $3)', [email, name, googleSub]))
+    .rows[0];
   if (!row) return { ok: false, reason: 'not_invited' };
   if (row.status !== 'active') return { ok: false, reason: 'removed' };
   return { ok: true, who: { userId: row.id, collegeId: row.college_id, role: row.role } };
@@ -67,7 +73,10 @@ export function authRouter({ config, pool, redis, google }: AuthRouterDeps) {
       }
       const result = await findOrAcceptUser(pool, email, email.split('@')[0]!, null);
       if (!result.ok) {
-        throw new AppError('FORBIDDEN', result.reason === 'removed' ? 'Your access has ended.' : 'This email has not been invited yet.');
+        throw new AppError(
+          'FORBIDDEN',
+          result.reason === 'removed' ? 'Your access has ended.' : 'This email has not been invited yet.',
+        );
       }
       await startSession(res, result.who);
       res.status(204).end();
@@ -77,12 +86,19 @@ export function authRouter({ config, pool, redis, google }: AuthRouterDeps) {
   r.get('/auth/google', signInLimit(redis, config.SIGNIN_LIMIT_PER_MIN), async (_req, res) => {
     if (!google) throw new AppError('SERVICE_UNAVAILABLE', "Google sign-in isn't set up yet.");
     const { url, flowCookie } = await google.start();
-    res.cookie(FLOW_COOKIE, flowCookie, { httpOnly: true, secure: production, sameSite: 'lax', path: '/api/v1/auth', maxAge: 10 * 60 * 1000 });
+    res.cookie(FLOW_COOKIE, flowCookie, {
+      httpOnly: true,
+      secure: production,
+      sameSite: 'lax',
+      path: '/api/v1/auth',
+      maxAge: 10 * 60 * 1000,
+    });
     res.redirect(302, url);
   });
 
   r.get('/auth/google/callback', signInLimit(redis, config.SIGNIN_LIMIT_PER_MIN), async (req, res) => {
-    const fail = (reason: string) => res.redirect(302, `${config.WEB_ORIGIN}/login?error=${encodeURIComponent(reason)}`);
+    const fail = (reason: string) =>
+      res.redirect(302, `${config.WEB_ORIGIN}/login?error=${encodeURIComponent(reason)}`);
     if (!google) return fail('not_configured');
     const flow = req.cookies?.[FLOW_COOKIE] as string | undefined;
     res.clearCookie(FLOW_COOKIE, { path: '/api/v1/auth' });

@@ -50,7 +50,13 @@ export function numbersIn(text: string): string[] {
   return [...new Set(refsIn(text).map((r) => r.number))];
 }
 
-const actKey = (a: string) => a.toLowerCase().replace(/^the\s+/, '').replace(/,?\s*\d{4}$/, '').replace(/\s+/g, ' ').trim();
+const actKey = (a: string) =>
+  a
+    .toLowerCase()
+    .replace(/^the\s+/, '')
+    .replace(/,?\s*\d{4}$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 function phraseIn(text: string, phrase: string): boolean {
   const p = phrase.trim();
@@ -72,9 +78,17 @@ export function linkCase(c: PackCase, concepts: ConceptForLinking[], subject: st
   const acts = c.acts?.length ? new Set(c.acts.map(actKey)) : null;
   const refs = refsIn(c.topic);
   for (const k of mine) {
-    const hit = refs.some((r) => k.sections.some((s) => s.kind === r.kind && s.number === r.number && (r.kind === 'article' || !acts || (s.act !== null && acts.has(actKey(s.act))))));
+    const hit = refs.some((r) =>
+      k.sections.some(
+        (s) =>
+          s.kind === r.kind &&
+          s.number === r.number &&
+          (r.kind === 'article' || !acts || (s.act !== null && acts.has(actKey(s.act)))),
+      ),
+    );
     if (hit) out.set(k.id, 'section');
   }
-  for (const k of mine) if (!out.has(k.id) && [k.name, ...k.aliases].some((p) => phraseIn(c.topic, p))) out.set(k.id, 'name');
+  for (const k of mine)
+    if (!out.has(k.id) && [k.name, ...k.aliases].some((p) => phraseIn(c.topic, p))) out.set(k.id, 'name');
   return [...out].map(([conceptId, reason]) => ({ conceptId, reason }));
 }

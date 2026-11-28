@@ -52,7 +52,13 @@ export function HomePage() {
         course:
           course === ONE_OFF
             ? { kind: 'one_off' }
-            : { kind: 'course', courseId: course, unitId: (course === fromPlan.course ? fromPlan.unit : null) ?? home.data?.courses.find((c) => c.id === course)?.nextUnit?.id },
+            : {
+                kind: 'course',
+                courseId: course,
+                unitId:
+                  (course === fromPlan.course ? fromPlan.unit : null) ??
+                  home.data?.courses.find((c) => c.id === course)?.nextUnit?.id,
+              },
         lengthMin: Number(length) as PrepareLecture['lengthMin'],
         level: level as PrepareLecture['level'],
         styleKey: style as PrepareLecture['styleKey'],
@@ -67,9 +73,13 @@ export function HomePage() {
       if (choice) setConcept(choice);
       void navigate(`/build/${r.lectureId}`);
     } catch (err) {
-      const parsed = err instanceof ApiRequestError && err.body?.error.code === 'TOPIC_AMBIGUOUS' ? z.array(ResolveChoice).safeParse(err.body.error.details?.choices) : null;
+      const parsed =
+        err instanceof ApiRequestError && err.body?.error.code === 'TOPIC_AMBIGUOUS'
+          ? z.array(ResolveChoice).safeParse(err.body.error.details?.choices)
+          : null;
       if (parsed?.success) setChoices(parsed.data);
-      else if (err instanceof ApiRequestError && err.body?.error.code === 'PREREQ_WARNING_UNACKED') setPrereq(err.body.error.message);
+      else if (err instanceof ApiRequestError && err.body?.error.code === 'PREREQ_WARNING_UNACKED')
+        setPrereq(err.body.error.message);
       else setNotice(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setBusy(false);
@@ -105,7 +115,13 @@ export function HomePage() {
       <h1 className="mb-6 text-2xl font-semibold">Prepare a lecture</h1>
 
       <div className="mb-8">
-        <TopicBox value={topic} onChange={(v) => { setTopic(v); setConcept(null); }} />
+        <TopicBox
+          value={topic}
+          onChange={(v) => {
+            setTopic(v);
+            setConcept(null);
+          }}
+        />
       </div>
 
       <div className="space-y-6">
@@ -132,17 +148,23 @@ export function HomePage() {
       </div>
 
       <details className="mt-8 rounded-card border border-border bg-surface p-4">
-        <summary className="cursor-pointer text-sm font-medium">Use your own notes (optional){notes.length > 0 && ` · ${notes.length} chosen`}</summary>
+        <summary className="cursor-pointer text-sm font-medium">
+          Use your own notes (optional){notes.length > 0 && ` · ${notes.length} chosen`}
+        </summary>
         <div className="mt-4">
           <NotesPicker selected={notes} onChange={setNotes} />
         </div>
       </details>
 
       <details className="mt-4 rounded-card border border-border bg-surface p-4">
-        <summary className="cursor-pointer text-sm font-medium">Add your own example or a special request (optional)</summary>
+        <summary className="cursor-pointer text-sm font-medium">
+          Add your own example or a special request (optional)
+        </summary>
         <div className="mt-4 space-y-4">
           <div>
-            <label htmlFor="must" className="mb-1 block text-sm">Must include</label>
+            <label htmlFor="must" className="mb-1 block text-sm">
+              Must include
+            </label>
             <textarea
               id="must"
               value={mustInclude}
@@ -154,7 +176,9 @@ export function HomePage() {
             />
           </div>
           <div>
-            <label htmlFor="special" className="mb-1 block text-sm">Anything special?</label>
+            <label htmlFor="special" className="mb-1 block text-sm">
+              Anything special?
+            </label>
             <input
               id="special"
               value={special}

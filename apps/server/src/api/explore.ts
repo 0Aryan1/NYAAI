@@ -37,7 +37,8 @@ export function exploreRouter(deps: ExploreApiDeps) {
   });
 
   r.post('/explore/ask', requireConsent, async (req, res) => {
-    if (!deps.gateway || !deps.voyage) throw new AppError('SERVICE_UNAVAILABLE', 'Answers are not available right now. Try again later.');
+    if (!deps.gateway || !deps.voyage)
+      throw new AppError('SERVICE_UNAVAILABLE', 'Answers are not available right now. Try again later.');
     const body = ExploreAsk.parse(req.body);
     const who = req.identity!;
     // Her monthly budget, as for a lecture (LLD §5.1): refused before any AI call.
@@ -50,10 +51,14 @@ export function exploreRouter(deps: ExploreApiDeps) {
              from teacher_profiles p where p.owner_id = app_user()`,
         )
       ).rows[0];
-      const concept = body.conceptId ? (await c.query<{ name: string }>('select name from legal_concepts where id = $1', [body.conceptId])).rows[0]?.name ?? null : null;
+      const concept = body.conceptId
+        ? ((await c.query<{ name: string }>('select name from legal_concepts where id = $1', [body.conceptId])).rows[0]
+            ?.name ?? null)
+        : null;
       return { left: b ? Number(b.budget) - Number(b.spent ?? 0) : 1, concept };
     });
-    if (left <= 0) throw new AppError('BUDGET_EXHAUSTED', 'Your monthly limit is reached; your administrator can raise it.');
+    if (left <= 0)
+      throw new AppError('BUDGET_EXHAUSTED', 'Your monthly limit is reached; your administrator can raise it.');
     const gateway = deps.gateway;
     const voyage = deps.voyage;
     const answer = await answerQuestion(body.question, concept, {

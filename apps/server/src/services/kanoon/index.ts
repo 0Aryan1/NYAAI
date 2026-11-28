@@ -60,7 +60,9 @@ export function createKanoon(cfg: KanoonConfig, usage: UsageSink): Kanoon {
   return {
     async search(query, opts = {}) {
       const q = opts.doctypes ? `${query} doctypes:${opts.doctypes}` : query;
-      const r = await post<{ docs?: { tid: number; title: string; publishdate?: string; docsource?: string; docsize?: number }[] }>(
+      const r = await post<{
+        docs?: { tid: number; title: string; publishdate?: string; docsource?: string; docsize?: number }[];
+      }>(
         `/search/?formInput=${encodeURIComponent(q)}&pagenum=${opts.page ?? 0}`,
         'kanoon.search',
         cfg.searchCostMicroUsd ?? 6_000,

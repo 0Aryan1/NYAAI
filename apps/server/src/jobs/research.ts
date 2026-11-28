@@ -1,7 +1,13 @@
 import { UnrecoverableError, type Job } from 'bullmq';
 import type pg from 'pg';
 import type { Logger } from '../logger.ts';
-import { markResearchFailed, ResearchError, runResearch, type ResearchDeps, type ResearchJob } from '../services/research/index.ts';
+import {
+  markResearchFailed,
+  ResearchError,
+  runResearch,
+  type ResearchDeps,
+  type ResearchJob,
+} from '../services/research/index.ts';
 import { errorCode } from './build.ts';
 import { RESEARCH_TIMEOUT_MS } from './queues.ts';
 
@@ -28,8 +34,16 @@ export function researchProcessor(deps: ResearchDeps & { logger: Logger; logPool
       deps.logger.info({ runId: data.runId, ...r }, 'research ready');
       return r;
     } catch (err) {
-      const code = err instanceof ResearchError ? err.code : /longer than 4 minutes/.test(String(err)) ? 'RESEARCH_TIMEOUT' : errorCode(err);
-      await deps.logPool.query("update jobs_log set state = 'failed', error_code = $2, finished_at = now() where id = $1", [logId, code]);
+      const code =
+        err instanceof ResearchError
+          ? err.code
+          : /longer than 4 minutes/.test(String(err))
+            ? 'RESEARCH_TIMEOUT'
+            : errorCode(err);
+      await deps.logPool.query(
+        "update jobs_log set state = 'failed', error_code = $2, finished_at = now() where id = $1",
+        [logId, code],
+      );
       const final = err instanceof ResearchError || job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
       if (final) await markResearchFailed(data, deps.worker, code);
       if (err instanceof ResearchError) throw new UnrecoverableError(err.message);

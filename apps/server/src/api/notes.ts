@@ -50,47 +50,72 @@ export function notesRouter(ingestQueue: Queue<IngestJobData> | undefined, stora
   const r = express.Router();
 
   r.get('/notes', async (req, res) => {
-    const rows = await req.db!(async (c) => (await c.query<Row>(`${SELECT} where u.status not in ('deleted', 'replaced') order by u.created_at desc`)).rows);
+    const rows = await req.db!(
+      async (c) =>
+        (await c.query<Row>(`${SELECT} where u.status not in ('deleted', 'replaced') order by u.created_at desc`)).rows,
+    );
     res.json(TeacherNoteList.parse({ notes: rows.map(toNote) }));
   });
 
-  r.post('/notes', requireConsent, express.raw({ type: Object.keys(NOTE_MIME_TYPES), limit: MAX_NOTE_BYTES }), async (req, res) => {
-    if (!ingestQueue || !storage) throw new AppError('SERVICE_UNAVAILABLE', 'Uploading is not available right now.');
-    const q = UploadNoteQuery.parse(req.query);
-    const mime = (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
-    const kind = NOTE_MIME_TYPES[mime as keyof typeof NOTE_MIME_TYPES];
-    const bytes = Buffer.isBuffer(req.body) ? new Uint8Array(req.body) : new Uint8Array();
-    if (!kind) throw new AppError('UNSUPPORTED_FILE', 'Upload a Word document (.docx), a PDF or a text file.');
-    if (bytes.byteLength < 2) throw new AppError('VALIDATION_FAILED', 'That file is empty.');
-    const who = req.identity!;
-    const id = randomUUID();
-    // Her private space: the key names her college and her, never shared with the library.
-    const key = `private/${who.collegeId}/${who.userId}/${id}.${kind}`;
-    await storage.put(key, bytes, mime);
-    const note = await req.db!(async (c) => {
-      if (q.replaces) {
-        const old = (await c.query("select 1 from uploads where id = $1 and status not in ('deleted', 'replaced')", [q.replaces])).rowCount;
-        if (!old) throw new AppError('NOT_FOUND', 'We could not find the document this one should replace.');
-      }
-      await c.query(
-        `insert into uploads (id, college_id, owner_id, file_name, mime, size_bytes, storage_key, title, replaces, status)
+  r.post(
+    '/notes',
+    requireConsent,
+    express.raw({ type: Object.keys(NOTE_MIME_TYPES), limit: MAX_NOTE_BYTES }),
+    async (req, res) => {
+      if (!ingestQueue || !storage) throw new AppError('SERVICE_UNAVAILABLE', 'Uploading is not available right now.');
+      const q = UploadNoteQuery.parse(req.query);
+      const mime = (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
+      const kind = NOTE_MIME_TYPES[mime as keyof typeof NOTE_MIME_TYPES];
+      const bytes = Buffer.isBuffer(req.body) ? new Uint8Array(req.body) : new Uint8Array();
+      if (!kind) throw new AppError('UNSUPPORTED_FILE', 'Upload a Word document (.docx), a PDF or a text file.');
+      if (bytes.byteLength < 2) throw new AppError('VALIDATION_FAILED', 'That file is empty.');
+      const who = req.identity!;
+      const id = randomUUID();
+      // Her private space: the key names her college and her, never shared with the library.
+      const key = `private/${who.collegeId}/${who.userId}/${id}.${kind}`;
+      await storage.put(key, bytes, mime);
+      const note = await req.db!(async (c) => {
+        if (q.replaces) {
+          const old = (
+            await c.query("select 1 from uploads where id = $1 and status not in ('deleted', 'replaced')", [q.replaces])
+          ).rowCount;
+          if (!old) throw new AppError('NOT_FOUND', 'We could not find the document this one should replace.');
+        }
+        await c.query(
+          `insert into uploads (id, college_id, owner_id, file_name, mime, size_bytes, storage_key, title, replaces, status)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued')`,
-        [id, who.collegeId, who.userId, q.fileName, mime, bytes.byteLength, key, q.title, q.replaces ?? null],
+          [id, who.collegeId, who.userId, q.fileName, mime, bytes.byteLength, key, q.title, q.replaces ?? null],
+        );
+        return (await c.query<Row>(`${SELECT} where u.id = $1`, [id])).rows[0]!;
+      });
+      await ingestQueue.add(
+        'ingest.upload',
+        { uploadId: id, ownerId: who.userId, collegeId: who.collegeId, requestedBy: who.userId },
+        { ...INGEST_JOB_OPTIONS, jobId: `ingest.upload-${id}` },
       );
-      return (await c.query<Row>(`${SELECT} where u.id = $1`, [id])).rows[0]!;
-    });
-    await ingestQueue.add('ingest.upload', { uploadId: id, ownerId: who.userId, collegeId: who.collegeId, requestedBy: who.userId }, { ...INGEST_JOB_OPTIONS, jobId: `ingest.upload-${id}` });
-    res.status(202).json(TeacherNote.parse(toNote(note)));
-  });
+      res.status(202).json(TeacherNote.parse(toNote(note)));
+    },
+  );
 
   r.delete('/notes/:id', async (req, res) => {
     if (!ingestQueue) throw new AppError('SERVICE_UNAVAILABLE', 'Removing documents is not available right now.');
     const id = Id.parse(req.params.id);
-    const ok = await req.db!(async (c) => (await c.query("update uploads set status = 'deleted' where id = $1 and status <> 'deleted' returning id", [id])).rowCount);
+    const ok = await req.db!(
+      async (c) =>
+        (
+          await c.query("update uploads set status = 'deleted' where id = $1 and status <> 'deleted' returning id", [
+            id,
+          ])
+        ).rowCount,
+    );
     if (!ok) throw new AppError('NOT_FOUND', 'We could not find that document.');
     // The worker takes its text out of search (its private source and chunks are hers to change, as the worker).
     const who = req.identity!;
-    await ingestQueue.add('ingest.upload', { uploadId: id, ownerId: who.userId, collegeId: who.collegeId, requestedBy: who.userId }, { ...INGEST_JOB_OPTIONS, jobId: `ingest.upload-${id}-remove` });
+    await ingestQueue.add(
+      'ingest.upload',
+      { uploadId: id, ownerId: who.userId, collegeId: who.collegeId, requestedBy: who.userId },
+      { ...INGEST_JOB_OPTIONS, jobId: `ingest.upload-${id}-remove` },
+    );
     res.status(204).end();
   });
 

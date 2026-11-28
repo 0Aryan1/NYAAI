@@ -11,5 +11,9 @@ const subscribe = (cb: () => void) => {
 
 /** The browser's own idea of whether it is online (it can be wrong the other way: online, but nothing answers). */
 export function useOnline(): boolean {
-  return useSyncExternalStore(subscribe, () => navigator.onLine, () => true);
+  return useSyncExternalStore(
+    subscribe,
+    () => navigator.onLine,
+    () => true,
+  );
 }

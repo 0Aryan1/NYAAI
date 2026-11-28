@@ -62,13 +62,25 @@ export const UpdateCourse = z.object({
  * in that order. A taught lecture cannot be deleted (its memory feeds later lectures); it can be moved.
  */
 export const UpdateUnits = z.object({
-  add: z.array(z.object({ title: Title })).max(40).optional(),
-  rename: z.array(z.object({ id: z.uuid(), title: Title })).max(80).optional(),
+  add: z
+    .array(z.object({ title: Title }))
+    .max(40)
+    .optional(),
+  rename: z
+    .array(z.object({ id: z.uuid(), title: Title }))
+    .max(80)
+    .optional(),
   remove: z.array(z.uuid()).max(80).optional(),
   /** Every remaining unit id, in the new order (added units go last unless listed by the next call). */
   order: z.array(z.uuid()).max(120).optional(),
-  prerequisites: z.array(z.object({ id: z.uuid(), prerequisites: z.array(z.uuid()).max(20) })).max(80).optional(),
-  status: z.array(z.object({ id: z.uuid(), status: z.enum(['planned', 'skipped']) })).max(80).optional(),
+  prerequisites: z
+    .array(z.object({ id: z.uuid(), prerequisites: z.array(z.uuid()).max(20) }))
+    .max(80)
+    .optional(),
+  status: z
+    .array(z.object({ id: z.uuid(), status: z.enum(['planned', 'skipped']) }))
+    .max(80)
+    .optional(),
 });
 export type UpdateUnits = z.infer<typeof UpdateUnits>;
 
@@ -87,7 +99,9 @@ export const CourseUnitView = z.object({
   taughtOn: z.string().nullable(),
   prerequisites: z.array(z.uuid()),
   /** The unit's latest lecture. */
-  lecture: z.object({ id: z.uuid(), status: z.string(), topic: z.string(), mayNeedUpdate: z.boolean().default(false) }).nullable(),
+  lecture: z
+    .object({ id: z.uuid(), status: z.string(), topic: z.string(), mayNeedUpdate: z.boolean().default(false) })
+    .nullable(),
   /** Sources found for it in the background (DATA-3); null when never checked. */
   sources: UnitSources.nullable(),
   /** What the class learnt, once taught (COURSE-4). */
@@ -116,7 +130,16 @@ export type CourseDetail = z.infer<typeof CourseDetail>;
 
 /** GET /courses */
 export const CourseList = z.object({
-  courses: z.array(z.object({ id: z.uuid(), name: z.string(), semester: z.string().nullable(), classCount: z.number().int().nullable(), lectures: z.number().int(), taught: z.number().int() })),
+  courses: z.array(
+    z.object({
+      id: z.uuid(),
+      name: z.string(),
+      semester: z.string().nullable(),
+      classCount: z.number().int().nullable(),
+      lectures: z.number().int(),
+      taught: z.number().int(),
+    }),
+  ),
 });
 export type CourseList = z.infer<typeof CourseList>;
 

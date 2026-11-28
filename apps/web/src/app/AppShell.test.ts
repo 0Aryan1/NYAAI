@@ -8,6 +8,7 @@ describe('which screens scroll by themselves', () => {
     expect(FULL_BLEED.test('/library/')).toBe(true);
   });
   it('every other library screen is an ordinary page that scrolls', () => {
-    for (const p of ['/library/topics', '/library/gaps', '/library/reports', '/courses', '/explore/x', '/build/x']) expect(FULL_BLEED.test(p)).toBe(false);
+    for (const p of ['/library/topics', '/library/gaps', '/library/reports', '/courses', '/explore/x', '/build/x'])
+      expect(FULL_BLEED.test(p)).toBe(false);
   });
 });

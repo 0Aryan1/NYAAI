@@ -11,7 +11,8 @@ const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"'
 
 export function decodeEntities(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
-    if (e[0] === '#') return String.fromCodePoint(e[1]?.toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10));
+    if (e[0] === '#')
+      return String.fromCodePoint(e[1]?.toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10));
     return ENTITIES[e.toLowerCase()] ?? m;
   });
 }
@@ -20,14 +21,27 @@ const stripTags = (s: string) => decodeEntities(s.replace(/<[^>]+>/g, ''));
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
 
 const MONTHS: Record<string, string> = {
-  january: '01', february: '02', march: '03', april: '04', may: '05', june: '06',
-  july: '07', august: '08', september: '09', october: '10', november: '11', december: '12',
+  january: '01',
+  february: '02',
+  march: '03',
+  april: '04',
+  may: '05',
+  june: '06',
+  july: '07',
+  august: '08',
+  september: '09',
+  october: '10',
+  november: '11',
+  december: '12',
 };
 
 /** "Satyabrata Ghose vs Mugneeram Bangur & Co., And Another on 16 November, 1953" → name and ISO date. */
 export function parseKanoonTitle(title: string): { caseName: string; decidedOn: string | null } {
   const m = /^(.*?)\s+on\s+(\d{1,2})\s+([A-Za-z]+),?\s+(\d{4})\s*$/.exec(title.trim());
-  const name = (m?.[1] ?? title).replace(/\s+vs\.?\s+/i, ' v. ').replace(/,?\s+And\s+(Another|Others|Ors\.?|Anr\.?)$/i, '').trim();
+  const name = (m?.[1] ?? title)
+    .replace(/\s+vs\.?\s+/i, ' v. ')
+    .replace(/,?\s+And\s+(Another|Others|Ors\.?|Anr\.?)$/i, '')
+    .trim();
   const month = m ? MONTHS[m[3]!.toLowerCase()] : undefined;
   return { caseName: name, decidedOn: m && month ? `${m[4]}-${month}-${m[2]!.padStart(2, '0')}` : null };
 }
@@ -50,9 +64,15 @@ export function kanoonToJudgment(d: KanoonDoc): JudgmentInput {
     return m ? squash(stripTags(m[1]!)) : null;
   };
   const { caseName, decidedOn } = parseKanoonTitle(stripTags(d.title));
-  const citations = (h3('doc_citations') ?? '').replace(/^Equivalent citations:\s*/i, '').split(/\s*,\s*/).filter(Boolean);
+  const citations = (h3('doc_citations') ?? '')
+    .replace(/^Equivalent citations:\s*/i, '')
+    .split(/\s*,\s*/)
+    .filter(Boolean);
   const author = (h3('doc_author') ?? '').replace(/^Author:\s*/i, '') || null;
-  const bench = (h3('doc_bench') ?? '').replace(/^Bench:\s*/i, '').split(/\s*,\s*/).filter(Boolean);
+  const bench = (h3('doc_bench') ?? '')
+    .replace(/^Bench:\s*/i, '')
+    .split(/\s*,\s*/)
+    .filter(Boolean);
 
   // Old reports: the reporter's ACT summary and HEADNOTE sit in the preformatted header block.
   let headnote: string | null = null;
@@ -86,7 +106,9 @@ export function kanoonToJudgment(d: KanoonDoc): JudgmentInput {
   for (const m of body.matchAll(/<(p|blockquote)\b[^>]*>(.*?)<\/\1>/gs)) {
     let inner = m[2]!;
     // Page numbers of the printed report: the paragraph starts on the page in force before its first marker.
-    const pages = [...inner.matchAll(/<span class="hidden_text"[^>]*>\s*(\d{1,5})\s*<\/span>/g)].map((p) => Number(p[1]));
+    const pages = [...inner.matchAll(/<span class="hidden_text"[^>]*>\s*(\d{1,5})\s*<\/span>/g)].map((p) =>
+      Number(p[1]),
+    );
     inner = inner.replace(/<span class="hidden_text"[^>]*>.*?<\/span>/gs, ' ');
     const text = squash(stripTags(inner).replace(PRINTER_JUNK, ' '));
     if (text) blocks.push({ text, page, quoted: m[1] === 'blockquote' });

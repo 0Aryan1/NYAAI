@@ -17,7 +17,12 @@ const bool = z
 const csv = z
   .string()
   .optional()
-  .transform((v) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean));
+  .transform((v) =>
+    (v ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
 
 /** Provider keys: required in production, warned about in development, ignored in tests. */
 export const PROVIDER_KEYS = ['ANTHROPIC_API_KEY', 'VOYAGE_API_KEY', 'INDIAN_KANOON_TOKEN'] as const;
@@ -54,7 +59,10 @@ const Schema = z
     RATE_LIMIT_PER_MIN: z.coerce.number().int().min(10).max(10_000).default(60),
     /** Sign-in attempts per minute per IP (LLD §17.4: 5). Raised only for the browser journeys. */
     SIGNIN_LIMIT_PER_MIN: z.coerce.number().int().min(1).max(10_000).default(5),
-    QUEUE_PREFIX: z.string().regex(/^[a-z0-9_-]{1,20}$/).default('bull'),
+    QUEUE_PREFIX: z
+      .string()
+      .regex(/^[a-z0-9_-]{1,20}$/)
+      .default('bull'),
 
     SESSION_SECRET: z.string().min(32, 'must be at least 32 characters'),
     CSRF_SECRET: z.string().min(32, 'must be at least 32 characters'),
@@ -91,14 +99,22 @@ const Schema = z
       ctx.addIssue({ code: 'custom', path: ['E2E_FAKE_AI'], message: 'is never allowed in production' });
     }
     if (env.GOOGLE_SKIP_HD_CHECK && env.NODE_ENV !== 'development') {
-      ctx.addIssue({ code: 'custom', path: ['GOOGLE_SKIP_HD_CHECK'], message: 'is allowed only when NODE_ENV=development' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['GOOGLE_SKIP_HD_CHECK'],
+        message: 'is allowed only when NODE_ENV=development',
+      });
     }
     if (env.NODE_ENV === 'production') {
       for (const key of PROVIDER_KEYS) {
         if (!env[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'is required in production' });
       }
       if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
-        ctx.addIssue({ code: 'custom', path: ['GOOGLE_CLIENT_ID'], message: 'Google sign-in is required in production' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GOOGLE_CLIENT_ID'],
+          message: 'Google sign-in is required in production',
+        });
       }
       if (env.ALLOWED_EMAIL_DOMAINS.length === 0) {
         ctx.addIssue({ code: 'custom', path: ['ALLOWED_EMAIL_DOMAINS'], message: 'is required in production' });

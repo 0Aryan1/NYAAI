@@ -18,7 +18,14 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   let status: number;
   if (err instanceof AppError) {
     status = err.status;
-    body = { error: { code: err.code, message: err.message, ...(err.details ? { details: err.details } : {}), traceId: traceId(req) } };
+    body = {
+      error: {
+        code: err.code,
+        message: err.message,
+        ...(err.details ? { details: err.details } : {}),
+        traceId: traceId(req),
+      },
+    };
   } else if (err instanceof ZodError) {
     status = 400;
     body = {
@@ -32,7 +39,13 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   } else {
     status = 500;
     req.log?.error({ err }, 'unhandled error');
-    body = { error: { code: 'INTERNAL', message: 'Something went wrong on our side. Please try again.', traceId: traceId(req) } };
+    body = {
+      error: {
+        code: 'INTERNAL',
+        message: 'Something went wrong on our side. Please try again.',
+        traceId: traceId(req),
+      },
+    };
   }
   res.status(status).json(body);
 };

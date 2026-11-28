@@ -29,7 +29,14 @@ import { requireAuth } from './middleware/auth.ts';
 import { requireCsrf } from './auth/csrf.ts';
 import { teacherLimit } from './middleware/rate-limit.ts';
 import { GoogleSignIn } from './auth/google.ts';
-import type { BuildJobData, CheckJobData, IngestJobData, LearnJobData, OpsJobData, ResearchJobData } from './jobs/queues.ts';
+import type {
+  BuildJobData,
+  CheckJobData,
+  IngestJobData,
+  LearnJobData,
+  OpsJobData,
+  ResearchJobData,
+} from './jobs/queues.ts';
 import { slidesRouter } from './api/slides.ts';
 import { coursesRouter } from './api/courses.ts';
 import type { Storage } from './services/storage/index.ts';
@@ -39,14 +46,38 @@ import { reviewRouter } from './api/review.ts';
 const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/;
 
 /** Path prefixes that need a signed-in teacher (everything except health and sign-in). */
-const SIGNED_IN = ['/research', '/explore', '/me', '/setup', '/consents', '/home', '/library', '/suggest', '/topics', '/events', '/lectures', '/citations', '/coverage', '/courses', '/slides', '/notes'];
+const SIGNED_IN = [
+  '/research',
+  '/explore',
+  '/me',
+  '/setup',
+  '/consents',
+  '/home',
+  '/library',
+  '/suggest',
+  '/topics',
+  '/events',
+  '/lectures',
+  '/citations',
+  '/coverage',
+  '/courses',
+  '/slides',
+  '/notes',
+];
 
 export interface AppDeps {
   config: Config;
   logger: Logger;
   pool: pg.Pool;
   redis: Redis;
-  queues?: { ingest?: Queue<IngestJobData>; build?: Queue<BuildJobData>; learn?: Queue<LearnJobData>; check?: Queue<CheckJobData>; ops?: Queue<OpsJobData>; research?: Queue<ResearchJobData> };
+  queues?: {
+    ingest?: Queue<IngestJobData>;
+    build?: Queue<BuildJobData>;
+    learn?: Queue<LearnJobData>;
+    check?: Queue<CheckJobData>;
+    ops?: Queue<OpsJobData>;
+    research?: Queue<ResearchJobData>;
+  };
   search?: Omit<SearchApiDeps, 'redis'>;
   /** File storage, for judgment uploads (library editor). */
   storage?: Storage;
@@ -96,10 +127,43 @@ export function createApp({ config, logger, pool, redis, queues, search, storage
   const v1 = express.Router();
   v1.use(healthRouter({ pool, redis }));
   v1.use(authRouter({ config, pool, redis, google }));
-  v1.use(SIGNED_IN, requireAuth({ pool, sessionSecret: config.SESSION_SECRET, production }), teacherLimit(redis, config.RATE_LIMIT_PER_MIN), requireCsrf(config.CSRF_SECRET));
-  v1.use(meRouter(config), accountRouter(queues?.ops, storage), setupRouter(), homeRouter(), libraryRouter(queues?.ingest, storage), notesRouter(queues?.ingest, storage), lecturesRouter(queues?.build, queues?.learn), reviewRouter(), reportsRouter(), topicsReviewRouter(), mappingsRouter(queues?.ops), researchRouter(queues?.research), coursesRouter(queues?.ingest), slidesRouter(queues?.check));
-  v1.use(exploreRouter({ voyage: search?.voyage ?? null, gateway: search?.gateway ?? null, minScore: search?.minScore ?? config.RERANK_MIN_SCORE }));
-  v1.use(searchRouter({ redis, voyage: search?.voyage ?? null, gateway: search?.gateway ?? null, minScore: search?.minScore ?? config.RERANK_MIN_SCORE }));
+  v1.use(
+    SIGNED_IN,
+    requireAuth({ pool, sessionSecret: config.SESSION_SECRET, production }),
+    teacherLimit(redis, config.RATE_LIMIT_PER_MIN),
+    requireCsrf(config.CSRF_SECRET),
+  );
+  v1.use(
+    meRouter(config),
+    accountRouter(queues?.ops, storage),
+    setupRouter(),
+    homeRouter(),
+    libraryRouter(queues?.ingest, storage),
+    notesRouter(queues?.ingest, storage),
+    lecturesRouter(queues?.build, queues?.learn),
+    reviewRouter(),
+    reportsRouter(),
+    topicsReviewRouter(),
+    mappingsRouter(queues?.ops),
+    researchRouter(queues?.research),
+    coursesRouter(queues?.ingest),
+    slidesRouter(queues?.check),
+  );
+  v1.use(
+    exploreRouter({
+      voyage: search?.voyage ?? null,
+      gateway: search?.gateway ?? null,
+      minScore: search?.minScore ?? config.RERANK_MIN_SCORE,
+    }),
+  );
+  v1.use(
+    searchRouter({
+      redis,
+      voyage: search?.voyage ?? null,
+      gateway: search?.gateway ?? null,
+      minScore: search?.minScore ?? config.RERANK_MIN_SCORE,
+    }),
+  );
   app.use('/api/v1', v1);
 
   app.use(notFound);

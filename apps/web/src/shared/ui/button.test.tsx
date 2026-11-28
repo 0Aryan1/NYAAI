@@ -10,7 +10,11 @@ describe('Button', () => {
     expect(screen.getByRole('button', { name: 'Prepare' }).getAttribute('type')).toBe('button');
   });
   it('can be disabled (Prepare stays disabled until all chips are chosen)', () => {
-    render(<Button variant="primary" disabled>Prepare</Button>);
+    render(
+      <Button variant="primary" disabled>
+        Prepare
+      </Button>,
+    );
     expect((screen.getByRole('button', { name: 'Prepare' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

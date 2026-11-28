@@ -27,7 +27,18 @@ import { PROMPTS, fence } from '@nyaai/prompts';
 import { GapQuestions, type LecturePlan } from '@nyaai/shared';
 import type { Gateway } from '../llm-gateway/index.ts';
 import { searchWithLookup, type GapLookup, type TenantRunner } from '../lookup/index.ts';
-import { conceptMustCover, noteSources, search, sourceDetails, statuteSource, statuteUnits, type RetrievedSource, type SearchDeps, type SearchRequest, type StatuteUnit } from '../search/index.ts';
+import {
+  conceptMustCover,
+  noteSources,
+  search,
+  sourceDetails,
+  statuteSource,
+  statuteUnits,
+  type RetrievedSource,
+  type SearchDeps,
+  type SearchRequest,
+  type StatuteUnit,
+} from '../search/index.ts';
 import type { UsageSink } from '../usage.ts';
 import { partQuery, sourceLabel } from './part.ts';
 import { pool } from './pool.ts';
@@ -99,7 +110,10 @@ export async function researchLecture(input: ResearchInput, deps: ResearchDeps):
   const request = (query: string, maxSources: number, noExpand = false): SearchRequest => ({
     query,
     purpose: 'lecture_part',
-    filters: { jurisdiction: input.filters.jurisdiction ? [input.filters.jurisdiction] : undefined, asOn: input.filters.asOn },
+    filters: {
+      jurisdiction: input.filters.jurisdiction ? [input.filters.jurisdiction] : undefined,
+      asOn: input.filters.asOn,
+    },
     maxSources,
     contextAct: input.contextAct,
     noExpand,
@@ -112,13 +126,20 @@ export async function researchLecture(input: ResearchInput, deps: ResearchDeps):
     plan.parts.map((p, i) => ({ p, i })),
     limit,
     async ({ p, i }) => {
-      const found = await searchWithLookup(deps.tenant, request(partQuery(input.topic, p), FIRST_SEARCH), deps.searchDeps, deps.lookup);
+      const found = await searchWithLookup(
+        deps.tenant,
+        request(partQuery(input.topic, p), FIRST_SEARCH),
+        deps.searchDeps,
+        deps.lookup,
+      );
       parts[i] = { sources: dedupe(found.sources), outcome: found.outcome };
     },
   );
 
   // 2–3. Code gap check: the topic's key sections and leading cases.
-  const concept = input.conceptId ? await deps.tenant((c) => conceptMustCover(c, input.conceptId!)) : { sectionChunkIds: [], cases: [] };
+  const concept = input.conceptId
+    ? await deps.tenant((c) => conceptMustCover(c, input.conceptId!))
+    : { sectionChunkIds: [], cases: [] };
   const keyUnits = await deps.tenant((c) => statuteUnits(c, concept.sectionChunkIds));
   for (const u of keyUnits) {
     if (parts.some((p) => hasUnit(p, u))) continue;
@@ -139,7 +160,15 @@ export async function researchLecture(input: ResearchInput, deps: ResearchDeps):
         at = best;
       }
     }
-    caseNotes.push({ key: `case|${k.sourceId}`, kind: 'leading_case', label: `Leading case: ${k.title}`, sourceId: k.sourceId, act: null, number: null, partIndex: at });
+    caseNotes.push({
+      key: `case|${k.sourceId}`,
+      kind: 'leading_case',
+      label: `Leading case: ${k.title}`,
+      sourceId: k.sourceId,
+      act: null,
+      number: null,
+      partIndex: at,
+    });
   }
   // Her attached notes: each document is used. One no search found gives its best-fitting sections to their parts.
   const attached = input.notes ?? [];
@@ -148,8 +177,15 @@ export async function researchLecture(input: ResearchInput, deps: ResearchDeps):
     for (const id of attached) {
       if (parts.some((p) => p.sources.some((s) => s.sourceId === id))) continue;
       const mine = all.filter((s) => s.sourceId === id);
-      const fit = mine.map((s) => ({ s, at: bestPart(plan, `${s.header} ${s.text}`), score: Math.max(0, ...plan.parts.map((p) => overlap(`${s.header} ${s.text}`, p))) }));
-      const chosen = fit.filter((f) => f.score > 0).sort((a, b) => b.score - a.score).slice(0, 2);
+      const fit = mine.map((s) => ({
+        s,
+        at: bestPart(plan, `${s.header} ${s.text}`),
+        score: Math.max(0, ...plan.parts.map((p) => overlap(`${s.header} ${s.text}`, p))),
+      }));
+      const chosen = fit
+        .filter((f) => f.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 2);
       for (const f of chosen.length ? chosen : fit.slice(0, 1)) if (f.at !== null) addTo(parts[f.at]!, [f.s], true);
     }
   }
@@ -164,18 +200,30 @@ export async function researchLecture(input: ResearchInput, deps: ResearchDeps):
     let asked: GapQuestions['questions'];
     try {
       const task = gapTask(input, parts, mustCover, gaps, (id) => titles.get(id)?.title ?? null);
-      asked = (await deps.gateway.run({ prompt: PROMPTS['research.gaps'], schema: GapQuestions, task, traceId: deps.traceId }, deps.usage)).data.questions;
+      asked = (
+        await deps.gateway.run(
+          { prompt: PROMPTS['research.gaps'], schema: GapQuestions, task, traceId: deps.traceId },
+          deps.usage,
+        )
+      ).data.questions;
     } catch {
       break; // the gap check helps; it never blocks the build
     }
-    const fresh = asked.filter((q) => q.part >= 1 && q.part <= plan.parts.length && !gaps.some((g) => sameQuestion(g.question, q.question)));
+    const fresh = asked.filter(
+      (q) => q.part >= 1 && q.part <= plan.parts.length && !gaps.some((g) => sameQuestion(g.question, q.question)),
+    );
     if (!fresh.length) break;
     let added = 0;
     await pool(fresh, limit, async (q) => {
       const i = q.part - 1;
       // Library only (lookup = null): this query was written by a model that read library labels. A thin result
       // is still recorded as a library gap for the library team.
-      const found = await searchWithLookup(deps.tenant, request(`${input.topic}: ${q.question}`, GAP_SEARCH, true), deps.searchDeps, null);
+      const found = await searchWithLookup(
+        deps.tenant,
+        request(`${input.topic}: ${q.question}`, GAP_SEARCH, true),
+        deps.searchDeps,
+        null,
+      );
       const n = addTo(parts[i]!, found.sources, false);
       added += n;
       gaps.push({ round, partIndex: i, question: q.question, why: q.why, added: n });
@@ -183,13 +231,23 @@ export async function researchLecture(input: ResearchInput, deps: ResearchDeps):
     });
     settle(parts);
     // Sections the gap searches brought in join the must-cover list.
-    mustCover = [...(await statuteMustCover(plan, parts, keyUnits, deps.tenant)), ...caseNotes.map((n) => ({ ...n, partIndex: mainPart(parts, n.sourceId) }))];
+    mustCover = [
+      ...(await statuteMustCover(plan, parts, keyUnits, deps.tenant)),
+      ...caseNotes.map((n) => ({ ...n, partIndex: mainPart(parts, n.sourceId) })),
+    ];
     if (!added) break;
   }
 
   for (const p of parts) p.sources = onlyAttached(p.sources, attached);
   const titles = await deps.tenant((c) => sourceDetails(c, judgmentIds(parts)));
-  return { version: 1, parts, mustCover, elsewhere: elsewhere(plan, parts, (id) => titles.get(id)?.title ?? null), gaps, notFound };
+  return {
+    version: 1,
+    parts,
+    mustCover,
+    elsewhere: elsewhere(plan, parts, (id) => titles.get(id)?.title ?? null),
+    gaps,
+    notFound,
+  };
 }
 
 /* ------------------------------------------------------------------------------------------------------------
@@ -232,7 +290,10 @@ export function addTo(part: PartNotes, more: RetrievedSource[], force: boolean):
     if (part.sources.length >= MAX_SOURCES) {
       if (!force) continue;
       // The lowest judgment paragraph makes room; never a section, never her own attached note.
-      const drop = part.sources.map((x, i) => ({ x, i })).reverse().find(({ x }) => !isStatute(x) && !x.meta.private);
+      const drop = part.sources
+        .map((x, i) => ({ x, i }))
+        .reverse()
+        .find(({ x }) => !isStatute(x) && !x.meta.private);
       if (!drop) continue;
       part.sources.splice(drop.i, 1);
     }
@@ -244,14 +305,48 @@ export function addTo(part: PartNotes, more: RetrievedSource[], force: boolean):
 
 /** A part's outcome after notes were added: three or more sources is enough. */
 function settle(parts: PartNotes[]) {
-  for (const p of parts) if (p.sources.length) p.outcome = p.sources.length >= 3 ? 'ok' : p.outcome === 'ok' ? 'ok' : 'thin';
+  for (const p of parts)
+    if (p.sources.length) p.outcome = p.sources.length >= 3 ? 'ok' : p.outcome === 'ok' ? 'ok' : 'thin';
 }
 
 function hasUnit(part: PartNotes, u: StatuteUnit): boolean {
-  return part.sources.some((s) => s.coveredChunkIds.includes(u.chunkId) || (isStatute(s) && s.sourceId === u.sourceId && unitNo(s) === u.number));
+  return part.sources.some(
+    (s) =>
+      s.coveredChunkIds.includes(u.chunkId) || (isStatute(s) && s.sourceId === u.sourceId && unitNo(s) === u.number),
+  );
 }
 
-const STOP = new Set(['that', 'with', 'this', 'which', 'shall', 'from', 'have', 'under', 'such', 'where', 'their', 'there', 'what', 'when', 'does', 'been', 'being', 'into', 'upon', 'other', 'than', 'only', 'also', 'were', 'will', 'would', 'section', 'said', 'made']);
+const STOP = new Set([
+  'that',
+  'with',
+  'this',
+  'which',
+  'shall',
+  'from',
+  'have',
+  'under',
+  'such',
+  'where',
+  'their',
+  'there',
+  'what',
+  'when',
+  'does',
+  'been',
+  'being',
+  'into',
+  'upon',
+  'other',
+  'than',
+  'only',
+  'also',
+  'were',
+  'will',
+  'would',
+  'section',
+  'said',
+  'made',
+]);
 const words = (t: string) => new Set((t.toLowerCase().match(/[a-z]{4,}/g) ?? []).filter((w) => !STOP.has(w)));
 
 /** How many distinctive words a text shares with a part's title and questions. */
@@ -308,16 +403,34 @@ export function assignMustCover(plan: LecturePlan, parts: PartNotes[], units: St
       if (out.some((o) => o.key === key)) continue;
       const open = holders.filter((i) => (perPart.get(i) ?? 0) < MAX_MUST_PER_PART);
       // A recap or bridge holds a section only to recall it; the item goes to a teaching part when one holds it.
-      const at = bestPart(plan, item.text, open) ?? (open[0] ?? null);
+      const at = bestPart(plan, item.text, open) ?? open[0] ?? null;
       if (at !== null) perPart.set(at, (perPart.get(at) ?? 0) + 1);
-      out.push({ key, kind: item.kind, label: item.label, sourceId: u.sourceId, act: u.actName, number: u.number, partIndex: at });
+      out.push({
+        key,
+        kind: item.kind,
+        label: item.label,
+        sourceId: u.sourceId,
+        act: u.actName,
+        number: u.number,
+        partIndex: at,
+      });
     }
   }
   return out;
 }
 
-async function statuteMustCover(plan: LecturePlan, parts: PartNotes[], keyUnits: StatuteUnit[], tenant: TenantRunner): Promise<MustCoverNote[]> {
-  const inNotes = await tenant((c) => statuteUnits(c, parts.flatMap((p) => p.sources.filter(isStatute).map((s) => s.chunkId))));
+async function statuteMustCover(
+  plan: LecturePlan,
+  parts: PartNotes[],
+  keyUnits: StatuteUnit[],
+  tenant: TenantRunner,
+): Promise<MustCoverNote[]> {
+  const inNotes = await tenant((c) =>
+    statuteUnits(
+      c,
+      parts.flatMap((p) => p.sources.filter(isStatute).map((s) => s.chunkId)),
+    ),
+  );
   const units = [...keyUnits, ...inNotes.filter((u) => !keyUnits.some((k) => k.chunkId === u.chunkId))];
   return assignMustCover(plan, parts, units);
 }
@@ -327,14 +440,20 @@ function judgmentIds(parts: PartNotes[]): string[] {
 }
 
 /** For each part: the cases it shares with another part that teaches them in full (their main part). */
-export function elsewhere(plan: LecturePlan, parts: PartNotes[], title: (sourceId: string) => string | null): Record<string, string[]> {
+export function elsewhere(
+  plan: LecturePlan,
+  parts: PartNotes[],
+  title: (sourceId: string) => string | null,
+): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const id of judgmentIds(parts)) {
     const holders = parts.map((p, i) => (p.sources.some((s) => s.sourceId === id) ? i : -1)).filter((i) => i >= 0);
     if (holders.length < 2) continue;
     const main = mainPart(parts, id)!;
     const name = title(id) ?? parts[main]!.sources.find((s) => s.sourceId === id)!.header.split(' › ')[0]!;
-    for (const i of holders) if (i !== main) (out[String(i)] ??= []).push(`${name}: taught in full in Part ${main + 1} (${plan.parts[main]!.title})`);
+    for (const i of holders)
+      if (i !== main)
+        (out[String(i)] ??= []).push(`${name}: taught in full in Part ${main + 1} (${plan.parts[main]!.title})`);
   }
   return out;
 }
@@ -342,19 +461,46 @@ export function elsewhere(plan: LecturePlan, parts: PartNotes[], title: (sourceI
 const sameQuestion = (a: string, b: string) => normaliseForSpan(a).toLowerCase() === normaliseForSpan(b).toLowerCase();
 
 /** The gap checker's task: the outline (clean), and the labels of what was found, fenced as library data. */
-export function gapTask(input: Pick<ResearchInput, 'plan' | 'topic' | 'level'>, parts: PartNotes[], mustCover: MustCoverNote[], asked: LectureResearch['gaps'], title: (sourceId: string) => string | null): string {
+export function gapTask(
+  input: Pick<ResearchInput, 'plan' | 'topic' | 'level'>,
+  parts: PartNotes[],
+  mustCover: MustCoverNote[],
+  asked: LectureResearch['gaps'],
+  title: (sourceId: string) => string | null,
+): string {
   const boundary = randomBytes(6).toString('hex');
-  const outline = input.plan.parts.map((p, i) => [`Part ${i + 1}: ${p.title} (${p.kind}, ${p.minutes} min)`, ...p.questions.map((q) => `  - ${q}`)].join('\n')).join('\n');
-  const found = parts
-    .map((p, i) => `Part ${i + 1}: ${p.sources.length ? p.sources.map((s) => `${sourceLabel(s, title(s.sourceId))}${s.meta.paraRole ? ` [${s.meta.paraRole}]` : ''}`).join('; ') : 'nothing found'}`)
+  const outline = input.plan.parts
+    .map((p, i) =>
+      [`Part ${i + 1}: ${p.title} (${p.kind}, ${p.minutes} min)`, ...p.questions.map((q) => `  - ${q}`)].join('\n'),
+    )
     .join('\n');
-  const must = mustCover.length ? mustCover.map((m) => `- ${m.label}: ${m.partIndex === null ? 'NOT FOUND in any part' : `in Part ${m.partIndex + 1}`}`).join('\n') : '(none)';
-  const prev = asked.length ? asked.map((g) => `- Part ${g.partIndex + 1}: ${g.question} (${g.added ? `${g.added} new source(s)` : 'nothing new'})`).join('\n') : '(none)';
+  const found = parts
+    .map(
+      (p, i) =>
+        `Part ${i + 1}: ${p.sources.length ? p.sources.map((s) => `${sourceLabel(s, title(s.sourceId))}${s.meta.paraRole ? ` [${s.meta.paraRole}]` : ''}`).join('; ') : 'nothing found'}`,
+    )
+    .join('\n');
+  const must = mustCover.length
+    ? mustCover
+        .map((m) => `- ${m.label}: ${m.partIndex === null ? 'NOT FOUND in any part' : `in Part ${m.partIndex + 1}`}`)
+        .join('\n')
+    : '(none)';
+  const prev = asked.length
+    ? asked
+        .map(
+          (g) => `- Part ${g.partIndex + 1}: ${g.question} (${g.added ? `${g.added} new source(s)` : 'nothing new'})`,
+        )
+        .join('\n')
+    : '(none)';
   return [
     `TOPIC: ${input.topic}`,
     `LEVEL: ${input.level}`,
     `OUTLINE:\n${outline}`,
-    fence('research', `FOUND FOR EACH PART:\n${found}\n\nMUST-COVER:\n${must}\n\nQUESTIONS ALREADY SEARCHED:\n${prev}`, boundary),
+    fence(
+      'research',
+      `FOUND FOR EACH PART:\n${found}\n\nMUST-COVER:\n${must}\n\nQUESTIONS ALREADY SEARCHED:\n${prev}`,
+      boundary,
+    ),
     'Return the gaps as "questions", with part numbers as in the OUTLINE, or an empty list when the research is enough.',
   ].join('\n\n');
 }

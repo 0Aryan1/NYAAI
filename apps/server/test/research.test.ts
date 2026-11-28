@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { LecturePlan } from '@nyaai/shared';
 import type { RetrievedSource, StatuteUnit } from '../src/services/search/index.ts';
-import { MAX_SOURCES, addTo, assignMustCover, bestPart, dedupe, elsewhere, gapTask, mainPart, onlyAttached, type PartNotes } from '../src/services/build/research.ts';
+import {
+  MAX_SOURCES,
+  addTo,
+  assignMustCover,
+  bestPart,
+  dedupe,
+  elsewhere,
+  gapTask,
+  mainPart,
+  onlyAttached,
+  type PartNotes,
+} from '../src/services/build/research.ts';
 
 const ACT = 'Arbitration and Conciliation Act';
 const S34_TEXT = [
@@ -17,28 +28,69 @@ let n = 0;
 function statute(section: string, score = 0.9): RetrievedSource {
   n++;
   return {
-    tag: 'S1', chunkId: `c-s${section}-${n}`, sourceId: 'act-1', header: `${ACT} › s. ${section}`, text: section === '34' ? S34_TEXT : `${section}. Some section.`,
-    coveredChunkIds: [`c-s${section}-${n}`, `unit-${section}`], meta: { act: ACT, section, rolesSampled: false, sourceType: 'act', origin: 'india_code' },
-    status: {}, provisional: false, rerankScore: score, standing: { score, relevance: score, reasons: [] },
+    tag: 'S1',
+    chunkId: `c-s${section}-${n}`,
+    sourceId: 'act-1',
+    header: `${ACT} › s. ${section}`,
+    text: section === '34' ? S34_TEXT : `${section}. Some section.`,
+    coveredChunkIds: [`c-s${section}-${n}`, `unit-${section}`],
+    meta: { act: ACT, section, rolesSampled: false, sourceType: 'act', origin: 'india_code' },
+    status: {},
+    provisional: false,
+    rerankScore: score,
+    standing: { score, relevance: score, reasons: [] },
   };
 }
 function para(sourceId: string, chunk: string, score: number, covered: string[] = [chunk]): RetrievedSource {
   return {
-    tag: 'S1', chunkId: chunk, sourceId, header: `${sourceId} v. State › ¶1`, text: `[para 1] ${sourceId} reasoning`,
-    coveredChunkIds: covered, meta: { paraNo: '1', paraRole: 'holding', rolesSampled: false, sourceType: 'judgment', origin: 'court_site' },
-    status: { case: 'not_verified' }, provisional: false, rerankScore: score, standing: { score, relevance: score, reasons: [] },
+    tag: 'S1',
+    chunkId: chunk,
+    sourceId,
+    header: `${sourceId} v. State › ¶1`,
+    text: `[para 1] ${sourceId} reasoning`,
+    coveredChunkIds: covered,
+    meta: { paraNo: '1', paraRole: 'holding', rolesSampled: false, sourceType: 'judgment', origin: 'court_site' },
+    status: { case: 'not_verified' },
+    provisional: false,
+    rerankScore: score,
+    standing: { score, relevance: score, reasons: [] },
   };
 }
 const plan: LecturePlan = {
   parts: [
     { title: 'Recap: seat', minutes: 4, kind: 'recap', questions: ['What is the seat?'], mustInclude: false },
-    { title: 'Grounds of challenge', minutes: 20, kind: 'content', questions: ['When is an award against the public policy of India?', 'What is the fundamental policy of Indian law?'], mustInclude: false },
-    { title: 'Time limit', minutes: 14, kind: 'content', questions: ['Within how many months must the application be made, and can the court condone delay for sufficient cause?'], mustInclude: false },
+    {
+      title: 'Grounds of challenge',
+      minutes: 20,
+      kind: 'content',
+      questions: [
+        'When is an award against the public policy of India?',
+        'What is the fundamental policy of Indian law?',
+      ],
+      mustInclude: false,
+    },
+    {
+      title: 'Time limit',
+      minutes: 14,
+      kind: 'content',
+      questions: [
+        'Within how many months must the application be made, and can the court condone delay for sufficient cause?',
+      ],
+      mustInclude: false,
+    },
     { title: 'Next class', minutes: 2, kind: 'bridge', questions: ['What comes next?'], mustInclude: false },
   ],
   leftOut: [],
 };
-const unit34: StatuteUnit = { chunkId: 'unit-34', sourceId: 'act-1', sourceType: 'act', actName: ACT, number: '34', header: `${ACT} › s. 34`, text: S34_TEXT };
+const unit34: StatuteUnit = {
+  chunkId: 'unit-34',
+  sourceId: 'act-1',
+  sourceType: 'act',
+  actName: ACT,
+  number: '34',
+  header: `${ACT} › s. 34`,
+  text: S34_TEXT,
+};
 
 describe('research notes (merge and gap rules)', () => {
   it('drops a duplicate: the same section twice, or overlapping paragraphs of one judgment', () => {
@@ -51,7 +103,10 @@ describe('research notes (merge and gap rules)', () => {
   });
 
   it('adds up to S8; a key section makes room by dropping the lowest judgment paragraph, never a section', () => {
-    const part: PartNotes = { sources: [statute('34'), ...Array.from({ length: MAX_SOURCES - 1 }, (_, i) => para(`Case${i}`, `x${i}`, 0.5))], outcome: 'ok' };
+    const part: PartNotes = {
+      sources: [statute('34'), ...Array.from({ length: MAX_SOURCES - 1 }, (_, i) => para(`Case${i}`, `x${i}`, 0.5))],
+      outcome: 'ok',
+    };
     expect(addTo(part, [statute('35')], false)).toBe(0);
     expect(addTo(part, [statute('36')], true)).toBe(1);
     expect(part.sources).toHaveLength(MAX_SOURCES);
@@ -66,7 +121,12 @@ describe('research notes (merge and gap rules)', () => {
   });
 
   it('gives each proviso and explanation to one part that holds its section, by fit', () => {
-    const parts: PartNotes[] = [{ sources: [statute('34')], outcome: 'ok' }, { sources: [statute('34')], outcome: 'ok' }, { sources: [statute('34')], outcome: 'ok' }, { sources: [], outcome: 'not_found' }];
+    const parts: PartNotes[] = [
+      { sources: [statute('34')], outcome: 'ok' },
+      { sources: [statute('34')], outcome: 'ok' },
+      { sources: [statute('34')], outcome: 'ok' },
+      { sources: [], outcome: 'not_found' },
+    ];
     const must = assignMustCover(plan, parts, [unit34]);
     const at = Object.fromEntries(must.map((m) => [m.label, m.partIndex]));
     expect(at).toEqual({ 'Explanation 1 to s. 34': 1, 'Explanation 2 to s. 34': 1, 'Proviso to s. 34(3)': 2 });
@@ -86,13 +146,26 @@ describe('research notes (merge and gap rules)', () => {
       { sources: [], outcome: 'not_found' },
     ];
     expect(mainPart(parts, 'Ssangyong')).toBe(1);
-    expect(elsewhere(plan, parts, () => 'Ssangyong Engineering v. NHAI')).toEqual({ '2': ['Ssangyong Engineering v. NHAI: taught in full in Part 2 (Grounds of challenge)'] });
+    expect(elsewhere(plan, parts, () => 'Ssangyong Engineering v. NHAI')).toEqual({
+      '2': ['Ssangyong Engineering v. NHAI: taught in full in Part 2 (Grounds of challenge)'],
+    });
   });
 
   it('the gap check reads labels, fenced as library data, never the source text', () => {
-    const parts: PartNotes[] = [{ sources: [], outcome: 'not_found' }, { sources: [statute('34'), para('Ssangyong', 'a', 0.9)], outcome: 'ok' }, { sources: [], outcome: 'not_found' }, { sources: [], outcome: 'not_found' }];
+    const parts: PartNotes[] = [
+      { sources: [], outcome: 'not_found' },
+      { sources: [statute('34'), para('Ssangyong', 'a', 0.9)], outcome: 'ok' },
+      { sources: [], outcome: 'not_found' },
+      { sources: [], outcome: 'not_found' },
+    ];
     const must = assignMustCover(plan, parts, [unit34]);
-    const task = gapTask({ plan, topic: 'Setting aside an award', level: 'standard' }, parts, must, [{ round: 1, partIndex: 2, question: 'Time limit under s. 34(3)?', why: 'w', added: 0 }], (id) => (id === 'Ssangyong' ? 'Ssangyong Engineering v. NHAI' : null));
+    const task = gapTask(
+      { plan, topic: 'Setting aside an award', level: 'standard' },
+      parts,
+      must,
+      [{ round: 1, partIndex: 2, question: 'Time limit under s. 34(3)?', why: 'w', added: 0 }],
+      (id) => (id === 'Ssangyong' ? 'Ssangyong Engineering v. NHAI' : null),
+    );
     expect(task).toContain('Part 1: Recap: seat (recap, 4 min)');
     expect(task).toMatch(/Part 2: s\. 34 Arbitration and Conciliation Act; Ssangyong Engineering ¶1 \[holding\]/);
     expect(task).toContain('Part 3: nothing found');
@@ -102,13 +175,20 @@ describe('research notes (merge and gap rules)', () => {
     expect(task).not.toContain('avoidance of any doubt');
   });
 
-  it("her notes: a note not attached to the lecture is dropped; an attached one is never pushed out", () => {
-    const note = (id: string): RetrievedSource => ({ ...para(id, `n-${id}`, 0.1), header: `Your notes: ${id} › Seat`, meta: { rolesSampled: false, sourceType: 'teacher_note', origin: 'upload', private: true } });
+  it('her notes: a note not attached to the lecture is dropped; an attached one is never pushed out', () => {
+    const note = (id: string): RetrievedSource => ({
+      ...para(id, `n-${id}`, 0.1),
+      header: `Your notes: ${id} › Seat`,
+      meta: { rolesSampled: false, sourceType: 'teacher_note', origin: 'upload', private: true },
+    });
     const list = [statute('34'), note('attached'), note('old')];
     expect(onlyAttached(list, ['attached']).map((x) => x.sourceId)).toEqual(['act-1', 'attached']);
     expect(onlyAttached(list, []).some((x) => x.meta.private)).toBe(false);
     // A full part: a forced key section pushes out a judgment paragraph, never her attached note.
-    const part: PartNotes = { sources: [note('attached'), ...Array.from({ length: MAX_SOURCES - 1 }, (_, i) => para(`j${i}`, `p${i}`, 0.5))], outcome: 'ok' };
+    const part: PartNotes = {
+      sources: [note('attached'), ...Array.from({ length: MAX_SOURCES - 1 }, (_, i) => para(`j${i}`, `p${i}`, 0.5))],
+      outcome: 'ok',
+    };
     addTo(part, [statute('35')], true);
     expect(part.sources.some((x) => x.sourceId === 'attached')).toBe(true);
     expect(part.sources).toHaveLength(MAX_SOURCES);

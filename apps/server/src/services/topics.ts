@@ -20,7 +20,8 @@ export async function resolveConcept(c: pg.PoolClient, topic: string, choice?: s
     )
   ).rows;
   if (choice) {
-    if (!all.some((m) => m.id === choice)) throw new AppError('VALIDATION_FAILED', 'That choice does not match this topic.');
+    if (!all.some((m) => m.id === choice))
+      throw new AppError('VALIDATION_FAILED', 'That choice does not match this topic.');
     return choice;
   }
   // An exact name or alias wins outright ("Seat of arbitration" is not "Arbitration agreement", however alike the
@@ -28,7 +29,9 @@ export async function resolveConcept(c: pg.PoolClient, topic: string, choice?: s
   const matches = all.some((m) => m.exact) ? all.filter((m) => m.exact) : all;
   if (new Set(matches.map((m) => m.subject)).size > 1) {
     const choices: ResolveChoice[] = matches.map((m) => ({ conceptId: m.id, name: m.name, subject: m.subject }));
-    throw new AppError('TOPIC_AMBIGUOUS', 'This topic could mean more than one thing. Which one do you mean?', { choices });
+    throw new AppError('TOPIC_AMBIGUOUS', 'This topic could mean more than one thing. Which one do you mean?', {
+      choices,
+    });
   }
   return matches[0]?.id ?? null;
 }

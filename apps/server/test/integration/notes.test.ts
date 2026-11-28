@@ -45,7 +45,12 @@ const fakeVoyage: Voyage = {
   embed: async (texts) => texts.map(fakeVector),
   rerank: async (query, docs) => {
     const q = new Set(words(query.split('Question:').pop() ?? query));
-    return docs.map((d, index) => ({ index, score: q.size ? [...q].filter((x) => new Set(words(d)).has(x)).length / q.size : 0 })).sort((a, b) => b.score - a.score);
+    return docs
+      .map((d, index) => ({
+        index,
+        score: q.size ? [...q].filter((x) => new Set(words(d)).has(x)).length / q.size : 0,
+      }))
+      .sort((a, b) => b.score - a.score);
   },
 };
 const noGaps: Gateway = {
@@ -56,11 +61,23 @@ const noGaps: Gateway = {
 };
 
 async function stackUp(): Promise<boolean> {
-  if (!process.env.DATABASE_URL_MIGRATE || !process.env.DATABASE_URL_WORKER || !process.env.REDIS_URL || !process.env.S3_BUCKET) return false;
+  if (
+    !process.env.DATABASE_URL_MIGRATE ||
+    !process.env.DATABASE_URL_WORKER ||
+    !process.env.REDIS_URL ||
+    !process.env.S3_BUCKET
+  )
+    return false;
   const c = new pg.Client({ connectionString: process.env.DATABASE_URL_MIGRATE, connectionTimeoutMillis: 1500 });
   try {
     await c.connect();
-    return (await c.query("select exists (select 1 from information_schema.columns where table_name = 'lecture_inputs' and column_name = 'note_upload_ids') as ok")).rows[0]?.ok === true;
+    return (
+      (
+        await c.query(
+          "select exists (select 1 from information_schema.columns where table_name = 'lecture_inputs' and column_name = 'note_upload_ids') as ok",
+        )
+      ).rows[0]?.ok === true
+    );
   } catch {
     return false;
   } finally {
@@ -89,8 +106,9 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
   const jobs: { name: string; data: { uploadId?: string } }[] = [];
   const builds: unknown[] = [];
   const her = { userId: teacher, collegeId: college, role: 'teacher' as const };
-  const ingest = (id: string, who = her) => ingestUpload(id, who, { worker, storage: storage!, voyageFor: () => fakeVoyage, embedModel: 'fake' });
-  const tenant = <T,>(fn: (c: pg.PoolClient) => Promise<T>, who = her) => withTenant(worker, who, fn);
+  const ingest = (id: string, who = her) =>
+    ingestUpload(id, who, { worker, storage: storage!, voyageFor: () => fakeVoyage, embedModel: 'fake' });
+  const tenant = <T>(fn: (c: pg.PoolClient) => Promise<T>, who = her) => withTenant(worker, who, fn);
   const searchDeps = (): SearchDeps => ({ voyage: fakeVoyage, gateway: null, usage: async () => {}, minScore: 0.3 });
 
   const OLD = `# Seat ${w}\nOld view: the seat ${w} of arbitration is always Delhi oldmarker.`;
@@ -101,28 +119,47 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
   const http = () =>
     createApp({
       config: parseConfig({
-        DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL, S3_BUCKET: 'b', S3_ACCESS_KEY_ID: 'k', S3_SECRET_ACCESS_KEY: 's',
-        SESSION_SECRET: 'a'.repeat(32), CSRF_SECRET: 'b'.repeat(32), ALLOWED_EMAIL_DOMAINS: 'nt.test', LOG_LEVEL: 'silent', NODE_ENV: 'development', DEV_LOGIN: 'true',
+        DATABASE_URL: process.env.DATABASE_URL,
+        REDIS_URL: process.env.REDIS_URL,
+        S3_BUCKET: 'b',
+        S3_ACCESS_KEY_ID: 'k',
+        S3_SECRET_ACCESS_KEY: 's',
+        SESSION_SECRET: 'a'.repeat(32),
+        CSRF_SECRET: 'b'.repeat(32),
+        ALLOWED_EMAIL_DOMAINS: 'nt.test',
+        LOG_LEVEL: 'silent',
+        NODE_ENV: 'development',
+        DEV_LOGIN: 'true',
       }),
       logger: pino({ level: process.env.NOTES_DEBUG ? 'error' : 'silent' }),
       pool: app,
       redis,
       storage,
       queues: {
-        ingest: { add: async (name: string, data: never) => (jobs.push({ name, data }), { id: `job-${jobs.length}` }) } as never,
+        ingest: {
+          add: async (name: string, data: never) => (jobs.push({ name, data }), { id: `job-${jobs.length}` }),
+        } as never,
         build: { add: async (_: string, data: never) => (builds.push(data), { id: `b-${builds.length}` }) } as never,
       },
     });
   const signIn = async (email: string, ip: string) => {
     const agent = request.agent(http());
     const login = await agent.post('/api/v1/auth/dev-login').set('x-forwarded-for', ip).send({ email }).expect(204);
-    const csrf = decodeURIComponent(([] as string[]).concat(login.headers['set-cookie'] ?? []).find((c) => c.startsWith('nyaai_csrf='))!.split(';')[0]!.slice(11));
+    const csrf = decodeURIComponent(
+      ([] as string[])
+        .concat(login.headers['set-cookie'] ?? [])
+        .find((c) => c.startsWith('nyaai_csrf='))!
+        .split(';')[0]!
+        .slice(11),
+    );
     return { agent, csrf };
   };
   const upload = async (s: Awaited<ReturnType<typeof signIn>>, title: string, body: string, replaces?: string) =>
     (
       await s.agent
-        .post(`/api/v1/notes?title=${encodeURIComponent(title)}&fileName=${encodeURIComponent(`${title}.md`)}${replaces ? `&replaces=${replaces}` : ''}`)
+        .post(
+          `/api/v1/notes?title=${encodeURIComponent(title)}&fileName=${encodeURIComponent(`${title}.md`)}${replaces ? `&replaces=${replaces}` : ''}`,
+        )
         .set('x-csrf-token', s.csrf)
         .set('content-type', 'text/markdown')
         .send(Buffer.from(body))
@@ -134,11 +171,25 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
     app = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 3 });
     worker = new pg.Pool({ connectionString: process.env.DATABASE_URL_WORKER, max: 4 });
     redis = new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
-    await owner.query("insert into colleges (id, name, slug) values ($1, 'Notes Test College', $2)", [college, `nt-${college}`]);
-    for (const [id, email] of [[teacher, `t-${tag}@nt.test`], [other, `o-${tag}@nt.test`]] as const) {
-      await owner.query("insert into users (id, college_id, email, name) values ($1, $2, $3, 'T')", [id, college, email]);
+    await owner.query("insert into colleges (id, name, slug) values ($1, 'Notes Test College', $2)", [
+      college,
+      `nt-${college}`,
+    ]);
+    for (const [id, email] of [
+      [teacher, `t-${tag}@nt.test`],
+      [other, `o-${tag}@nt.test`],
+    ] as const) {
+      await owner.query("insert into users (id, college_id, email, name) values ($1, $2, $3, 'T')", [
+        id,
+        college,
+        email,
+      ]);
       await owner.query('insert into teacher_profiles (owner_id, college_id) values ($1, $2)', [id, college]);
-      await owner.query("insert into consents (college_id, owner_id, version, processors) values ($1, $2, $3, '[]')", [college, id, CONSENT_VERSION]);
+      await owner.query("insert into consents (college_id, owner_id, version, processors) values ($1, $2, $3, '[]')", [
+        college,
+        id,
+        CONSENT_VERSION,
+      ]);
       await owner.query('insert into invite_allowlist (college_id, email) values ($1, $2)', [college, email]);
     }
   });
@@ -154,15 +205,25 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
         await c.query("delete from sources where owner_id = $1 and visibility = 'private'", [who.userId]);
       }, who);
     }
-    for (const t of ['usage', 'teacher_profiles', 'consents', 'invite_allowlist', 'users']) await owner.query(`delete from ${t} where college_id = $1`, [college]);
+    for (const t of ['usage', 'teacher_profiles', 'consents', 'invite_allowlist', 'users'])
+      await owner.query(`delete from ${t} where college_id = $1`, [college]);
     await owner.query('delete from colleges where id = $1', [college]);
     await Promise.all([owner.end(), app.end(), worker.end(), redis.quit()]);
   });
 
   it('uploads over HTTP, then the worker reads each one as hers, split by heading', async () => {
     const s = await signIn(`t-${tag}@nt.test`, `10.93.${tag.charCodeAt(0)}.1`);
-    await s.agent.post('/api/v1/notes?title=Bad&fileName=x.exe').set('x-csrf-token', s.csrf).set('content-type', 'application/octet-stream').send(Buffer.from('MZ')).expect(415);
-    for (const [k, body] of [['old', OLD], ['new', NEW], ['anecdote', ANECDOTE]] as const) {
+    await s.agent
+      .post('/api/v1/notes?title=Bad&fileName=x.exe')
+      .set('x-csrf-token', s.csrf)
+      .set('content-type', 'application/octet-stream')
+      .send(Buffer.from('MZ'))
+      .expect(415);
+    for (const [k, body] of [
+      ['old', OLD],
+      ['new', NEW],
+      ['anecdote', ANECDOTE],
+    ] as const) {
       const n = await upload(s, k, body);
       expect(n.status).toBe('queued');
       ids[k] = n.id;
@@ -171,10 +232,20 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
     expect(jobs.map((j) => j.data.uploadId)).toEqual([ids.old, ids.new, ids.anecdote]);
 
     for (const k of ['old', 'new', 'anecdote']) expect(await ingest(ids[k]!)).toMatchObject({ kind: 'ready' });
-    const list = (await s.agent.get('/api/v1/notes').expect(200)).body.notes as { id: string; status: string; sections: number }[];
+    const list = (await s.agent.get('/api/v1/notes').expect(200)).body.notes as {
+      id: string;
+      status: string;
+      sections: number;
+    }[];
     expect(list.find((n) => n.id === ids.new)).toMatchObject({ status: 'ready', sections: 2 });
-    const chunks = await tenant(async (c) =>
-      (await c.query("select k.header, k.visibility, k.source_type from chunks k join uploads u on u.source_id = k.source_id where u.id = $1 order by k.seq", [ids.new])).rows,
+    const chunks = await tenant(
+      async (c) =>
+        (
+          await c.query(
+            'select k.header, k.visibility, k.source_type from chunks k join uploads u on u.source_id = k.source_id where u.id = $1 order by k.seq',
+            [ids.new],
+          )
+        ).rows,
     );
     expect(chunks).toEqual([
       { header: `Your notes: new › Seat ${w}`, visibility: 'private', source_type: 'teacher_note' },
@@ -195,18 +266,37 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
   it('research uses only the attached notes, and uses each one even when no search finds it', async () => {
     const attached = await tenant((c) => attachedNotes(c, [ids.new!, ids.anecdote!]));
     const plan: LecturePlan = {
-      parts: [{ title: `Seat ${w} of arbitration`, minutes: 30, kind: 'content', questions: [`What is the seat ${w} of arbitration?`], mustInclude: false }],
+      parts: [
+        {
+          title: `Seat ${w} of arbitration`,
+          minutes: 30,
+          kind: 'content',
+          questions: [`What is the seat ${w} of arbitration?`],
+          mustInclude: false,
+        },
+      ],
       leftOut: [],
     };
     const notes = await researchLecture(
-      { plan, topic: `Seat ${w}`, level: 'standard', filters: {}, conceptId: null, notes: attached.map((a) => a.sourceId) },
+      {
+        plan,
+        topic: `Seat ${w}`,
+        level: 'standard',
+        filters: {},
+        conceptId: null,
+        notes: attached.map((a) => a.sourceId),
+      },
       { tenant, searchDeps, lookup: null, gateway: noGaps, usage: async () => {} },
     );
     const texts = notes.parts[0]!.sources.map((x) => x.text).join('\n');
     expect(texts).toContain('newmarker');
     expect(texts).toContain('anecdotemarker'); // no search found it; attached, so it is used
     expect(texts).not.toContain('oldmarker'); // her older note, not attached, never appears
-    expect(notes.parts[0]!.sources.filter((x) => x.meta.private).every((x) => attached.some((a) => a.sourceId === x.sourceId))).toBe(true);
+    expect(
+      notes.parts[0]!.sources.filter((x) => x.meta.private).every((x) =>
+        attached.some((a) => a.sourceId === x.sourceId),
+      ),
+    ).toBe(true);
   });
 
   it('a newer version replaces the old one for lectures prepared later; a removed note is gone at once', async () => {
@@ -215,7 +305,11 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
     expect(await ingest(v2.id)).toMatchObject({ kind: 'ready' });
     const [resolved] = await tenant((c) => attachedNotes(c, [ids.new!]));
     expect(resolved).toMatchObject({ uploadId: v2.id });
-    expect(await tenant(async (c) => (await c.query('select status, replaced_by from uploads where id = $1', [ids.new])).rows[0])).toEqual({ status: 'replaced', replaced_by: v2.id });
+    expect(
+      await tenant(
+        async (c) => (await c.query('select status, replaced_by from uploads where id = $1', [ids.new])).rows[0],
+      ),
+    ).toEqual({ status: 'replaced', replaced_by: v2.id });
     const q = { query: `seat ${w} arbitration`, purpose: 'explore' as const, noExpand: true };
     const found = await tenant((c) => search(c, { ...q, notes: [resolved!.sourceId] }, searchDeps()));
     expect(found.sources.some((x) => x.text.includes('versiontwomarker'))).toBe(true);
@@ -231,11 +325,29 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
   it('Prepare waits for a note still being read, then keeps the attached notes on the lecture', async () => {
     const s = await signIn(`t-${tag}@nt.test`, `10.95.${tag.charCodeAt(0)}.1`);
     const reading = await upload(s, 'still reading', '# Draft\nNot read yet.');
-    const body = { topic: `seat ${w}`, course: { kind: 'one_off' }, lengthMin: 40, level: 'standard', styleKey: 'usual' };
-    const wait = await s.agent.post('/api/v1/lectures').set('x-csrf-token', s.csrf).send({ ...body, notes: [reading.id] }).expect(409);
+    const body = {
+      topic: `seat ${w}`,
+      course: { kind: 'one_off' },
+      lengthMin: 40,
+      level: 'standard',
+      styleKey: 'usual',
+    };
+    const wait = await s.agent
+      .post('/api/v1/lectures')
+      .set('x-csrf-token', s.csrf)
+      .send({ ...body, notes: [reading.id] })
+      .expect(409);
     expect(wait.body.error.code).toBe('NOTES_NOT_READY');
-    const ok = await s.agent.post('/api/v1/lectures').set('x-csrf-token', s.csrf).send({ ...body, notes: [ids.old] }).expect(202);
-    const saved = await tenant(async (c) => (await c.query('select note_upload_ids from lecture_inputs where lecture_id = $1', [ok.body.lectureId])).rows[0]);
+    const ok = await s.agent
+      .post('/api/v1/lectures')
+      .set('x-csrf-token', s.csrf)
+      .send({ ...body, notes: [ids.old] })
+      .expect(202);
+    const saved = await tenant(
+      async (c) =>
+        (await c.query('select note_upload_ids from lecture_inputs where lecture_id = $1', [ok.body.lectureId]))
+          .rows[0],
+    );
     expect(saved.note_upload_ids).toEqual([ids.old]);
   });
 
@@ -243,12 +355,27 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
     await request(http()).get('/api/v1/notes').expect(401);
     const o = await signIn(`o-${tag}@nt.test`, `10.96.${tag.charCodeAt(0)}.1`);
     expect((await o.agent.get('/api/v1/notes').expect(200)).body.notes).toEqual([]);
-    const body = { topic: `seat ${w}`, course: { kind: 'one_off' }, lengthMin: 40, level: 'standard', styleKey: 'usual', notes: [ids.old] };
+    const body = {
+      topic: `seat ${w}`,
+      course: { kind: 'one_off' },
+      lengthMin: 40,
+      level: 'standard',
+      styleKey: 'usual',
+      notes: [ids.old],
+    };
     await o.agent.post('/api/v1/lectures').set('x-csrf-token', o.csrf).send(body).expect(404);
     const theirs = { userId: other, collegeId: college, role: 'teacher' as const };
     expect(await tenant((c) => attachedNotes(c, [ids.old!]), theirs)).toEqual([]);
     const [mine] = await tenant((c) => attachedNotes(c, [ids.old!]));
-    const r = await tenant((c) => search(c, { query: `seat ${w} arbitration`, purpose: 'explore', noExpand: true, notes: [mine!.sourceId] }, searchDeps()), theirs);
+    const r = await tenant(
+      (c) =>
+        search(
+          c,
+          { query: `seat ${w} arbitration`, purpose: 'explore', noExpand: true, notes: [mine!.sourceId] },
+          searchDeps(),
+        ),
+      theirs,
+    );
     expect(r.sources.some((x) => x.meta.private)).toBe(false);
   });
 });

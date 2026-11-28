@@ -23,7 +23,9 @@ const row: LawMapping = {
 function setup() {
   vi.spyOn(api, 'lawMappings').mockResolvedValue({ mappings: [row], unsigned: 1 });
   const add = vi.spyOn(api, 'addLawMapping').mockResolvedValue(row);
-  const sign = vi.spyOn(api, 'signLawMapping').mockResolvedValue({ ...row, signedBy: 'Prof. X', signedAt: '2026-11-27T11:00:00.000Z' });
+  const sign = vi
+    .spyOn(api, 'signLawMapping')
+    .mockResolvedValue({ ...row, signedBy: 'Prof. X', signedAt: '2026-11-27T11:00:00.000Z' });
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MappingsPage />
@@ -59,7 +61,10 @@ describe('old and new criminal law rows', () => {
   });
 
   it('taking back a signature asks once more, and says lectures will be told', async () => {
-    vi.spyOn(api, 'lawMappings').mockResolvedValue({ mappings: [{ ...row, signedBy: 'Prof. X', signedAt: '2026-11-27T11:00:00.000Z' }], unsigned: 0 });
+    vi.spyOn(api, 'lawMappings').mockResolvedValue({
+      mappings: [{ ...row, signedBy: 'Prof. X', signedAt: '2026-11-27T11:00:00.000Z' }],
+      unsigned: 0,
+    });
     const unsign = vi.spyOn(api, 'unsignLawMapping').mockResolvedValue(row);
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -68,7 +73,9 @@ describe('old and new criminal law rows', () => {
     );
     fireEvent.click(await screen.findByRole('button', { name: 'Undo signature' }));
     expect(unsign).not.toHaveBeenCalled();
-    expect(screen.getByText(/Lecture lines that relied on this row will be marked for their teachers to check again/)).toBeTruthy();
+    expect(
+      screen.getByText(/Lecture lines that relied on this row will be marked for their teachers to check again/),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Yes, take it back' }));
     await waitFor(() => expect(unsign).toHaveBeenCalledWith(row.id));
   });
@@ -76,7 +83,14 @@ describe('old and new criminal law rows', () => {
   it('"No direct equivalent" has no new section box; the server\'s reasons are shown in plain words', async () => {
     const { add } = setup();
     add.mockRejectedValueOnce(
-      new ApiRequestError(400, { error: { code: 'VALIDATION_FAILED', message: 'x', details: { issues: [{ path: 'newSections', message: '"Split" needs two or more new sections.' }] }, traceId: 't' } }),
+      new ApiRequestError(400, {
+        error: {
+          code: 'VALIDATION_FAILED',
+          message: 'x',
+          details: { issues: [{ path: 'newSections', message: '"Split" needs two or more new sections.' }] },
+          traceId: 't',
+        },
+      }),
     );
     fireEvent.change(screen.getByLabelText(/^How they relate/), { target: { value: 'no_direct_equivalent' } });
     expect((screen.getByLabelText('New sections') as HTMLInputElement).disabled).toBe(true);
@@ -87,6 +101,11 @@ describe('old and new criminal law rows', () => {
     fireEvent.change(screen.getByLabelText('Official source'), { target: { value: 'https://www.mha.gov.in/y' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add the row' }));
     expect(await screen.findByText('"Split" needs two or more new sections.')).toBeTruthy();
-    expect(add.mock.calls[0]![0]).toMatchObject({ pair: 'IPC → BNS', relation: 'split', oldSections: ['377'], newSections: ['100'] });
+    expect(add.mock.calls[0]![0]).toMatchObject({
+      pair: 'IPC → BNS',
+      relation: 'split',
+      oldSections: ['377'],
+      newSections: ['100'],
+    });
   });
 });

@@ -1,7 +1,20 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, CheckCircle2, CircleDashed, Lightbulb, Link2, MoreHorizontal, Pencil, Plus, SkipForward, Trash2, Undo2 } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  CheckCircle2,
+  CircleDashed,
+  Lightbulb,
+  Link2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  SkipForward,
+  Trash2,
+  Undo2,
+} from 'lucide-react';
 import type { CourseDetail, CourseUnitView, UpdateUnits } from '@nyaai/shared';
 import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { lectureNo } from '@/shared/lib/labels';
@@ -40,7 +53,8 @@ export function CoursePlanPage() {
     },
   });
 
-  if (course.isError) return <LoadError what="This course" onRetry={() => void course.refetch()} className="mx-auto max-w-3xl" />;
+  if (course.isError)
+    return <LoadError what="This course" onRetry={() => void course.refetch()} className="mx-auto max-w-3xl" />;
   const c: CourseDetail | undefined = course.data;
   if (!c)
     return (
@@ -56,9 +70,19 @@ export function CoursePlanPage() {
     change.mutate({ order });
   };
   const checksFor = (unitId: string | null) => c.checks.filter((x) => x.unitId === unitId);
-  const prepare = (u: CourseUnitView) => void navigate(`/?course=${c.id}&unit=${u.id}&topic=${encodeURIComponent(u.title)}`);
+  const prepare = (u: CourseUnitView) =>
+    void navigate(`/?course=${c.id}&unit=${u.id}&topic=${encodeURIComponent(u.title)}`);
   const togglePrereq = (u: CourseUnitView, pre: string) =>
-    change.mutate({ prerequisites: [{ id: u.id, prerequisites: u.prerequisites.includes(pre) ? u.prerequisites.filter((x) => x !== pre) : [...u.prerequisites, pre] }] });
+    change.mutate({
+      prerequisites: [
+        {
+          id: u.id,
+          prerequisites: u.prerequisites.includes(pre)
+            ? u.prerequisites.filter((x) => x !== pre)
+            : [...u.prerequisites, pre],
+        },
+      ],
+    });
   const taught = units.filter((u) => u.status === 'taught').length;
   const planned = units.filter((u) => u.status !== 'skipped').length;
   const next = units.find((u) => u.status === 'planned');
@@ -72,7 +96,9 @@ export function CoursePlanPage() {
           </Link>
         }
         title={c.name}
-        description={[c.semester, c.classCount ? `${c.classCount} classes` : null, `${taught} of ${planned} taught`].filter(Boolean).join(' · ')}
+        description={[c.semester, c.classCount ? `${c.classCount} classes` : null, `${taught} of ${planned} taught`]
+          .filter(Boolean)
+          .join(' · ')}
         actions={
           next && (
             <Button variant="primary" onClick={() => prepare(next)}>
@@ -88,13 +114,24 @@ export function CoursePlanPage() {
           {x.message}
         </p>
       ))}
-      {change.error && <p className="mb-4 text-sm text-danger">{change.error instanceof ApiRequestError ? change.error.message : 'That change was not saved.'}</p>}
+      {change.error && (
+        <p className="mb-4 text-sm text-danger">
+          {change.error instanceof ApiRequestError ? change.error.message : 'That change was not saved.'}
+        </p>
+      )}
 
       <ol className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
         {units.map((u, i) => (
           <li key={u.id} className={cn('px-5 py-4', u.status === 'skipped' && 'bg-bg/60')}>
             <div className="flex items-start gap-4">
-              <span className={cn('mt-0.5 w-9 shrink-0 text-sm font-semibold tabular-nums', u.status === 'skipped' ? 'text-muted line-through' : 'text-muted')}>{lectureNo(u.position)}</span>
+              <span
+                className={cn(
+                  'mt-0.5 w-9 shrink-0 text-sm font-semibold tabular-nums',
+                  u.status === 'skipped' ? 'text-muted line-through' : 'text-muted',
+                )}
+              >
+                {lectureNo(u.position)}
+              </span>
               <div className="min-w-0 flex-1">
                 {editing === u.id ? (
                   <form
@@ -104,7 +141,14 @@ export function CoursePlanPage() {
                     }}
                     className="flex gap-2"
                   >
-                    <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus minLength={2} className="flex-1 rounded-control border border-border bg-bg px-2 py-1 text-sm" aria-label="Lecture title" />
+                    <input
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      autoFocus
+                      minLength={2}
+                      className="flex-1 rounded-control border border-border bg-bg px-2 py-1 text-sm"
+                      aria-label="Lecture title"
+                    />
                     <Button size="sm" type="submit" variant="primary">
                       Save
                     </Button>
@@ -126,7 +170,11 @@ export function CoursePlanPage() {
                   ) : (
                     <span className="inline-flex items-center gap-1">
                       <CircleDashed className="size-3.5" aria-hidden />
-                      {u.lecture ? (u.lecture.status === 'building' ? 'Being prepared' : 'Prepared, not taught') : 'Not prepared'}
+                      {u.lecture
+                        ? u.lecture.status === 'building'
+                          ? 'Being prepared'
+                          : 'Prepared, not taught'
+                        : 'Not prepared'}
                     </span>
                   )}
                   {u.lecture && (
@@ -171,8 +219,12 @@ export function CoursePlanPage() {
                         </p>
                       )}
                       {u.memory.cases.length > 0 && <p className="text-muted">Cases: {u.memory.cases.join('; ')}</p>}
-                      {u.memory.runningExample && <p className="text-muted">Running example: {u.memory.runningExample}</p>}
-                      {u.memory.openThreads.length > 0 && <p className="text-muted">Left for a later class: {u.memory.openThreads.join('; ')}</p>}
+                      {u.memory.runningExample && (
+                        <p className="text-muted">Running example: {u.memory.runningExample}</p>
+                      )}
+                      {u.memory.openThreads.length > 0 && (
+                        <p className="text-muted">Left for a later class: {u.memory.openThreads.join('; ')}</p>
+                      )}
                     </div>
                   </details>
                 )}
@@ -182,7 +234,11 @@ export function CoursePlanPage() {
                     <div className="flex flex-wrap gap-x-4 gap-y-1">
                       {units.slice(0, i).map((p) => (
                         <label key={p.id} className="inline-flex items-center gap-1.5">
-                          <input type="checkbox" checked={u.prerequisites.includes(p.id)} onChange={() => togglePrereq(u, p.id)} />
+                          <input
+                            type="checkbox"
+                            checked={u.prerequisites.includes(p.id)}
+                            onChange={() => togglePrereq(u, p.id)}
+                          />
                           {lectureNo(p.position)} {p.title}
                         </label>
                       ))}
@@ -207,20 +263,53 @@ export function CoursePlanPage() {
                     </span>
                   }
                   items={[
-                    { label: 'Rename', icon: <Pencil className="size-4 text-muted" aria-hidden />, onSelect: () => (setEditing(u.id), setTitle(u.title)) },
-                    { label: 'Move up', icon: <ArrowUp className="size-4 text-muted" aria-hidden />, disabled: i === 0, onSelect: () => move(i, -1) },
-                    { label: 'Move down', icon: <ArrowDown className="size-4 text-muted" aria-hidden />, disabled: i === units.length - 1, onSelect: () => move(i, 1) },
-                    ...(i > 0 ? [{ label: 'Builds on…', icon: <Link2 className="size-4 text-muted" aria-hidden />, onSelect: () => setPrereqFor(u.id) }] : []),
+                    {
+                      label: 'Rename',
+                      icon: <Pencil className="size-4 text-muted" aria-hidden />,
+                      onSelect: () => (setEditing(u.id), setTitle(u.title)),
+                    },
+                    {
+                      label: 'Move up',
+                      icon: <ArrowUp className="size-4 text-muted" aria-hidden />,
+                      disabled: i === 0,
+                      onSelect: () => move(i, -1),
+                    },
+                    {
+                      label: 'Move down',
+                      icon: <ArrowDown className="size-4 text-muted" aria-hidden />,
+                      disabled: i === units.length - 1,
+                      onSelect: () => move(i, 1),
+                    },
+                    ...(i > 0
+                      ? [
+                          {
+                            label: 'Builds on…',
+                            icon: <Link2 className="size-4 text-muted" aria-hidden />,
+                            onSelect: () => setPrereqFor(u.id),
+                          },
+                        ]
+                      : []),
                     ...(u.status !== 'taught'
                       ? [
                           u.status === 'skipped'
-                            ? { label: 'Plan it again', icon: <Undo2 className="size-4 text-muted" aria-hidden />, onSelect: () => change.mutate({ status: [{ id: u.id, status: 'planned' }] }) }
-                            : { label: 'Skip this lecture', icon: <SkipForward className="size-4 text-muted" aria-hidden />, onSelect: () => change.mutate({ status: [{ id: u.id, status: 'skipped' }] }) },
+                            ? {
+                                label: 'Plan it again',
+                                icon: <Undo2 className="size-4 text-muted" aria-hidden />,
+                                onSelect: () => change.mutate({ status: [{ id: u.id, status: 'planned' }] }),
+                              }
+                            : {
+                                label: 'Skip this lecture',
+                                icon: <SkipForward className="size-4 text-muted" aria-hidden />,
+                                onSelect: () => change.mutate({ status: [{ id: u.id, status: 'skipped' }] }),
+                              },
                           {
                             label: 'Delete from the plan',
                             danger: true,
                             icon: <Trash2 className="size-4" aria-hidden />,
-                            onSelect: () => window.confirm(`Delete ${lectureNo(u.position)} ${u.title} from the plan? Its lecture is kept.`) && change.mutate({ remove: [u.id] }),
+                            onSelect: () =>
+                              window.confirm(
+                                `Delete ${lectureNo(u.position)} ${u.title} from the plan? Its lecture is kept.`,
+                              ) && change.mutate({ remove: [u.id] }),
                           },
                         ]
                       : []),
@@ -235,11 +324,18 @@ export function CoursePlanPage() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (adding.trim().length >= 2) change.mutate({ add: [{ title: adding.trim() }] }, { onSuccess: () => setAdding('') });
+          if (adding.trim().length >= 2)
+            change.mutate({ add: [{ title: adding.trim() }] }, { onSuccess: () => setAdding('') });
         }}
         className="mt-4 flex gap-2"
       >
-        <input value={adding} onChange={(e) => setAdding(e.target.value)} placeholder="Add a lecture at the end of the plan" className="flex-1 rounded-control border border-border bg-surface px-3 py-2 text-sm" aria-label="New lecture title" />
+        <input
+          value={adding}
+          onChange={(e) => setAdding(e.target.value)}
+          placeholder="Add a lecture at the end of the plan"
+          className="flex-1 rounded-control border border-border bg-surface px-3 py-2 text-sm"
+          aria-label="New lecture title"
+        />
         <Button type="submit" disabled={adding.trim().length < 2}>
           <Plus className="size-4" aria-hidden />
           Add
@@ -253,7 +349,13 @@ export function CoursePlanPage() {
 export function SourcesNote({ s }: { s: NonNullable<CourseUnitView['sources']> }) {
   if (s.state === 'waiting') return <span>Finding sources…</span>;
   if (s.state === 'not_checked') return <span>Sources: checked when you prepare it</span>;
-  if (s.state === 'ok') return <span className="text-success">Sources ready ({s.found}){s.loaded ? `, ${s.loaded} newly added` : ''}</span>;
-  if (s.state === 'thin') return <span className="text-flag-yellow">Few sources ({s.found}); the library team is told</span>;
+  if (s.state === 'ok')
+    return (
+      <span className="text-success">
+        Sources ready ({s.found}){s.loaded ? `, ${s.loaded} newly added` : ''}
+      </span>
+    );
+  if (s.state === 'thin')
+    return <span className="text-flag-yellow">Few sources ({s.found}); the library team is told</span>;
   return <span className="text-flag-yellow">No sources found yet; the library team is told</span>;
 }

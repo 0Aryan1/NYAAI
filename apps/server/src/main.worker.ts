@@ -19,7 +19,8 @@ const logger = createLogger(config);
 const connection = createRedis(config.REDIS_URL);
 
 const missing = missingProviderKeys(config);
-if (missing.length) logger.warn({ missing }, 'provider keys not set; jobs that need them will fail until added to .env');
+if (missing.length)
+  logger.warn({ missing }, 'provider keys not set; jobs that need them will fail until added to .env');
 if (!config.ANTHROPIC_API_KEY) logger.warn('ANTHROPIC_API_KEY is not set: lecture builds are off');
 if (!config.DATABASE_URL_LIBRARY) {
   logger.fatal('DATABASE_URL_LIBRARY is required by the worker (shared library ingestion).');
@@ -61,19 +62,58 @@ const workers = [
     ? [
         new Worker(
           'build',
-          buildProcessor({ worker, logPool: worker, gateway, voyageFor: (u) => voyageFrom(config, u), lookup, publisher: connection, minScore: config.RERANK_MIN_SCORE, logger }),
-          { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 3, lockDuration: 120_000 },
+          buildProcessor({
+            worker,
+            logPool: worker,
+            gateway,
+            voyageFor: (u) => voyageFrom(config, u),
+            lookup,
+            publisher: connection,
+            minScore: config.RERANK_MIN_SCORE,
+            logger,
+          }),
+          {
+            connection: createRedis(config.REDIS_URL),
+            prefix: config.QUEUE_PREFIX,
+            concurrency: 3,
+            lockDuration: 120_000,
+          },
         ),
         new Worker(
           'research',
-          researchProcessor({ worker, logPool: worker, gateway, voyageFor: (u) => voyageFrom(config, u), lookup, minScore: config.RERANK_MIN_SCORE, logger }),
-          { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 2, lockDuration: 120_000 },
+          researchProcessor({
+            worker,
+            logPool: worker,
+            gateway,
+            voyageFor: (u) => voyageFrom(config, u),
+            lookup,
+            minScore: config.RERANK_MIN_SCORE,
+            logger,
+          }),
+          {
+            connection: createRedis(config.REDIS_URL),
+            prefix: config.QUEUE_PREFIX,
+            concurrency: 2,
+            lockDuration: 120_000,
+          },
         ),
-        new Worker('learn', learnProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 2 }),
-        new Worker('check', checkProcessor({ worker, gateway, logger }), { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 8 }),
+        new Worker('learn', learnProcessor({ worker, gateway, logger }), {
+          connection: createRedis(config.REDIS_URL),
+          prefix: config.QUEUE_PREFIX,
+          concurrency: 2,
+        }),
+        new Worker('check', checkProcessor({ worker, gateway, logger }), {
+          connection: createRedis(config.REDIS_URL),
+          prefix: config.QUEUE_PREFIX,
+          concurrency: 8,
+        }),
       ]
     : []),
-  new Worker('ops', opsProcessor({ logger, worker, storage }), { connection: createRedis(config.REDIS_URL), prefix: config.QUEUE_PREFIX, concurrency: 1 }),
+  new Worker('ops', opsProcessor({ logger, worker, storage }), {
+    connection: createRedis(config.REDIS_URL),
+    prefix: config.QUEUE_PREFIX,
+    concurrency: 1,
+  }),
   new Worker(
     'ingest',
     ingestProcessor({
@@ -94,20 +134,26 @@ const workers = [
       minScore: config.RERANK_MIN_SCORE,
     }),
     {
-    connection: createRedis(config.REDIS_URL),
-    prefix: config.QUEUE_PREFIX,
-    concurrency: 4,
-    settings: { backoffStrategy: (attemptsMade: number) => ingestBackoff(attemptsMade) },
+      connection: createRedis(config.REDIS_URL),
+      prefix: config.QUEUE_PREFIX,
+      concurrency: 4,
+      settings: { backoffStrategy: (attemptsMade: number) => ingestBackoff(attemptsMade) },
     },
   ),
 ];
 for (const w of workers) {
   w.on('completed', (job) => logger.info({ job: job.name, id: job.id }, 'job completed'));
-  w.on('failed', (job, err) => logger.error({ job: job?.name, id: job?.id, attempt: job?.attemptsMade, err }, 'job failed'));
+  w.on('failed', (job, err) =>
+    logger.error({ job: job?.name, id: job?.id, attempt: job?.attemptsMade, err }, 'job failed'),
+  );
 }
 
 // Scheduler (HLD §3): repeatable jobs live in the worker. Nightly checks (02:00 IST) arrive in week 2.
-await opsQueue.upsertJobScheduler('ops.usage_rollup', { pattern: '0 * * * *', tz: TIMEZONE }, { name: 'ops.usage_rollup' });
+await opsQueue.upsertJobScheduler(
+  'ops.usage_rollup',
+  { pattern: '0 * * * *', tz: TIMEZONE },
+  { name: 'ops.usage_rollup' },
+);
 
 await opsQueue.add('ops.ping', { requestedAt: new Date().toISOString() }, { removeOnComplete: 100, removeOnFail: 100 });
 logger.info('worker started; ops.ping queued');

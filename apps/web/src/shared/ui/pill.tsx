@@ -14,9 +14,22 @@ const TONES = {
 export type PillTone = keyof typeof TONES;
 
 /** A small status label. Colour is never the only signal: pass an icon and words (LLD §12.4). */
-export function Pill({ tone = 'neutral', icon, children, className, ...rest }: HTMLAttributes<HTMLSpanElement> & { tone?: PillTone; icon?: ReactNode }) {
+export function Pill({
+  tone = 'neutral',
+  icon,
+  children,
+  className,
+  ...rest
+}: HTMLAttributes<HTMLSpanElement> & { tone?: PillTone; icon?: ReactNode }) {
   return (
-    <span className={cn('inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium', TONES[tone], className)} {...rest}>
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium',
+        TONES[tone],
+        className,
+      )}
+      {...rest}
+    >
       {icon}
       {children}
     </span>

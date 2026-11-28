@@ -15,7 +15,13 @@ async function docx(body: string): Promise<Uint8Array> {
 describe('reading her Word notes', () => {
   it('takes headings from the paragraph styles and keeps the text, entities decoded', async () => {
     const bytes = await docx(
-      [para('ADR Notes', 'Title'), para('Seat &amp; venue', 'Heading1'), para('The seat decides the court.'), para('Example', 'Heading2'), `<w:p><w:r><w:t>Delhi</w:t><w:tab/><w:t>v. Mumbai</w:t></w:r></w:p>`].join(''),
+      [
+        para('ADR Notes', 'Title'),
+        para('Seat &amp; venue', 'Heading1'),
+        para('The seat decides the court.'),
+        para('Example', 'Heading2'),
+        `<w:p><w:r><w:t>Delhi</w:t><w:tab/><w:t>v. Mumbai</w:t></w:r></w:p>`,
+      ].join(''),
     );
     const blocks = await docxBlocks(bytes);
     expect(blocks).toEqual([
@@ -25,7 +31,10 @@ describe('reading her Word notes', () => {
       { text: 'Example', heading: 2 },
       { text: 'Delhi v. Mumbai', heading: null },
     ]);
-    expect(splitNotes('ADR', blocks).map((c) => c.header)).toEqual(['Your notes: ADR › Seat & venue', 'Your notes: ADR › Seat & venue › Example']);
+    expect(splitNotes('ADR', blocks).map((c) => c.header)).toEqual([
+      'Your notes: ADR › Seat & venue',
+      'Your notes: ADR › Seat & venue › Example',
+    ]);
   });
 
   it('a file that is not a Word document gets a reason she can act on', async () => {

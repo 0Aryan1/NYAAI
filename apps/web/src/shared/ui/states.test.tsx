@@ -41,7 +41,11 @@ describe('loading, error and empty states', () => {
   });
 
   it('an empty state names the place and gives the first step', () => {
-    render(<EmptyState title="No documents yet" action={<button type="button">Upload a document</button>}>Upload your own notes.</EmptyState>);
+    render(
+      <EmptyState title="No documents yet" action={<button type="button">Upload a document</button>}>
+        Upload your own notes.
+      </EmptyState>,
+    );
     expect(screen.getByText('No documents yet')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Upload a document' })).toBeTruthy();
   });

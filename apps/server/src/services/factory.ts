@@ -49,7 +49,11 @@ export function escrFrom(storage: Storage): Escr {
 export function gatewayFrom(config: Config): Gateway | null {
   if (config.E2E_FAKE_AI) return createFakeGateway();
   if (!config.ANTHROPIC_API_KEY) return null;
-  return createGateway({ apiKey: config.ANTHROPIC_API_KEY, lightModel: config.MODEL_CHECKER, heavyModel: config.MODEL_WRITER });
+  return createGateway({
+    apiKey: config.ANTHROPIC_API_KEY,
+    lightModel: config.MODEL_CHECKER,
+    heavyModel: config.MODEL_WRITER,
+  });
 }
 
 /** India Code needs no key; it can be switched off for tests by passing nothing. */
@@ -60,7 +64,13 @@ export function indiaCodeFrom(): IndiaCode {
 /** Null without a Perplexity key: gap lookups then skip web links honestly. */
 export function webSearchFrom(config: Config, usage: UsageSink): WebSearch | null {
   if (!config.PERPLEXITY_API_KEY) return null;
-  return createWebSearch({ apiKey: config.PERPLEXITY_API_KEY, allowlist: config.WEB_ALLOWLIST.length ? config.WEB_ALLOWLIST : DEFAULT_WEB_ALLOWLIST }, usage);
+  return createWebSearch(
+    {
+      apiKey: config.PERPLEXITY_API_KEY,
+      allowlist: config.WEB_ALLOWLIST.length ? config.WEB_ALLOWLIST : DEFAULT_WEB_ALLOWLIST,
+    },
+    usage,
+  );
 }
 
 /** Official Indian government and court domains (HLD 5.2: gov.in, nic.in, court websites). */

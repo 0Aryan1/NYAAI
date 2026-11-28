@@ -3,7 +3,9 @@ import { STATUTE_PATTERNS as P } from './patterns.ts';
 
 describe('statute patterns (LLD §6.3)', () => {
   it('recognises a section heading with an em dash', () => {
-    const m = P.section.exec('56. Agreement to do impossible act.—An agreement to do an act impossible in itself is void.');
+    const m = P.section.exec(
+      '56. Agreement to do impossible act.—An agreement to do an act impossible in itself is void.',
+    );
     expect(m?.[1]).toBe('56');
     expect(m?.[2]).toBe('Agreement to do impossible act');
   });
@@ -27,7 +29,9 @@ describe('statute patterns (LLD §6.3)', () => {
     expect(P.section.test('2. The words "or any other" were omitted by Act 3 of 1951')).toBe(false);
   });
   it('keeps hyphenated words and "etc." inside a section title', () => {
-    const m = P.section.exec('19. Protection of certain rights regarding freedom of speech, etc.—(1) All citizens shall have the right—');
+    const m = P.section.exec(
+      '19. Protection of certain rights regarding freedom of speech, etc.—(1) All citizens shall have the right—',
+    );
     expect(m?.[2]).toBe('Protection of certain rights regarding freedom of speech, etc');
     expect(m?.[3]).toBe('(1) All citizens shall have the right—');
     expect(P.section.exec('7. Co-operative societies.—Every society ...')?.[2]).toBe('Co-operative societies');
@@ -37,7 +41,11 @@ describe('statute patterns (LLD §6.3)', () => {
     expect(P.chapter.exec('PART IVA')?.[2]).toBe('IVA');
   });
   it('recognises amendment footnotes', () => {
-    expect(P.amendment.exec('1. Ins. by the Constitution (Ninety-seventh Amendment) Act, 2011, s. 2 (w.e.f. 15-2-2012).')?.[1]).toBe('1');
+    expect(
+      P.amendment.exec(
+        '1. Ins. by the Constitution (Ninety-seventh Amendment) Act, 2011, s. 2 (w.e.f. 15-2-2012).',
+      )?.[1],
+    ).toBe('1');
     expect(P.amendment.test('3. Sub-clause (f) omitted by s. 2, ibid. (w.e.f. 20-6-1979).')).toBe(true);
     expect(P.amendment.test('56. Agreement to do impossible act.—An agreement ...')).toBe(false);
   });

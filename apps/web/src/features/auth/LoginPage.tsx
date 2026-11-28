@@ -65,7 +65,12 @@ export function LoginPage() {
         )}
 
         {options.google ? (
-          <Button variant="primary" size="lg" className="w-full" onClick={() => window.location.assign('/api/v1/auth/google')}>
+          <Button
+            variant="primary"
+            size="lg"
+            className="w-full"
+            onClick={() => window.location.assign('/api/v1/auth/google')}
+          >
             Sign in with Google
           </Button>
         ) : (
@@ -79,7 +84,9 @@ export function LoginPage() {
 
         {options.devLogin && (
           <section aria-labelledby="dev" className="mt-6 border-t border-border pt-5">
-            <h2 id="dev" className="mb-1 text-sm font-semibold">Development sign-in</h2>
+            <h2 id="dev" className="mb-1 text-sm font-semibold">
+              Development sign-in
+            </h2>
             <p className="mb-3 text-xs text-muted">Only on this computer. It is switched off in the pilot.</p>
             <div className="mb-3 grid grid-cols-2 gap-2">
               {DEV_ACCOUNTS.map((a) => (

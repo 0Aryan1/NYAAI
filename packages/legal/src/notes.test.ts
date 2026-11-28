@@ -22,14 +22,22 @@ describe("a teacher's notes, split by heading", () => {
 
   it('text before the first heading is kept; a long block splits between paragraphs, never inside one', () => {
     const para = (n: number) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
-    const chunks = splitNotes('N', [{ text: 'Intro words.', heading: null }, { text: 'Long', heading: 1 }, { text: para(200), heading: null }, { text: para(200), heading: null }, { text: para(500), heading: null }]);
+    const chunks = splitNotes('N', [
+      { text: 'Intro words.', heading: null },
+      { text: 'Long', heading: 1 },
+      { text: para(200), heading: null },
+      { text: para(200), heading: null },
+      { text: para(500), heading: null },
+    ]);
     expect(chunks[0]).toMatchObject({ heading: null, header: 'Your notes: N', text: 'Intro words.' });
     expect(chunks.slice(1).map((c) => c.text.split(' ').length)).toEqual([200, 200, 500]);
     expect(NOTE_CHUNK_WORDS).toBe(350);
   });
 
   it('reads Markdown and plain text', () => {
-    expect(textBlocks('# Seat\nThe seat matters.\n\nSecond paragraph\ncontinues here.\n\nINTERIM MEASURES\n\nBody.')).toEqual([
+    expect(
+      textBlocks('# Seat\nThe seat matters.\n\nSecond paragraph\ncontinues here.\n\nINTERIM MEASURES\n\nBody.'),
+    ).toEqual([
       { text: 'Seat', heading: 1 },
       { text: 'The seat matters.', heading: null },
       { text: 'Second paragraph continues here.', heading: null },
@@ -51,7 +59,18 @@ describe("a teacher's notes, split by heading", () => {
     const blocks = pdfBlocks({
       bodySize: 11,
       scanned: false,
-      pages: [{ pageNo: 1, lines: [line('Seat of Arbitration', 700, 16), line('The seat decides', 680), line('the supervising court.', 667), line('A new paragraph starts here.', 630), line('3', 40)] }],
+      pages: [
+        {
+          pageNo: 1,
+          lines: [
+            line('Seat of Arbitration', 700, 16),
+            line('The seat decides', 680),
+            line('the supervising court.', 667),
+            line('A new paragraph starts here.', 630),
+            line('3', 40),
+          ],
+        },
+      ],
     });
     expect(blocks).toEqual([
       { text: 'Seat of Arbitration', heading: 1 },

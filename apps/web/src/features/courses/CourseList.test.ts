@@ -4,7 +4,11 @@ import { todayIst } from '../studio/MarkTaught';
 
 describe('a pasted syllabus', () => {
   it('becomes one lecture per line, without numbers or bullets', () => {
-    expect(topicsFrom('1. Arbitration agreement\n2) Composition of the tribunal\n\n- Interim measures\nUnit 4: Setting aside an award\nL05 Enforcement\n• x')).toEqual([
+    expect(
+      topicsFrom(
+        '1. Arbitration agreement\n2) Composition of the tribunal\n\n- Interim measures\nUnit 4: Setting aside an award\nL05 Enforcement\n• x',
+      ),
+    ).toEqual([
       'Arbitration agreement',
       'Composition of the tribunal',
       'Interim measures',

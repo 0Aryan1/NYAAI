@@ -28,17 +28,26 @@ export function accountRouter(opsQueue: Queue<OpsJobData> | undefined, storage: 
   });
 
   r.post('/me/delete-data', async (req, res) => {
-    if (!opsQueue) throw new AppError('SERVICE_UNAVAILABLE', 'Deleting your data is not available right now. Try again later.');
+    if (!opsQueue)
+      throw new AppError('SERVICE_UNAVAILABLE', 'Deleting your data is not available right now. Try again later.');
     const body = DeleteMyData.parse(req.body);
     const who = req.identity!;
-    const email = await req.db!(async (c) => (await c.query<{ email: string }>('select email from users where id = app_user()')).rows[0]?.email);
+    const email = await req.db!(
+      async (c) => (await c.query<{ email: string }>('select email from users where id = app_user()')).rows[0]?.email,
+    );
     if (!email || email.toLowerCase() !== body.confirmEmail.toLowerCase()) {
       throw new AppError('VALIDATION_FAILED', 'Type your own email address exactly to confirm.');
     }
     const job = await opsQueue.add(
       'ops.delete_user_data',
       { userId: who.userId, collegeId: who.collegeId },
-      { jobId: `ops.delete_user_data-${who.userId}`, attempts: 5, backoff: { type: 'exponential', delay: 30_000 }, removeOnComplete: 100, removeOnFail: 100 },
+      {
+        jobId: `ops.delete_user_data-${who.userId}`,
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 30_000 },
+        removeOnComplete: 100,
+        removeOnFail: 100,
+      },
     );
     res.clearCookie(SESSION_COOKIE, { path: '/' });
     res.clearCookie(CSRF_COOKIE, { path: '/' });

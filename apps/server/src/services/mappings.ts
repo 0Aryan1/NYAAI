@@ -20,15 +20,23 @@ export const MAPPING_REASONS = {
 export async function reflagMappingLines(
   worker: pg.Pool,
   editor: { userId: string; collegeId: string },
-  row: { oldSections: string[]; newSections: string[]; relation: MappingRelation; change: keyof typeof MAPPING_REASONS },
+  row: {
+    oldSections: string[];
+    newSections: string[];
+    relation: MappingRelation;
+    change: keyof typeof MAPPING_REASONS;
+  },
 ): Promise<MappingReflag> {
   return withTenant(worker, { ...editor, role: 'library_editor' }, async (c) => {
-    const r = await c.query<{ out: MappingReflag }>('select reflag_mapping_lines($1::text[], $2::text[], $3::mapping_relation, $4) as out', [
-      row.oldSections.map((s) => s.toUpperCase()),
-      row.newSections.map((s) => s.toUpperCase()),
-      row.relation,
-      MAPPING_REASONS[row.change],
-    ]);
+    const r = await c.query<{ out: MappingReflag }>(
+      'select reflag_mapping_lines($1::text[], $2::text[], $3::mapping_relation, $4) as out',
+      [
+        row.oldSections.map((s) => s.toUpperCase()),
+        row.newSections.map((s) => s.toUpperCase()),
+        row.relation,
+        MAPPING_REASONS[row.change],
+      ],
+    );
     return r.rows[0]!.out;
   });
 }

@@ -63,7 +63,10 @@ export class ApiRequestError extends Error {
     readonly status: number,
     readonly body: ApiError | null,
   ) {
-    super(body?.error.message ?? (status === 429 ? 'Too many requests. Please wait a minute and try again.' : `Request failed (${status})`));
+    super(
+      body?.error.message ??
+        (status === 429 ? 'Too many requests. Please wait a minute and try again.' : `Request failed (${status})`),
+    );
     if (status === 429) noteRateLimited();
   }
 }
@@ -98,7 +101,10 @@ async function call<T>(
 }
 
 /** POST /lectures/:id/download: the .pptx as a file to save, named by the server (PPT-3). */
-async function downloadDeck(lectureId: string, body: DownloadRequest): Promise<{ blob: Blob; fileName: string; removed: number }> {
+async function downloadDeck(
+  lectureId: string,
+  body: DownloadRequest,
+): Promise<{ blob: Blob; fileName: string; removed: number }> {
   const res = await fetch(`/api/v1/lectures/${lectureId}/download`, {
     method: 'POST',
     credentials: 'include',
@@ -114,7 +120,10 @@ async function downloadDeck(lectureId: string, body: DownloadRequest): Promise<{
 }
 
 /** POST /research/:id/export: the brief as Word or PDF, with its flags written in (RES-5). */
-async function exportBrief(runId: string, format: 'docx' | 'pdf'): Promise<{ blob: Blob; fileName: string; toVerify: number }> {
+async function exportBrief(
+  runId: string,
+  format: 'docx' | 'pdf',
+): Promise<{ blob: Blob; fileName: string; toVerify: number }> {
   const res = await fetch(`/api/v1/research/${runId}/export`, {
     method: 'POST',
     credentials: 'include',
@@ -151,7 +160,13 @@ async function uploadPdf(query: UploadJudgmentQuery, file: File): Promise<Upload
 async function uploadNote(file: File, title: string, replaces?: string): Promise<TeacherNote> {
   const params = new URLSearchParams({ title, fileName: file.name });
   if (replaces) params.set('replaces', replaces);
-  const type = file.type || (/\.md$/i.test(file.name) ? 'text/markdown' : /\.txt$/i.test(file.name) ? 'text/plain' : 'application/octet-stream');
+  const type =
+    file.type ||
+    (/\.md$/i.test(file.name)
+      ? 'text/markdown'
+      : /\.txt$/i.test(file.name)
+        ? 'text/plain'
+        : 'application/octet-stream');
   const res = await fetch(`/api/v1/notes?${params.toString()}`, {
     method: 'POST',
     credentials: 'include',
@@ -168,7 +183,13 @@ async function uploadNote(file: File, title: string, replaces?: string): Promise
 
 /** Her syllabus file, read into units and topics (nothing is kept on the server). */
 async function readSyllabus(file: File, classCount?: number): Promise<SyllabusPreview> {
-  const type = file.type || (/\.md$/i.test(file.name) ? 'text/markdown' : /\.txt$/i.test(file.name) ? 'text/plain' : 'application/octet-stream');
+  const type =
+    file.type ||
+    (/\.md$/i.test(file.name)
+      ? 'text/markdown'
+      : /\.txt$/i.test(file.name)
+        ? 'text/plain'
+        : 'application/octet-stream');
   const res = await fetch(`/api/v1/courses/syllabus${classCount ? `?classCount=${classCount}` : ''}`, {
     method: 'POST',
     credentials: 'include',
@@ -200,27 +221,43 @@ export const api = {
   startResearch: (body: StartResearch) => call<{ id: string }>('POST', '/research', { body }),
   researchList: () => call('GET', '/research', { parse: (v) => ResearchList.parse(v) }),
   researchRun: (id: string) => call('GET', `/research/${id}`, { parse: (v) => ResearchRunView.parse(v) }),
-  libraryGaps: (state: 'waiting' | 'answered' | 'all') => call('GET', `/library/gaps?state=${state}`, { parse: (v) => LibraryGapList.parse(v) }),
+  libraryGaps: (state: 'waiting' | 'answered' | 'all') =>
+    call('GET', `/library/gaps?state=${state}`, { parse: (v) => LibraryGapList.parse(v) }),
   lookupGap: (id: string) => call('POST', `/library/gaps/${id}/lookup`, { parse: (v) => GapLookupResponse.parse(v) }),
-  updateGap: (id: string, body: { state: 'open' | 'resolved' | 'wont_fill'; note?: string }) => call('PATCH', `/library/gaps/${id}`, { body, parse: (v) => LibraryGap.parse(v) }),
-  lawMappings: (show: 'unsigned' | 'all') => call('GET', `/library/mappings?show=${show}`, { parse: (v) => LawMappingList.parse(v) }),
-  addLawMapping: (body: SaveLawMapping) => call('POST', '/library/mappings', { body, parse: (v) => LawMapping.parse(v) }),
-  editLawMapping: (id: string, body: SaveLawMapping) => call('PATCH', `/library/mappings/${id}`, { body, parse: (v) => LawMapping.parse(v) }),
+  updateGap: (id: string, body: { state: 'open' | 'resolved' | 'wont_fill'; note?: string }) =>
+    call('PATCH', `/library/gaps/${id}`, { body, parse: (v) => LibraryGap.parse(v) }),
+  lawMappings: (show: 'unsigned' | 'all') =>
+    call('GET', `/library/mappings?show=${show}`, { parse: (v) => LawMappingList.parse(v) }),
+  addLawMapping: (body: SaveLawMapping) =>
+    call('POST', '/library/mappings', { body, parse: (v) => LawMapping.parse(v) }),
+  editLawMapping: (id: string, body: SaveLawMapping) =>
+    call('PATCH', `/library/mappings/${id}`, { body, parse: (v) => LawMapping.parse(v) }),
   signLawMapping: (id: string) => call('POST', `/library/mappings/${id}/sign`, { parse: (v) => LawMapping.parse(v) }),
-  unsignLawMapping: (id: string) => call('DELETE', `/library/mappings/${id}/sign`, { parse: (v) => LawMapping.parse(v) }),
+  unsignLawMapping: (id: string) =>
+    call('DELETE', `/library/mappings/${id}/sign`, { parse: (v) => LawMapping.parse(v) }),
   removeLawMapping: (id: string) => call<void>('DELETE', `/library/mappings/${id}`),
-  topicCases: (show: 'unconfirmed' | 'all') => call('GET', `/library/topics?show=${show}`, { parse: (v) => TopicCases.parse(v) }),
-  confirmTopicCase: (conceptId: string, sourceId: string) => call<void>('POST', `/library/topics/${conceptId}/cases/${sourceId}/confirm`),
-  unconfirmTopicCase: (conceptId: string, sourceId: string) => call<void>('DELETE', `/library/topics/${conceptId}/cases/${sourceId}/confirm`),
-  removeTopicCase: (conceptId: string, sourceId: string) => call<void>('DELETE', `/library/topics/${conceptId}/cases/${sourceId}`),
-  restoreTopicCase: (conceptId: string, sourceId: string) => call<void>('POST', `/library/topics/${conceptId}/cases/${sourceId}`),
-  exploreConcepts: (q?: string) => call('GET', `/explore/concepts${q ? `?q=${encodeURIComponent(q)}` : ''}`, { parse: (v) => ConceptList.parse(v) }),
+  topicCases: (show: 'unconfirmed' | 'all') =>
+    call('GET', `/library/topics?show=${show}`, { parse: (v) => TopicCases.parse(v) }),
+  confirmTopicCase: (conceptId: string, sourceId: string) =>
+    call<void>('POST', `/library/topics/${conceptId}/cases/${sourceId}/confirm`),
+  unconfirmTopicCase: (conceptId: string, sourceId: string) =>
+    call<void>('DELETE', `/library/topics/${conceptId}/cases/${sourceId}/confirm`),
+  removeTopicCase: (conceptId: string, sourceId: string) =>
+    call<void>('DELETE', `/library/topics/${conceptId}/cases/${sourceId}`),
+  restoreTopicCase: (conceptId: string, sourceId: string) =>
+    call<void>('POST', `/library/topics/${conceptId}/cases/${sourceId}`),
+  exploreConcepts: (q?: string) =>
+    call('GET', `/explore/concepts${q ? `?q=${encodeURIComponent(q)}` : ''}`, { parse: (v) => ConceptList.parse(v) }),
   topicMap: (conceptId: string) => call('GET', `/explore/topic/${conceptId}`, { parse: (v) => TopicMap.parse(v) }),
   exploreAsk: (body: ExploreAsk) => call('POST', '/explore/ask', { body, parse: (v) => ExploreAnswer.parse(v) }),
-  reportLine: (lectureId: string, body: ReportLine) => call<{ id: string }>('POST', `/lectures/${lectureId}/reports`, { body }),
-  lectureReports: (lectureId: string) => call('GET', `/lectures/${lectureId}/reports`, { parse: (v) => LectureReports.parse(v) }),
-  reportQueue: (state: 'open' | 'resolved') => call('GET', `/library/reports?state=${state}`, { parse: (v) => ReportQueue.parse(v) }),
-  resolveReport: (id: string, body: ResolveReport) => call('POST', `/library/reports/${id}/resolve`, { body, parse: (v) => ResolveReportResponse.parse(v) }),
+  reportLine: (lectureId: string, body: ReportLine) =>
+    call<{ id: string }>('POST', `/lectures/${lectureId}/reports`, { body }),
+  lectureReports: (lectureId: string) =>
+    call('GET', `/lectures/${lectureId}/reports`, { parse: (v) => LectureReports.parse(v) }),
+  reportQueue: (state: 'open' | 'resolved') =>
+    call('GET', `/library/reports?state=${state}`, { parse: (v) => ReportQueue.parse(v) }),
+  resolveReport: (id: string, body: ResolveReport) =>
+    call('POST', `/library/reports/${id}/resolve`, { body, parse: (v) => ResolveReportResponse.parse(v) }),
   withdrawConsent: () => call<void>('POST', '/consents/withdraw'),
   deleteMyData: (confirmEmail: string) => call<unknown>('POST', '/me/delete-data', { body: { confirmEmail } }),
   consent: () => call<{ version: string; processors: Processor[]; accepted: boolean }>('GET', '/consents/current'),
@@ -230,9 +267,11 @@ export const api = {
   setupProgress: (step: number) => call<void>('PATCH', '/setup/progress', { body: { step } }),
   finishSetup: () => call<void>('POST', '/setup/finish', { body: {} }),
   home: () => call('GET', '/home', { parse: (v) => HomeResponse.parse(v) }),
-  suggest: (q: string) => call('GET', `/suggest?q=${encodeURIComponent(q)}`, { parse: (v) => SuggestResponse.parse(v) }),
+  suggest: (q: string) =>
+    call('GET', `/suggest?q=${encodeURIComponent(q)}`, { parse: (v) => SuggestResponse.parse(v) }),
   /** 409 TOPIC_AMBIGUOUS carries `details.choices`; the caller shows the one-tap dialog. */
-  resolveTopic: (topic: string, choice?: string) => call('POST', '/topics/resolve', { body: { topic, choice }, parse: (v) => ResolveResponse.parse(v) }),
+  resolveTopic: (topic: string, choice?: string) =>
+    call('POST', '/topics/resolve', { body: { topic, choice }, parse: (v) => ResolveResponse.parse(v) }),
   /** 202 { lectureId, jobId }; 409 TOPIC_AMBIGUOUS carries the choices; 422 BUDGET_EXHAUSTED. */
   prepare: (body: PrepareLecture) => call('POST', '/lectures', { body, parse: (v) => PrepareResponse.parse(v) }),
   retryBuild: (id: string) => call('POST', `/lectures/${id}/retry`, { parse: (v) => PrepareResponse.parse(v) }),
@@ -246,30 +285,39 @@ export const api = {
   // Library editor review (role E)
   reviewJudgments: () => call('GET', '/library/judgments', { parse: (v) => ReviewJudgmentList.parse(v) }),
   reviewJudgment: (id: string) => call('GET', `/library/judgments/${id}`, { parse: (v) => ReviewJudgment.parse(v) }),
-  setParagraphRole: (chunkId: string, role: ParaRole) => call<void>('PATCH', `/library/paragraphs/${chunkId}`, { body: { role } }),
+  setParagraphRole: (chunkId: string, role: ParaRole) =>
+    call<void>('PATCH', `/library/paragraphs/${chunkId}`, { body: { role } }),
   rolesChecked: (id: string) => call<void>('POST', `/library/judgments/${id}/roles-checked`),
   approveJudgment: (id: string) => call<void>('POST', `/library/judgments/${id}/approve`),
-  sameCase: ({ id, same }: { id: string; same: boolean }) => call<void>('POST', `/library/judgments/${id}/same-case`, { body: { same } }),
+  sameCase: ({ id, same }: { id: string; same: boolean }) =>
+    call<void>('POST', `/library/judgments/${id}/same-case`, { body: { same } }),
   setCaseStatus: (id: string, body: SetCaseStatus) => call<void>('POST', `/library/judgments/${id}/status`, { body }),
   uploadJudgment: uploadPdf,
   notes: () => call('GET', '/notes', { parse: (v) => TeacherNoteList.parse(v) }),
   uploadNote,
   deleteNote: (id: string) => call<void>('DELETE', `/notes/${id}`),
-  uploadStatus: (jobId: string) => call('GET', `/library/uploads/${encodeURIComponent(jobId)}`, { parse: (v) => UploadJudgmentStatus.parse(v) }),
+  uploadStatus: (jobId: string) =>
+    call('GET', `/library/uploads/${encodeURIComponent(jobId)}`, { parse: (v) => UploadJudgmentStatus.parse(v) }),
   courses: () => call('GET', '/courses', { parse: (v) => CourseList.parse(v) }),
   course: (id: string) => call('GET', `/courses/${id}`, { parse: (v) => CourseDetail.parse(v) }),
   readSyllabus,
   createCourse: (body: CreateCourse) => call('POST', '/courses', { body, parse: (v) => CourseDetail.parse(v) }),
-  updateUnits: (id: string, body: UpdateUnits) => call('PATCH', `/courses/${id}/units`, { body, parse: (v) => CourseDetail.parse(v) }),
-  markTaught: (lectureId: string, taughtOn: string) => call('POST', `/lectures/${lectureId}/taught`, { body: { taughtOn }, parse: (v) => MarkTaughtResponse.parse(v) }),
+  updateUnits: (id: string, body: UpdateUnits) =>
+    call('PATCH', `/courses/${id}/units`, { body, parse: (v) => CourseDetail.parse(v) }),
+  markTaught: (lectureId: string, taughtOn: string) =>
+    call('POST', `/lectures/${lectureId}/taught`, { body: { taughtOn }, parse: (v) => MarkTaughtResponse.parse(v) }),
   undoTaught: (lectureId: string) => call<void>('DELETE', `/lectures/${lectureId}/taught`),
   downloadDeck,
   exportBrief,
-  saveSlide: (id: string, body: EditSlide) => call('PATCH', `/slides/${id}`, { body, parse: (v) => SlideWriteResponse.parse(v) }),
-  verifyLine: (id: string, lineKey: string) => call('POST', `/slides/${id}/verify`, { body: { lineKey }, parse: (v) => SlideWriteResponse.parse(v) }),
-  addExample: (id: string, text: string, save: boolean) => call('POST', `/slides/${id}/examples`, { body: { text, save }, parse: (v) => SlideWriteResponse.parse(v) }),
+  saveSlide: (id: string, body: EditSlide) =>
+    call('PATCH', `/slides/${id}`, { body, parse: (v) => SlideWriteResponse.parse(v) }),
+  verifyLine: (id: string, lineKey: string) =>
+    call('POST', `/slides/${id}/verify`, { body: { lineKey }, parse: (v) => SlideWriteResponse.parse(v) }),
+  addExample: (id: string, text: string, save: boolean) =>
+    call('POST', `/slides/${id}/examples`, { body: { text, save }, parse: (v) => SlideWriteResponse.parse(v) }),
   slideVersions: (id: string) => call('GET', `/slides/${id}/versions`, { parse: (v) => SlideVersions.parse(v) }),
-  restoreSlide: (id: string, version: number) => call('POST', `/slides/${id}/restore`, { body: { version }, parse: (v) => SlideWriteResponse.parse(v) }),
+  restoreSlide: (id: string, version: number) =>
+    call('POST', `/slides/${id}/restore`, { body: { version }, parse: (v) => SlideWriteResponse.parse(v) }),
 };
 
 export const queryKeys = {

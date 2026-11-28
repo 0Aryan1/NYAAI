@@ -52,73 +52,150 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
         throw new AppError('BUDGET_EXHAUSTED', 'Your monthly limit is reached; your administrator can raise it.');
       }
       if (body.course.kind === 'course') {
-        const ok = (await c.query('select 1 from courses where id = $1 and archived_at is null', [body.course.courseId])).rowCount;
+        const ok = (
+          await c.query('select 1 from courses where id = $1 and archived_at is null', [body.course.courseId])
+        ).rowCount;
         if (!ok) throw new AppError('NOT_FOUND', 'We could not find that course.');
         const unitId = body.course.unitId;
         if (unitId) {
           const units = await loadUnits(c, body.course.courseId);
-          if (!units.some((u) => u.id === unitId)) throw new AppError('NOT_FOUND', 'That lecture is not in the course plan.');
+          if (!units.some((u) => u.id === unitId))
+            throw new AppError('NOT_FOUND', 'That lecture is not in the course plan.');
           // HOME-10: lectures this one builds on, not taught yet. She may go ahead; the recap will not assume them.
           const untaught = courseContext(units, unitId).untaughtPrerequisites;
           if (untaught.length && !body.prereqAck) {
-            throw new AppError('PREREQ_WARNING_UNACKED', `This lecture builds on ${untaught.map((u) => `${lectureNo(u.position)} ${u.title}`).join(', ')}, not marked taught yet. You can still go ahead.`, { untaught });
+            throw new AppError(
+              'PREREQ_WARNING_UNACKED',
+              `This lecture builds on ${untaught.map((u) => `${lectureNo(u.position)} ${u.title}`).join(', ')}, not marked taught yet. You can still go ahead.`,
+              { untaught },
+            );
           }
         }
       }
       // Her notes for this lecture: hers, and read (row security already hides other teachers' uploads).
       if (body.notes.length) {
-        const notes = (await c.query<{ id: string; status: string; title: string }>("select id, status, coalesce(title, file_name) as title from uploads where id = any($1::uuid[]) and status not in ('deleted', 'replaced')", [body.notes])).rows;
-        if (notes.length !== new Set(body.notes).size) throw new AppError('NOT_FOUND', 'One of the documents you chose is no longer in your notes.');
+        const notes = (
+          await c.query<{ id: string; status: string; title: string }>(
+            "select id, status, coalesce(title, file_name) as title from uploads where id = any($1::uuid[]) and status not in ('deleted', 'replaced')",
+            [body.notes],
+          )
+        ).rows;
+        if (notes.length !== new Set(body.notes).size)
+          throw new AppError('NOT_FOUND', 'One of the documents you chose is no longer in your notes.');
         const waiting = notes.filter((n) => n.status !== 'ready');
         if (waiting.length) {
-          throw new AppError('NOTES_NOT_READY', waiting.some((n) => n.status === 'failed') ? `We could not read ${waiting.map((n) => n.title).join(', ')}. Remove it or upload it again.` : `Your notes are still being read: ${waiting.map((n) => n.title).join(', ')}. Try again in a moment.`);
+          throw new AppError(
+            'NOTES_NOT_READY',
+            waiting.some((n) => n.status === 'failed')
+              ? `We could not read ${waiting.map((n) => n.title).join(', ')}. Remove it or upload it again.`
+              : `Your notes are still being read: ${waiting.map((n) => n.title).join(', ')}. Try again in a moment.`,
+          );
         }
       }
       const id = (
         await c.query<{ id: string }>(
           `insert into lectures (college_id, owner_id, course_id, unit_id, topic, length_min, level, style_key, status)
            values ($1, $2, $3, $4, $5, $6, $7, $8, 'building') returning id`,
-          [who.collegeId, who.userId, body.course.kind === 'course' ? body.course.courseId : null, body.course.kind === 'course' ? (body.course.unitId ?? null) : null, body.topic, body.lengthMin, body.level, body.styleKey],
+          [
+            who.collegeId,
+            who.userId,
+            body.course.kind === 'course' ? body.course.courseId : null,
+            body.course.kind === 'course' ? (body.course.unitId ?? null) : null,
+            body.topic,
+            body.lengthMin,
+            body.level,
+            body.styleKey,
+          ],
         )
       ).rows[0]!.id;
       await c.query(
         `insert into lecture_inputs (lecture_id, college_id, owner_id, must_include_text, example_id, anything_special, filters, ambiguity_choice, note_upload_ids)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [id, who.collegeId, who.userId, body.mustInclude?.text || null, body.mustInclude?.exampleId ?? null, body.anythingSpecial || null, body.filters, conceptId, [...new Set(body.notes)]],
+        [
+          id,
+          who.collegeId,
+          who.userId,
+          body.mustInclude?.text || null,
+          body.mustInclude?.exampleId ?? null,
+          body.anythingSpecial || null,
+          body.filters,
+          conceptId,
+          [...new Set(body.notes)],
+        ],
       );
       // The plan points at the unit's latest lecture (a taught unit keeps the lecture it was taught from).
       if (body.course.kind === 'course' && body.course.unitId) {
-        await c.query("update course_units set lecture_id = $2 where id = $1 and status <> 'taught'", [body.course.unitId, id]);
+        await c.query("update course_units set lecture_id = $2 where id = $1 and status <> 'taught'", [
+          body.course.unitId,
+          id,
+        ]);
       }
       return id;
     });
-    const job = await buildQueue.add('build.lecture', { lectureId, ownerId: who.userId, collegeId: who.collegeId }, { ...BUILD_JOB_OPTIONS, jobId: `build.lecture-${lectureId}` });
+    const job = await buildQueue.add(
+      'build.lecture',
+      { lectureId, ownerId: who.userId, collegeId: who.collegeId },
+      { ...BUILD_JOB_OPTIONS, jobId: `build.lecture-${lectureId}` },
+    );
     res.status(202).json(PrepareResponse.parse({ lectureId, jobId: job.id }));
   });
 
   r.post('/lectures/:id/retry', requireConsent, async (req, res) => {
     if (!buildQueue) throw new AppError('SERVICE_UNAVAILABLE', 'Preparing lectures is not available right now.');
     const id = Id.parse(req.params.id);
-    const status = await req.db!(async (c) => (await c.query<{ status: string }>("update lectures set status = 'building', error_code = null where id = $1 and status = 'failed' returning status", [id])).rows[0]);
+    const status = await req.db!(
+      async (c) =>
+        (
+          await c.query<{ status: string }>(
+            "update lectures set status = 'building', error_code = null where id = $1 and status = 'failed' returning status",
+            [id],
+          )
+        ).rows[0],
+    );
     if (!status) throw new AppError('NOT_FOUND', 'There is no failed build to retry for this lecture.');
     const who = req.identity!;
-    const job = await buildQueue.add('build.lecture', { lectureId: id, ownerId: who.userId, collegeId: who.collegeId }, { ...BUILD_JOB_OPTIONS, jobId: `build.lecture-${id}-${Date.now()}` });
+    const job = await buildQueue.add(
+      'build.lecture',
+      { lectureId: id, ownerId: who.userId, collegeId: who.collegeId },
+      { ...BUILD_JOB_OPTIONS, jobId: `build.lecture-${id}-${Date.now()}` },
+    );
     res.status(202).json(PrepareResponse.parse({ lectureId: id, jobId: job.id }));
   });
 
   r.get('/lectures/:id', async (req, res) => {
     const id = Id.parse(req.params.id);
-    const row = await req.db!(async (c) =>
-      (
-        await c.query<{
-          id: string; topic: string; status: LectureSummary['status']; length_min: number; level: string; plan: LectureSummary['plan'];
-          yellow_open: number; grey_open: number; coverage_open: number; coverage_score: string | null; parts_done: number[]; error_code: string | null; created_at: Date; ready_at: Date | null;
-          taught: string | null; course_id: string | null; course_name: string | null; unit_id: string | null; position: number | null;
-          live_yellow: number; live_grey: number; cov_covered: number; cov_counted: number;
-          may_need_update_since: Date | null; update_from: { id: string; position: number | null; topic: string }[] | null;
-        }>(
-          // Yellow and grey per line, with case status read live (see lineFrom).
-          `with lines as (
+    const row = await req.db!(
+      async (c) =>
+        (
+          await c.query<{
+            id: string;
+            topic: string;
+            status: LectureSummary['status'];
+            length_min: number;
+            level: string;
+            plan: LectureSummary['plan'];
+            yellow_open: number;
+            grey_open: number;
+            coverage_open: number;
+            coverage_score: string | null;
+            parts_done: number[];
+            error_code: string | null;
+            created_at: Date;
+            ready_at: Date | null;
+            taught: string | null;
+            course_id: string | null;
+            course_name: string | null;
+            unit_id: string | null;
+            position: number | null;
+            live_yellow: number;
+            live_grey: number;
+            cov_covered: number;
+            cov_counted: number;
+            may_need_update_since: Date | null;
+            update_from: { id: string; position: number | null; topic: string }[] | null;
+          }>(
+            // Yellow and grey per line, with case status read live (see lineFrom).
+            `with lines as (
              select ci.slide_id, ci.line_key,
                     bool_or(ci.check_status = 'open' or cs.status in ('overruled', 'reversed')) as yellow,
                     bool_or(ci.flag_kind = 'grey' and coalesce(cs.status, 'not_verified') = 'not_verified') as grey
@@ -134,9 +211,9 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
                      from lectures e left join course_units eu on eu.id = e.unit_id where e.id = any(l.may_need_update_from)) update_from
              from lectures l left join courses c on c.id = l.course_id left join course_units u on u.id = l.unit_id
             where l.id = $1`,
-          [id],
-        )
-      ).rows[0],
+            [id],
+          )
+        ).rows[0],
     );
     if (!row) throw new AppError('NOT_FOUND', 'We could not find that lecture.');
     res.json(
@@ -147,18 +224,30 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
         lengthMin: row.length_min,
         level: row.level,
         plan: row.plan ? { parts: row.plan.parts, leftOut: row.plan.leftOut } : null,
-        counts: { yellow: row.status === 'building' ? row.yellow_open : row.live_yellow, grey: row.status === 'building' ? row.grey_open : row.live_grey, coverage: row.coverage_open },
+        counts: {
+          yellow: row.status === 'building' ? row.yellow_open : row.live_yellow,
+          grey: row.status === 'building' ? row.grey_open : row.live_grey,
+          coverage: row.coverage_open,
+        },
         coverageScore: row.coverage_score === null ? null : Number(row.coverage_score),
         coverageCounts: row.coverage_score === null ? null : { covered: row.cov_covered, counted: row.cov_counted },
         mayNeedUpdate: row.may_need_update_since
-          ? { since: row.may_need_update_since.toISOString(), from: (row.update_from ?? []).map((e) => ({ lectureId: e.id, label: `${e.position ? `${lectureNo(e.position)} ` : ''}${e.topic}` })) }
+          ? {
+              since: row.may_need_update_since.toISOString(),
+              from: (row.update_from ?? []).map((e) => ({
+                lectureId: e.id,
+                label: `${e.position ? `${lectureNo(e.position)} ` : ''}${e.topic}`,
+              })),
+            }
           : null,
         partsDone: row.parts_done,
         errorCode: row.error_code,
         createdAt: row.created_at.toISOString(),
         readyAt: row.ready_at?.toISOString() ?? null,
         taughtOn: row.taught,
-        course: row.course_id ? { id: row.course_id, name: row.course_name ?? '', unitId: row.unit_id, position: row.position } : null,
+        course: row.course_id
+          ? { id: row.course_id, name: row.course_name ?? '', unitId: row.unit_id, position: row.position }
+          : null,
       }),
     );
   });
@@ -172,28 +261,59 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
     const body = MarkTaught.parse(req.body);
     const who = req.identity!;
     const unitId = await req.db!(async (c) => {
-      const l = (await c.query<{ status: string; course_id: string | null; unit_id: string | null; topic: string }>('select status, course_id, unit_id, topic from lectures where id = $1 for update', [id])).rows[0];
+      const l = (
+        await c.query<{ status: string; course_id: string | null; unit_id: string | null; topic: string }>(
+          'select status, course_id, unit_id, topic from lectures where id = $1 for update',
+          [id],
+        )
+      ).rows[0];
       if (!l) throw new AppError('NOT_FOUND', 'We could not find that lecture.');
-      if (l.status !== 'ready' && l.status !== 'taught') throw new AppError('VALIDATION_FAILED', 'Only a finished lecture can be marked taught.');
+      if (l.status !== 'ready' && l.status !== 'taught')
+        throw new AppError('VALIDATION_FAILED', 'Only a finished lecture can be marked taught.');
       let unit = l.unit_id;
       if (l.course_id && unit) {
         // Another lecture already taught in this slot keeps it; this one takes a new slot right after.
-        const other = (await c.query<{ lecture_id: string | null; status: string }>('select lecture_id, status from course_units where id = $1', [unit])).rows[0];
+        const other = (
+          await c.query<{ lecture_id: string | null; status: string }>(
+            'select lecture_id, status from course_units where id = $1',
+            [unit],
+          )
+        ).rows[0];
         if (other?.status === 'taught' && other.lecture_id !== id) unit = null;
       }
       if (l.course_id && !unit) {
-        const pos = (await c.query<{ n: number }>('select coalesce(max(position), 0)::int + 1 n from course_units where course_id = $1', [l.course_id])).rows[0]!.n;
+        const pos = (
+          await c.query<{ n: number }>(
+            'select coalesce(max(position), 0)::int + 1 n from course_units where course_id = $1',
+            [l.course_id],
+          )
+        ).rows[0]!.n;
         unit = (
-          await c.query<{ id: string }>('insert into course_units (college_id, owner_id, course_id, position, title) values ($1, $2, $3, $4, $5) returning id', [who.collegeId, who.userId, l.course_id, pos, l.topic])
+          await c.query<{ id: string }>(
+            'insert into course_units (college_id, owner_id, course_id, position, title) values ($1, $2, $3, $4, $5) returning id',
+            [who.collegeId, who.userId, l.course_id, pos, l.topic],
+          )
         ).rows[0]!.id;
       }
-      await c.query("update lectures set status = 'taught', taught_on = $2, unit_id = coalesce($3, unit_id) where id = $1", [id, body.taughtOn, unit]);
-      if (unit) await c.query("update course_units set status = 'taught', taught_on = $2, lecture_id = $3 where id = $1", [unit, body.taughtOn, id]);
+      await c.query(
+        "update lectures set status = 'taught', taught_on = $2, unit_id = coalesce($3, unit_id) where id = $1",
+        [id, body.taughtOn, unit],
+      );
+      if (unit)
+        await c.query("update course_units set status = 'taught', taught_on = $2, lecture_id = $3 where id = $1", [
+          unit,
+          body.taughtOn,
+          id,
+        ]);
       return unit;
     });
     let memoryJob: string | null = null;
     if (unitId && learnQueue) {
-      const job = await learnQueue.add('learn.summary', { lectureId: id, ownerId: who.userId, collegeId: who.collegeId }, { ...LEARN_JOB_OPTIONS, jobId: `learn.summary-${id}-${Date.now()}` });
+      const job = await learnQueue.add(
+        'learn.summary',
+        { lectureId: id, ownerId: who.userId, collegeId: who.collegeId },
+        { ...LEARN_JOB_OPTIONS, jobId: `learn.summary-${id}-${Date.now()}` },
+      );
       memoryJob = job.id ?? null;
     }
     res.json(MarkTaughtResponse.parse({ unitId, memoryJob }));
@@ -203,9 +323,18 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
   r.delete('/lectures/:id/taught', async (req, res) => {
     const id = Id.parse(req.params.id);
     await req.db!(async (c) => {
-      const l = (await c.query<{ unit_id: string | null }>("update lectures set status = 'ready', taught_on = null where id = $1 and status = 'taught' returning unit_id", [id])).rows[0];
+      const l = (
+        await c.query<{ unit_id: string | null }>(
+          "update lectures set status = 'ready', taught_on = null where id = $1 and status = 'taught' returning unit_id",
+          [id],
+        )
+      ).rows[0];
       if (!l) throw new AppError('NOT_FOUND', 'This lecture is not marked taught.');
-      if (l.unit_id) await c.query("update course_units set status = 'planned', taught_on = null, memory = '{}' where id = $1 and lecture_id = $2", [l.unit_id, id]);
+      if (l.unit_id)
+        await c.query(
+          "update course_units set status = 'planned', taught_on = null, memory = '{}' where id = $1 and lecture_id = $2",
+          [l.unit_id, id],
+        );
     });
     res.status(204).end();
   });
@@ -220,7 +349,25 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
     const id = Id.parse(req.params.id);
     const out = await req.db!(async (c) => {
       const row = (
-        await c.query<{ id: string; claim_text: string; span_text: string; source_label: string | null; chunk_id: string | null; checks: { name: string; result: string; detail: string | null }[]; title: string | null; url: string | null; source_type: string | null; source_status: string | null; case_status: string | null; court_level: string | null; bench_size: number | null; origin: string | null; para_role: string | null; kind: string | null; source_relevance: string | null }>(
+        await c.query<{
+          id: string;
+          claim_text: string;
+          span_text: string;
+          source_label: string | null;
+          chunk_id: string | null;
+          checks: { name: string; result: string; detail: string | null }[];
+          title: string | null;
+          url: string | null;
+          source_type: string | null;
+          source_status: string | null;
+          case_status: string | null;
+          court_level: string | null;
+          bench_size: number | null;
+          origin: string | null;
+          para_role: string | null;
+          kind: string | null;
+          source_relevance: string | null;
+        }>(
           `select c.id, c.claim_text, c.span_text, c.source_label, c.chunk_id, c.checks, s.title, s.url, s.type::text source_type, s.status::text source_status, cs.status case_status,
                   s.court_level, s.bench_size, s.origin::text origin, k.para_role, k.kind::text kind, c.source_relevance
              from citations c left join sources s on s.id = c.source_id left join case_status_v cs on cs.source_id = c.source_id
@@ -253,7 +400,16 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
           row.source_type && row.origin
             ? {
                 relevance: row.source_relevance === null ? null : Number(row.source_relevance),
-                reasons: standingOf({ sourceType: row.source_type, courtLevel: row.court_level, benchSize: row.bench_size, origin: row.origin, provisional: row.source_status === 'provisional', caseStatus: null, paraRole: row.para_role, kind: row.kind }).reasons,
+                reasons: standingOf({
+                  sourceType: row.source_type,
+                  courtLevel: row.court_level,
+                  benchSize: row.bench_size,
+                  origin: row.origin,
+                  provisional: row.source_status === 'provisional',
+                  caseStatus: null,
+                  paraRole: row.para_role,
+                  kind: row.kind,
+                }).reasons,
               }
             : null,
       }),
@@ -264,17 +420,41 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
     const id = Id.parse(req.params.id);
     const { items, plan } = await req.db!(async (c) => ({
       items: (
-        await c.query<{ id: string; section_key: string; item_kind: string; item_ref: string | null; item_label: string | null; state: 'covered' | 'missing' | 'left_out_by_teacher'; reason: string | null; item_text: string | null }>(
+        await c.query<{
+          id: string;
+          section_key: string;
+          item_kind: string;
+          item_ref: string | null;
+          item_label: string | null;
+          state: 'covered' | 'missing' | 'left_out_by_teacher';
+          reason: string | null;
+          item_text: string | null;
+        }>(
           'select id, section_key, item_kind, item_ref, item_label, state, reason, item_text from coverage_items where lecture_id = $1 order by section_key, item_label',
           [id],
         )
       ).rows,
-      plan: (await c.query<{ plan: { notFound?: { partIndex: number; question: string }[] } | null; coverage_score: string | null }>('select plan, coverage_score from lectures where id = $1', [id])).rows[0],
+      plan: (
+        await c.query<{
+          plan: { notFound?: { partIndex: number; question: string }[] } | null;
+          coverage_score: string | null;
+        }>('select plan, coverage_score from lectures where id = $1', [id])
+      ).rows[0],
     }));
     if (!plan) throw new AppError('NOT_FOUND', 'We could not find that lecture.');
-    const toItem = (i: (typeof items)[number]) => ({ id: i.id, sectionKey: i.section_key, kind: i.item_kind as 'clause', label: i.item_label ?? i.section_key, state: i.state, reason: i.reason, text: i.item_text, canAdd: false });
+    const toItem = (i: (typeof items)[number]) => ({
+      id: i.id,
+      sectionKey: i.section_key,
+      kind: i.item_kind as 'clause',
+      label: i.item_label ?? i.section_key,
+      state: i.state,
+      reason: i.reason,
+      text: i.item_text,
+      canAdd: false,
+    });
     const groups = new Map<string, typeof items>();
-    for (const i of items.filter((x) => x.item_kind !== 'left_out')) groups.set(i.section_key, [...(groups.get(i.section_key) ?? []), i]);
+    for (const i of items.filter((x) => x.item_kind !== 'left_out'))
+      groups.set(i.section_key, [...(groups.get(i.section_key) ?? []), i]);
     const counted = items.filter((x) => x.item_kind !== 'left_out' && x.state !== 'left_out_by_teacher');
     res.json(
       CoverageResponse.parse({
@@ -283,7 +463,11 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
         counted: counted.length,
         groups: [...groups].map(([key, list]) => ({
           sectionKey: key,
-          title: key.includes(':') ? key.replace(/^(.*):([sa])(.*)$/, (_m, act: string, k: string, n: string) => (k === 'a' ? `Article ${n}` : `s. ${n} ${act}`)) : key,
+          title: key.includes(':')
+            ? key.replace(/^(.*):([sa])(.*)$/, (_m, act: string, k: string, n: string) =>
+                k === 'a' ? `Article ${n}` : `s. ${n} ${act}`,
+              )
+            : key,
           missing: list.filter((x) => x.state === 'missing').length,
           total: list.length,
           items: list.map((x) => ({ ...toItem(x), canAdd: x.state === 'missing' && canAddFor(x) })),
@@ -297,7 +481,14 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
   // "It's still right": she has looked, and the lecture needs no change after the earlier one was edited (F8.6).
   r.delete('/lectures/:id/may-need-update', async (req, res) => {
     const id = Id.parse(req.params.id);
-    const n = await req.db!(async (c) => (await c.query("update lectures set may_need_update_since = null, may_need_update_from = '{}' where id = $1", [id])).rowCount);
+    const n = await req.db!(
+      async (c) =>
+        (
+          await c.query("update lectures set may_need_update_since = null, may_need_update_from = '{}' where id = $1", [
+            id,
+          ])
+        ).rowCount,
+    );
     if (!n) throw new AppError('NOT_FOUND', 'We could not find that lecture.');
     res.status(204).end();
   });
@@ -324,9 +515,18 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
         )
       ).rows[0];
       if (!item) return false;
-      const all = (await c.query<{ section_key: string; state: 'covered' | 'missing' | 'left_out_by_teacher'; item_kind: string }>('select section_key, state, item_kind from coverage_items where lecture_id = $1', [item.lecture_id])).rows;
+      const all = (
+        await c.query<{ section_key: string; state: 'covered' | 'missing' | 'left_out_by_teacher'; item_kind: string }>(
+          'select section_key, state, item_kind from coverage_items where lecture_id = $1',
+          [item.lecture_id],
+        )
+      ).rows;
       const counted = all.filter((a) => a.item_kind !== 'left_out');
-      await c.query('update lectures set coverage_open = $2, coverage_score = $3 where id = $1', [item.lecture_id, openGroups(counted.map((a) => ({ sectionKey: a.section_key, state: a.state }))), coverageScore(counted.map((a) => a.state))]);
+      await c.query('update lectures set coverage_open = $2, coverage_score = $3 where id = $1', [
+        item.lecture_id,
+        openGroups(counted.map((a) => ({ sectionKey: a.section_key, state: a.state }))),
+        coverageScore(counted.map((a) => a.state)),
+      ]);
       return true;
     });
     if (!ok) throw new AppError('NOT_FOUND', 'That item is not open.');

@@ -48,7 +48,12 @@ describe('Supreme Court Reports mirror', () => {
   });
 
   it('reads the files of a tar archive', () => {
-    const files = untar(tar([{ name: 'a.json', body: '{"x":1}' }, { name: 'b.json', body: 'y'.repeat(700) }]));
+    const files = untar(
+      tar([
+        { name: 'a.json', body: '{"x":1}' },
+        { name: 'b.json', body: 'y'.repeat(700) },
+      ]),
+    );
     expect(files.map((f) => [f.name, f.data.length])).toEqual([
       ['a.json', 7],
       ['b.json', 700],
@@ -57,11 +62,18 @@ describe('Supreme Court Reports mirror', () => {
 
   it('reads a year once, keeps a small index in storage, and fetches PDFs by file key', async () => {
     const mem = new Map<string, Uint8Array>();
-    const storage: Storage = { put: async (k, b) => void mem.set(k, b), get: async (k) => mem.get(k)!, exists: async (k) => mem.has(k), list: async (p) => [...mem.keys()].filter((k) => k.startsWith(p)), delete: async (k) => void mem.delete(k) };
+    const storage: Storage = {
+      put: async (k, b) => void mem.set(k, b),
+      get: async (k) => mem.get(k)!,
+      exists: async (k) => mem.has(k),
+      list: async (p) => [...mem.keys()].filter((k) => k.startsWith(p)),
+      delete: async (k) => void mem.delete(k),
+    };
     const urls: string[] = [];
     const fetchImpl = (async (url: string) => {
       urls.push(url);
-      if (url.endsWith('metadata.tar')) return new Response(new Uint8Array(tar([{ name: '2014_13_895_956.json', body: JSON.stringify(ENTRY) }])));
+      if (url.endsWith('metadata.tar'))
+        return new Response(new Uint8Array(tar([{ name: '2014_13_895_956.json', body: JSON.stringify(ENTRY) }])));
       if (url.endsWith('_EN.pdf')) return new Response('%PDF-1.7 …');
       return new Response('', { status: 404 });
     }) as typeof fetch;
@@ -70,7 +82,9 @@ describe('Supreme Court Reports mirror', () => {
     expect(records).toHaveLength(1);
     expect(mem.has('escr/catalog/2014.json')).toBe(true);
     // A second client reads the stored index, not the archive (2014 is not a recent year).
-    await createEscr({ storage, fetchImpl, baseUrl: 'https://mirror.test', now: () => Date.UTC(2026, 10, 22) }).catalog(2014);
+    await createEscr({ storage, fetchImpl, baseUrl: 'https://mirror.test', now: () => Date.UTC(2026, 10, 22) }).catalog(
+      2014,
+    );
     expect(urls.filter((u) => u.endsWith('metadata.tar'))).toHaveLength(1);
     const pdf = await escr.pdf(records[0]!);
     expect(pdf.url).toBe('https://mirror.test/data/pdf/year=2014/english/2014_13_895_956_EN.pdf');

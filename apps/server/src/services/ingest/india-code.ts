@@ -19,12 +19,21 @@ export type IndiaCodeLoad =
   | { kind: 'duplicate'; sourceId: string }
   | { kind: 'no_pdf' };
 
-export async function loadIndiaCodeAct(act: IndiaCodeAct, deps: IndiaCodeLoadDeps, opts: { provisional: boolean }): Promise<IndiaCodeLoad> {
+export async function loadIndiaCodeAct(
+  act: IndiaCodeAct,
+  deps: IndiaCodeLoadDeps,
+  opts: { provisional: boolean },
+): Promise<IndiaCodeLoad> {
   const { library } = deps;
   const pdf = await deps.indiaCode.englishPdf(act.itemId);
   if (!pdf) return { kind: 'no_pdf' };
   const sourceId =
-    (await library.query<{ id: string }>("select id from sources where origin = 'india_code' and url = $1 and status <> 'retired' limit 1", [pdf])).rows[0]?.id ??
+    (
+      await library.query<{ id: string }>(
+        "select id from sources where origin = 'india_code' and url = $1 and status <> 'retired' limit 1",
+        [pdf],
+      )
+    ).rows[0]?.id ??
     (
       await library.query<{ id: string }>(
         `insert into sources (college_id, visibility, type, origin, title, act_name, act_year, url, content_hash)

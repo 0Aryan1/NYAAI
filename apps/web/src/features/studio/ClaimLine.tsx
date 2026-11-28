@@ -77,17 +77,45 @@ function LineEditor({ initial, onDone }: { initial: string; onDone: (text: strin
  * an open point is never hidden. Colour is never the only signal (icon + text label everywhere). Click the words to
  * change them; the line is checked again (LLD §8.6).
  */
-export function ClaimLine({ line, active, numbers, showChecks, onOpenSource, onEdit, onRemove, onVerify, onReport, report }: ClaimLineProps) {
+export function ClaimLine({
+  line,
+  active,
+  numbers,
+  showChecks,
+  onOpenSource,
+  onEdit,
+  onRemove,
+  onVerify,
+  onReport,
+  report,
+}: ClaimLineProps) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const checking = line.flagReason === CHECKING;
   const yellow = line.flag === 'yellow' && !checking;
   const grey = line.flag === 'grey';
-  const footnotes = [...new Map(line.sources.map((s) => [numbers.get(s.citationId) ?? 0, s])).entries()].sort((a, b) => a[0] - b[0]);
+  const footnotes = [...new Map(line.sources.map((s) => [numbers.get(s.citationId) ?? 0, s])).entries()].sort(
+    (a, b) => a[0] - b[0],
+  );
 
   return (
-    <li id={`line-${line.lineKey}`} className={cn('group relative -mx-2 rounded-control px-2 py-1', active && 'ring-2 ring-accent', onEdit && !editing && 'hover:bg-bg/70')}>
-      {(yellow || checking) && <span className={cn('absolute -left-3 top-3 size-2 rounded-full', checking ? 'animate-pulse bg-muted' : 'bg-flag-yellow')} aria-hidden />}
+    <li
+      id={`line-${line.lineKey}`}
+      className={cn(
+        'group relative -mx-2 rounded-control px-2 py-1',
+        active && 'ring-2 ring-accent',
+        onEdit && !editing && 'hover:bg-bg/70',
+      )}
+    >
+      {(yellow || checking) && (
+        <span
+          className={cn(
+            'absolute -left-3 top-3 size-2 rounded-full',
+            checking ? 'animate-pulse bg-muted' : 'bg-flag-yellow',
+          )}
+          aria-hidden
+        />
+      )}
       {editing && onEdit ? (
         <LineEditor
           initial={line.text}
@@ -117,7 +145,10 @@ export function ClaimLine({ line, active, numbers, showChecks, onOpenSource, onE
             key={s.citationId}
             type="button"
             onClick={() => onOpenSource(s.citationId)}
-            className={cn('ml-0.5 align-super text-[0.7em] font-medium hover:underline', grey ? 'text-flag-grey' : 'text-accent')}
+            className={cn(
+              'ml-0.5 align-super text-[0.7em] font-medium hover:underline',
+              grey ? 'text-flag-grey' : 'text-accent',
+            )}
             title={`${s.label}${grey ? ' · status not verified' : ''}${s.provisional ? ' · not yet reviewed' : ''}`}
             aria-label={`Source ${n}: ${s.label}${grey ? ', status not verified' : ''}`}
           >
@@ -138,10 +169,17 @@ export function ClaimLine({ line, active, numbers, showChecks, onOpenSource, onE
       )}
       {!editing && checking && <span className="ml-2 align-middle text-xs not-italic text-muted">Checking…</span>}
       {!editing && report && (
-        <span className="mt-0.5 flex items-center gap-1 text-xs not-italic text-muted" title={report.resolutionNote ?? undefined}>
+        <span
+          className="mt-0.5 flex items-center gap-1 text-xs not-italic text-muted"
+          title={report.resolutionNote ?? undefined}
+        >
           <Flag className="size-3 shrink-0" aria-hidden />
-          {report.status === 'resolved' && report.outcome ? OUTCOME[report.outcome] : 'Reported: the library team will check it within a day'}
-          {report.status === 'resolved' && report.resolutionNote && <span className="truncate">({report.resolutionNote})</span>}
+          {report.status === 'resolved' && report.outcome
+            ? OUTCOME[report.outcome]
+            : 'Reported: the library team will check it within a day'}
+          {report.status === 'resolved' && report.resolutionNote && (
+            <span className="truncate">({report.resolutionNote})</span>
+          )}
         </span>
       )}
       {!editing && yellow && (
@@ -160,16 +198,34 @@ export function ClaimLine({ line, active, numbers, showChecks, onOpenSource, onE
       {/* Line actions: shown on hover or keyboard focus, never covering the words. */}
       {onEdit && !editing && (
         <span className="absolute -right-2 top-0.5 hidden translate-x-full items-center gap-0.5 pl-1 group-focus-within:flex group-hover:flex">
-          <button type="button" onClick={() => setEditing(true)} className="rounded-control p-1 text-muted hover:bg-bg hover:text-text" aria-label="Edit this line" title="Edit">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="rounded-control p-1 text-muted hover:bg-bg hover:text-text"
+            aria-label="Edit this line"
+            title="Edit"
+          >
             <Pencil className="size-3.5" aria-hidden />
           </button>
           {onRemove && (
-            <button type="button" onClick={onRemove} className="rounded-control p-1 text-muted hover:bg-bg hover:text-danger" aria-label="Remove this line" title="Remove">
+            <button
+              type="button"
+              onClick={onRemove}
+              className="rounded-control p-1 text-muted hover:bg-bg hover:text-danger"
+              aria-label="Remove this line"
+              title="Remove"
+            >
               <Trash2 className="size-3.5" aria-hidden />
             </button>
           )}
           {onReport && (
-            <button type="button" onClick={onReport} className="rounded-control p-1 text-muted hover:bg-bg hover:text-flag-yellow" aria-label="Report a wrong fact" title="Report a wrong fact">
+            <button
+              type="button"
+              onClick={onReport}
+              className="rounded-control p-1 text-muted hover:bg-bg hover:text-flag-yellow"
+              aria-label="Report a wrong fact"
+              title="Report a wrong fact"
+            >
               <Flag className="size-3.5" aria-hidden />
             </button>
           )}
@@ -189,7 +245,10 @@ export function ClaimLine({ line, active, numbers, showChecks, onOpenSource, onE
             </button>
           ))}
           {grey && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-flag-grey-bg px-2 py-0.5 text-xs text-flag-grey" title="No law expert has confirmed this case's current status yet">
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-flag-grey-bg px-2 py-0.5 text-xs text-flag-grey"
+              title="No law expert has confirmed this case's current status yet"
+            >
               <CircleHelp className="size-3" aria-hidden />
               Status not verified
             </span>
@@ -199,12 +258,19 @@ export function ClaimLine({ line, active, numbers, showChecks, onOpenSource, onE
       )}
 
       {!editing && yellow && open && (
-        <div role="note" className="mt-2 rounded-card border border-border bg-surface p-3 text-sm not-italic shadow-popover">
+        <div
+          role="note"
+          className="mt-2 rounded-card border border-border bg-surface p-3 text-sm not-italic shadow-popover"
+        >
           <p className="mb-1 font-medium">Please verify this line</p>
           <p className="text-muted">{line.flagReason ?? 'Please verify this line before teaching it.'}</p>
           <div className="mt-3 flex flex-wrap gap-3 text-sm">
             {line.sources[0] && (
-              <button type="button" className="text-accent hover:underline" onClick={() => onOpenSource(line.sources[0]!.citationId)}>
+              <button
+                type="button"
+                className="text-accent hover:underline"
+                onClick={() => onOpenSource(line.sources[0]!.citationId)}
+              >
                 Open the source
               </button>
             )}

@@ -3,7 +3,25 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { OfflineBanner } from '@/shared/ui/offline-banner';
 import { RateLimitBanner } from '@/shared/ui/rate-limit-banner';
 import { useQuery } from '@tanstack/react-query';
-import { Check, GraduationCap, Home, Library, LogOut, Monitor, Moon, PanelLeft, Sun, NotebookPen, ShieldCheck, Flag, Compass, Tags, SearchX, FileSearch, Scale } from 'lucide-react';
+import {
+  Check,
+  GraduationCap,
+  Home,
+  Library,
+  LogOut,
+  Monitor,
+  Moon,
+  PanelLeft,
+  Sun,
+  NotebookPen,
+  ShieldCheck,
+  Flag,
+  Compass,
+  Tags,
+  SearchX,
+  FileSearch,
+  Scale,
+} from 'lucide-react';
 import type { Role } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { applyTheme, readTheme, type ThemeChoice } from '@/shared/lib/theme';
@@ -81,8 +99,19 @@ export function AppShell() {
     // overflow-clip, not hidden: a hidden box can still be scrolled by the browser (focusing a select, jumping to an
     // item), which slid the whole app up and left an empty band below. A clipped box never scrolls.
     <div className="flex h-dvh overflow-clip">
-      <nav aria-label="Main" className={cn('hidden shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-150 ease-calm md:flex', collapsed ? 'w-16' : 'w-56')}>
-        <div className={cn('flex h-14 items-center border-b border-border px-4', collapsed ? 'justify-center px-0' : 'justify-between')}>
+      <nav
+        aria-label="Main"
+        className={cn(
+          'hidden shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-150 ease-calm md:flex',
+          collapsed ? 'w-16' : 'w-56',
+        )}
+      >
+        <div
+          className={cn(
+            'flex h-14 items-center border-b border-border px-4',
+            collapsed ? 'justify-center px-0' : 'justify-between',
+          )}
+        >
           {!collapsed && <span className="text-base font-semibold tracking-tight">NYAAI</span>}
           <button
             type="button"
@@ -118,7 +147,9 @@ export function AppShell() {
             );
           })}
         </ul>
-        {!collapsed && me.data && <p className="border-t border-border px-4 py-3 text-xs leading-snug text-muted">{me.data.college.name}</p>}
+        {!collapsed && me.data && (
+          <p className="border-t border-border px-4 py-3 text-xs leading-snug text-muted">{me.data.college.name}</p>
+        )}
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -128,7 +159,9 @@ export function AppShell() {
             label="Your account"
             trigger={
               <span className="inline-flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm hover:bg-bg">
-                <span className="grid size-7 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-contrast">{initials(me.data?.user.name)}</span>
+                <span className="grid size-7 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-contrast">
+                  {initials(me.data?.user.name)}
+                </span>
                 <span className="hidden sm:inline">{me.data?.user.name}</span>
               </span>
             }
@@ -152,14 +185,27 @@ export function AppShell() {
                   onSelect: () => setTheme(t.value),
                 };
               }),
-              { label: 'Your data', icon: <ShieldCheck className="size-4 text-muted" aria-hidden />, onSelect: () => void navigate('/account/data') },
-              { label: 'Sign out', icon: <LogOut className="size-4 text-muted" aria-hidden />, onSelect: () => void signOut() },
+              {
+                label: 'Your data',
+                icon: <ShieldCheck className="size-4 text-muted" aria-hidden />,
+                onSelect: () => void navigate('/account/data'),
+              },
+              {
+                label: 'Sign out',
+                icon: <LogOut className="size-4 text-muted" aria-hidden />,
+                onSelect: () => void signOut(),
+              },
             ]}
           />
         </header>
         <OfflineBanner />
         <RateLimitBanner />
-        <main className={cn('min-h-0 flex-1', fullBleed ? 'overflow-clip' : 'relative overflow-y-auto px-4 py-8 sm:px-8 lg:py-10')}>
+        <main
+          className={cn(
+            'min-h-0 flex-1',
+            fullBleed ? 'overflow-clip' : 'relative overflow-y-auto px-4 py-8 sm:px-8 lg:py-10',
+          )}
+        >
           <Outlet />
         </main>
       </div>

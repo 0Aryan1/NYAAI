@@ -38,28 +38,49 @@ async function reachable(): Promise<boolean> {
 }
 
 const dbReady = await reachable();
-if (!dbReady) console.warn('RLS tests skipped: database not reachable or not migrated (run pnpm db:up && pnpm db:migrate).');
+if (!dbReady)
+  console.warn('RLS tests skipped: database not reachable or not migrated (run pnpm db:up && pnpm db:migrate).');
 
 describe.skipIf(!dbReady)('row-level security', () => {
   let owner: pg.Pool, app: pg.Pool, worker: pg.Pool, library: pg.Pool;
   const id = () => randomUUID();
-  const X = id(), Y = id();                        // two colleges
-  const A = id(), B = id(), E = id(), C = id();    // teachers A, B and editor E in X; teacher C in Y
-  const lecA = id(), lecB = id();
+  const X = id(),
+    Y = id(); // two colleges
+  const A = id(),
+    B = id(),
+    E = id(),
+    C = id(); // teachers A, B and editor E in X; teacher C in Y
+  const lecA = id(),
+    lecB = id();
   let globalId = '';
-  const srcShared = id(), srcSharedY = id(), srcPrivA = id();
-  const chunkShared = id(), chunkSharedY = id(), chunkPrivA = id();
-  const as = (userId: string, collegeId: string, role: TenantIdentity['role'] = 'teacher'): TenantIdentity => ({ userId, collegeId, role });
+  const srcShared = id(),
+    srcSharedY = id(),
+    srcPrivA = id();
+  const chunkShared = id(),
+    chunkSharedY = id(),
+    chunkPrivA = id();
+  const as = (userId: string, collegeId: string, role: TenantIdentity['role'] = 'teacher'): TenantIdentity => ({
+    userId,
+    collegeId,
+    role,
+  });
 
   beforeAll(async () => {
     owner = new pg.Pool({ connectionString: urls.owner, max: 2 });
-    app = new pg.Pool({ connectionString: urls.app, max: 1 });      // max 1: every query reuses the same connection
+    app = new pg.Pool({ connectionString: urls.app, max: 1 }); // max 1: every query reuses the same connection
     worker = new pg.Pool({ connectionString: urls.worker, max: 1 });
     library = new pg.Pool({ connectionString: urls.library, max: 1 });
 
-    await owner.query("insert into colleges (name, slug, is_global) values ('Shared library', 'global', true) on conflict do nothing");
+    await owner.query(
+      "insert into colleges (name, slug, is_global) values ('Shared library', 'global', true) on conflict do nothing",
+    );
     globalId = (await owner.query('select id from colleges where is_global')).rows[0].id;
-    await owner.query('insert into colleges (id, name, slug) values ($1, $2, $2), ($3, $4, $4)', [X, `rls-x-${X}`, Y, `rls-y-${Y}`]);
+    await owner.query('insert into colleges (id, name, slug) values ($1, $2, $2), ($3, $4, $4)', [
+      X,
+      `rls-x-${X}`,
+      Y,
+      `rls-y-${Y}`,
+    ]);
     await owner.query(
       `insert into users (id, college_id, email, name, role) values
         ($1::uuid, $5, $1::text || '@x.test', 'A', 'teacher'), ($2::uuid, $5, $2::text || '@x.test', 'B', 'teacher'),
@@ -108,13 +129,17 @@ describe.skipIf(!dbReady)('row-level security', () => {
   it('teacher A reads her own lecture and never B’s', async () => {
     const rows = await withTenant(app, as(A, X), async (c) => (await c.query('select id from lectures')).rows);
     expect(rows.map((r) => r.id)).toEqual([lecA]);
-    const updated = await withTenant(app, as(A, X), (c) => c.query("update lectures set topic = 'hijack' where id = $1", [lecB]));
+    const updated = await withTenant(app, as(A, X), (c) =>
+      c.query("update lectures set topic = 'hijack' where id = $1", [lecB]),
+    );
     expect(updated.rowCount).toBe(0);
   });
 
   it('a pooled connection carries no identity after A’s transaction', async () => {
     await withTenant(app, as(A, X), (c) => c.query('select 1'));
-    const r = await app.query("select current_setting('app.user_id', true) as uid, (select count(*)::int from lectures) as n");
+    const r = await app.query(
+      "select current_setting('app.user_id', true) as uid, (select count(*)::int from lectures) as n",
+    );
     expect(r.rows[0].uid ?? '').toBe('');
     expect(r.rows[0].n).toBe(0);
   });
@@ -122,7 +147,10 @@ describe.skipIf(!dbReady)('row-level security', () => {
   it('a worker job acting for A cannot write B’s rows', async () => {
     await expect(
       withTenant(worker, as(A, X), (c) =>
-        c.query("insert into lectures (college_id, owner_id, topic, length_min, level, style_key) values ($1, $2, 't', 50, 'standard', 'd')", [X, B]),
+        c.query(
+          "insert into lectures (college_id, owner_id, topic, length_min, level, style_key) values ($1, $2, 't', 50, 'standard', 'd')",
+          [X, B],
+        ),
       ),
     ).rejects.toThrow(/row-level security/);
     const del = await withTenant(worker, as(A, X), (c) => c.query('delete from lectures where id = $1', [lecB]));
@@ -132,26 +160,42 @@ describe.skipIf(!dbReady)('row-level security', () => {
   it('the library editor sees her college’s and the shared library’s review items, but not lectures', async () => {
     const [own, other, lectures] = await withTenant(app, as(E, X, 'library_editor'), async (c) => [
       (await c.query('select count(*)::int n from review_queue where college_id = $1', [X])).rows[0].n,
-      (await c.query('select count(*)::int n from review_queue where college_id <> $1 and college_id <> global_college()', [X])).rows[0].n,
+      (
+        await c.query(
+          'select count(*)::int n from review_queue where college_id <> $1 and college_id <> global_college()',
+          [X],
+        )
+      ).rows[0].n,
       (await c.query('select count(*)::int n from lectures')).rows[0].n,
     ]);
     expect(own).toBe(1);
     expect(other).toBe(0); // never another college's queue
     expect(lectures).toBe(0);
-    await owner.query("insert into review_queue (college_id, kind, ref_id) values (global_college(), 'provisional_source', $1)", [srcShared]);
-    const shared = await withTenant(app, as(E, X, 'library_editor'), async (c) =>
-      (await c.query('select count(*)::int n from review_queue where ref_id = $1', [srcShared])).rows[0].n,
+    await owner.query(
+      "insert into review_queue (college_id, kind, ref_id) values (global_college(), 'provisional_source', $1)",
+      [srcShared],
+    );
+    const shared = await withTenant(
+      app,
+      as(E, X, 'library_editor'),
+      async (c) => (await c.query('select count(*)::int n from review_queue where ref_id = $1', [srcShared])).rows[0].n,
     );
     expect(shared).toBe(1);
     await owner.query('delete from review_queue where ref_id = $1', [srcShared]);
-    const teacherQueue = await withTenant(app, as(A, X), async (c) => (await c.query('select count(*)::int n from review_queue')).rows[0].n);
+    const teacherQueue = await withTenant(
+      app,
+      as(A, X),
+      async (c) => (await c.query('select count(*)::int n from review_queue')).rows[0].n,
+    );
     expect(teacherQueue).toBe(0);
   });
 
   it('shared chunks are visible to both teachers; A’s private chunk only to A; other colleges’ shared rows hidden', async () => {
     const seen = (who: TenantIdentity) =>
       withTenant(app, who, async (c) =>
-        (await c.query('select id from chunks where id = any($1)', [[chunkShared, chunkSharedY, chunkPrivA]])).rows.map((r) => r.id).sort(),
+        (await c.query('select id from chunks where id = any($1)', [[chunkShared, chunkSharedY, chunkPrivA]])).rows
+          .map((r) => r.id)
+          .sort(),
       );
     expect(await seen(as(A, X))).toEqual([chunkShared, chunkPrivA].sort());
     expect(await seen(as(B, X))).toEqual([chunkShared]);
@@ -160,7 +204,9 @@ describe.skipIf(!dbReady)('row-level security', () => {
 
   it('only nyaai_library writes shared chunks', async () => {
     await expect(
-      withTenant(worker, as(A, X), (c) => c.query("update chunks set text = 'x' where id = $1 returning id", [chunkShared])),
+      withTenant(worker, as(A, X), (c) =>
+        c.query("update chunks set text = 'x' where id = $1 returning id", [chunkShared]),
+      ),
     ).resolves.toMatchObject({ rowCount: 0 });
     const lib = await library.query("update chunks set status = 'processing' where id = $1", [chunkShared]);
     expect(lib.rowCount).toBe(1);
@@ -168,17 +214,21 @@ describe.skipIf(!dbReady)('row-level security', () => {
   });
 
   it('a teacher cannot change her own role or budget', async () => {
-    await expect(withTenant(app, as(A, X), (c) => c.query("update users set role = 'admin' where id = $1", [A]))).rejects.toThrow(
-      /only an admin/,
-    );
     await expect(
-      withTenant(app, as(A, X), (c) => c.query('update teacher_profiles set monthly_budget_micro_usd = 1 where owner_id = $1', [A])),
+      withTenant(app, as(A, X), (c) => c.query("update users set role = 'admin' where id = $1", [A])),
+    ).rejects.toThrow(/only an admin/);
+    await expect(
+      withTenant(app, as(A, X), (c) =>
+        c.query('update teacher_profiles set monthly_budget_micro_usd = 1 where owner_id = $1', [A]),
+      ),
     ).rejects.toThrow(/permission denied/);
   });
 
   it('sign-in lookup works before identity is set, and only through the helper', async () => {
     const r = await app.query('select id, role from auth_find_user($1)', [`${A}@x.test`]);
     expect(r.rows).toEqual([{ id: A, role: 'teacher' }]);
-    await expect(worker.query('select * from auth_find_user($1)', [`${A}@x.test`])).rejects.toThrow(/permission denied/);
+    await expect(worker.query('select * from auth_find_user($1)', [`${A}@x.test`])).rejects.toThrow(
+      /permission denied/,
+    );
   });
 });

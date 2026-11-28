@@ -7,7 +7,9 @@ export function RouteError({ notFound = false }: { notFound?: boolean }) {
       <p className="mb-6 text-sm text-muted">
         {notFound ? 'This page does not exist.' : 'Please try again. If it keeps happening, tell your administrator.'}
       </p>
-      <Link to="/" className="text-sm text-accent underline underline-offset-4">Back to Home</Link>
+      <Link to="/" className="text-sm text-accent underline underline-offset-4">
+        Back to Home
+      </Link>
     </main>
   );
 }

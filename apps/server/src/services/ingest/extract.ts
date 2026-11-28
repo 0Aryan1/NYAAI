@@ -183,7 +183,10 @@ type PdfDoc = Awaited<ReturnType<typeof getDocumentProxy>>;
 
 /** Most sampled pages paint a picture: a scan of printed pages (judged on up to three pages after the first). */
 async function picturedPages(pdf: PdfDoc): Promise<boolean> {
-  const sample = pdf.numPages <= 1 ? [1] : [2, Math.ceil((pdf.numPages + 1) / 2), pdf.numPages].filter((n, i, a) => a.indexOf(n) === i);
+  const sample =
+    pdf.numPages <= 1
+      ? [1]
+      : [2, Math.ceil((pdf.numPages + 1) / 2), pdf.numPages].filter((n, i, a) => a.indexOf(n) === i);
   let pictured = 0;
   for (const n of sample) {
     const ops = await (await pdf.getPage(n)).getOperatorList();
@@ -197,7 +200,23 @@ export async function pdfIsScanned(bytes: Uint8Array): Promise<boolean> {
   return picturedPages(await getDocumentProxy(new Uint8Array(bytes), { verbosity: 0 }));
 }
 
-const BLOCK = new Set(['P', 'DIV', 'BR', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'SECTION', 'ARTICLE', 'TR', 'BLOCKQUOTE', 'PRE']);
+const BLOCK = new Set([
+  'P',
+  'DIV',
+  'BR',
+  'LI',
+  'H1',
+  'H2',
+  'H3',
+  'H4',
+  'H5',
+  'H6',
+  'SECTION',
+  'ARTICLE',
+  'TR',
+  'BLOCKQUOTE',
+  'PRE',
+]);
 
 function htmlPages(bytes: Uint8Array, url: string): Page[] {
   const dom = new JSDOM(new TextDecoder().decode(bytes), { url });
@@ -216,5 +235,8 @@ function htmlPages(bytes: Uint8Array, url: string): Page[] {
 export async function extractPages(f: Fetched, url: string): Promise<Page[]> {
   if (f.ext === 'pdf') return pdfPages(f.bytes);
   if (f.ext === 'html') return htmlPages(f.bytes, url);
-  return new TextDecoder().decode(f.bytes).split('\f').map((text, i) => ({ pageNo: i + 1, text }));
+  return new TextDecoder()
+    .decode(f.bytes)
+    .split('\f')
+    .map((text, i) => ({ pageNo: i + 1, text }));
 }

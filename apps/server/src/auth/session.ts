@@ -34,7 +34,8 @@ export async function readSession(token: string, secret: string): Promise<Sessio
   try {
     const { payload } = await jwtVerify(token, key(secret), { algorithms: ['HS256'], audience: 'nyaai' });
     const role = payload.role;
-    if (typeof payload.sub !== 'string' || typeof payload.col !== 'string' || typeof payload.iat !== 'number') return null;
+    if (typeof payload.sub !== 'string' || typeof payload.col !== 'string' || typeof payload.iat !== 'number')
+      return null;
     if (role !== 'teacher' && role !== 'admin' && role !== 'library_editor') return null;
     return { userId: payload.sub, collegeId: payload.col, role, iat: payload.iat, chk: Number(payload.chk) || 0 };
   } catch {

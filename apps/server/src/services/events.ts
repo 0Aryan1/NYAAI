@@ -21,7 +21,13 @@ export interface StoredEvent {
 export async function publishEvent(redis: Redis, userId: string, event: LiveEvent): Promise<number> {
   const id = await redis.incr(seqFor(userId));
   const payload = JSON.stringify({ id, event } satisfies StoredEvent);
-  await redis.multi().lpush(bufferFor(userId), payload).ltrim(bufferFor(userId), 0, BUFFER - 1).expire(bufferFor(userId), BUFFER_TTL_S).expire(seqFor(userId), 86_400).exec();
+  await redis
+    .multi()
+    .lpush(bufferFor(userId), payload)
+    .ltrim(bufferFor(userId), 0, BUFFER - 1)
+    .expire(bufferFor(userId), BUFFER_TTL_S)
+    .expire(seqFor(userId), 86_400)
+    .exec();
   await redis.publish(channelFor(userId), payload);
   return id;
 }

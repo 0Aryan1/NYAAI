@@ -17,7 +17,11 @@ describe('Build screen state (LLD §4.4)', () => {
   });
 
   it('ignores events for other lectures and other kinds of events', () => {
-    const other = reduceBuild(initialBuild, { type: 'build.step', lectureId: '00000000-0000-4000-8000-0000000000bb', step: 'checking' }, L);
+    const other = reduceBuild(
+      initialBuild,
+      { type: 'build.step', lectureId: '00000000-0000-4000-8000-0000000000bb', step: 'checking' },
+      L,
+    );
     expect(other).toBe(initialBuild);
     expect(reduceBuild(initialBuild, { type: 'notify', kind: 'x', title: 'y' }, L)).toBe(initialBuild);
   });

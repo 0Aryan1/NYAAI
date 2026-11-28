@@ -7,7 +7,14 @@ export function createLogger(config: Pick<Config, 'LOG_LEVEL' | 'NODE_ENV' | 'AP
     level: config.LOG_LEVEL,
     base: { role: config.APP_ROLE },
     redact: {
-      paths: ['req.headers.cookie', 'req.headers.authorization', 'req.headers["x-csrf-token"]', 'res.headers["set-cookie"]', '*.body', '*.text'],
+      paths: [
+        'req.headers.cookie',
+        'req.headers.authorization',
+        'req.headers["x-csrf-token"]',
+        'res.headers["set-cookie"]',
+        '*.body',
+        '*.text',
+      ],
       censor: '[redacted]',
     },
     ...(config.NODE_ENV === 'development'

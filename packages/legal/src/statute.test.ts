@@ -48,7 +48,7 @@ describe('splitStatute: Indian Contract Act, 1872', () => {
     const s25 = byKey(chunks, 's25');
     expect(s25.attachments.sort()).toEqual(['explanation', 'illustration']);
     expect(s25.text).toContain('Explanation 2.—An agreement to which the consent');
-    expect(s25.text).toContain("(g) A agrees to sell a horse worth Rs. 1,000 for Rs. 10. A denies");
+    expect(s25.text).toContain('(g) A agrees to sell a horse worth Rs. 1,000 for Rs. 10. A denies');
   });
 
   it('splits a long section only at sub-section boundaries, carrying intro and whole-section attachments', () => {
@@ -98,7 +98,11 @@ describe('splitStatute: Constitution, Art. 19', () => {
   it('turns amendment footnotes into metadata on the Article that carries the marker', () => {
     const notes = a19().amendments;
     expect(notes.length).toBe(8); // 5 footnotes on page 1, 3 on page 2
-    expect(notes[0]).toMatchObject({ marker: '1', amendingAct: 'Constitution (Ninety-seventh Amendment) Act, 2011', wef: '2012-02-08' });
+    expect(notes[0]).toMatchObject({
+      marker: '1',
+      amendingAct: 'Constitution (Ninety-seventh Amendment) Act, 2011',
+      wef: '2012-02-08',
+    });
     expect(notes.find((n) => n.note.startsWith('Sub-clause (f) omitted'))?.amendingAct).toBe(
       'Constitution (Forty-fourth Amendment) Act, 1978',
     );
@@ -130,7 +134,9 @@ describe('splitStatute: attachment rules', () => {
 
   it('keeps a proviso with its sub-section and a sub-section explanation with its own child only', () => {
     const chunks = splitStatute(text, { actName: 'Synthetic Act', actYear: 2026, kind: 'act', maxTokens: 10 });
-    const one = byKey(chunks, 's5(1)'), two = byKey(chunks, 's5(2)'), three = byKey(chunks, 's5(3)');
+    const one = byKey(chunks, 's5(1)'),
+      two = byKey(chunks, 's5(2)'),
+      three = byKey(chunks, 's5(3)');
     expect(one.text).toContain('Provided that he first gives notice.');
     expect(two.text).not.toContain('Provided that');
     expect(two.text).toContain('"twice" means on two days');
@@ -140,14 +146,19 @@ describe('splitStatute: attachment rules', () => {
   });
 
   it('fails the source when a proviso or explanation comes before any section', () => {
-    expect(() => splitStatute('Provided that nothing here applies.\n1. Title.—Text.', { actName: 'X', kind: 'act' })).toThrow(
-      OrphanAttachmentError,
+    expect(() =>
+      splitStatute('Provided that nothing here applies.\n1. Title.—Text.', { actName: 'X', kind: 'act' }),
+    ).toThrow(OrphanAttachmentError);
+    expect(() => splitStatute('Explanation.—Stray.\n1. Title.—Text.', { actName: 'X', kind: 'act' })).toThrow(
+      /explanation appears before any section/,
     );
-    expect(() => splitStatute('Explanation.—Stray.\n1. Title.—Text.', { actName: 'X', kind: 'act' })).toThrow(/explanation appears before any section/);
   });
 
   it('marks an omitted section as repealed', () => {
-    const [c] = splitStatute('31. [Compulsory acquisition of property.].—Omitted by the Constitution (Forty-fourth Amendment) Act, 1978, s. 6 (w.e.f. 20-6-1979).', CONST);
+    const [c] = splitStatute(
+      '31. [Compulsory acquisition of property.].—Omitted by the Constitution (Forty-fourth Amendment) Act, 1978, s. 6 (w.e.f. 20-6-1979).',
+      CONST,
+    );
     expect(c?.lawStatus).toBe('repealed');
   });
 });
@@ -186,13 +197,19 @@ describe('splitStatute: the official India Code PDF of the Indian Contract Act, 
   });
 
   it('turns s. 16’s footnote into an amendment note and joins a heading that wraps', () => {
-    expect(byKey(chunks, 's16').amendments[0]).toMatchObject({ amendingAct: 'Act 6 of 1899', note: 'Subs. by Act 6 of 1899, s. 2, for the original s. 16.' });
+    expect(byKey(chunks, 's16').amendments[0]).toMatchObject({
+      amendingAct: 'Act 6 of 1899',
+      note: 'Subs. by Act 6 of 1899, s. 2, for the original s. 16.',
+    });
     expect(byKey(chunks, 's25').title).toMatch(/^Agreement without consideration, void, .* barred by limitation law$/);
   });
 });
 
 describe('splitStatute: the official Constitution of India (Legislative Department, as on 10 September 2026)', () => {
-  const lines: Line[] = readFileSync(new URL('../test/fixtures/constitution-2026-09-10-lines.tsv', import.meta.url), 'utf8')
+  const lines: Line[] = readFileSync(
+    new URL('../test/fixtures/constitution-2026-09-10-lines.tsv', import.meta.url),
+    'utf8',
+  )
     .split('\n')
     .map((l) => {
       const [p, ...t] = l.split('\t');
@@ -220,14 +237,19 @@ describe('splitStatute: the official Constitution of India (Legislative Departme
     const a19 = byKey(chunks, 'a19');
     expect(a19.text).toContain('(c) to form associations or unions [or co-operative societies];');
     expect(a19.text).not.toContain('(Part III.');
-    expect(a19.amendments.find((a) => a.amendingAct === 'Constitution (Ninety-seventh Amendment) Act, 2011')?.wef).toBe('2012-02-08');
+    expect(a19.amendments.find((a) => a.amendingAct === 'Constitution (Ninety-seventh Amendment) Act, 2011')?.wef).toBe(
+      '2012-02-08',
+    );
     expect(byKey(chunks, 'a31').lawStatus).toBe('repealed');
   });
 });
 
 describe('splitStatute: whole India Code Acts (rules learned from the ADR and Property Law Acts)', () => {
   const split = (lines: [number, string][]) =>
-    splitStatute(lines.map(([pageNo, text]) => ({ pageNo, text })), { actName: 'X', actYear: 1882, kind: 'act', wholeDocument: true });
+    splitStatute(
+      lines.map(([pageNo, text]) => ({ pageNo, text })),
+      { actName: 'X', actYear: 1882, kind: 'act', wholeDocument: true },
+    );
   const top = (lines: [number, string][]) => split(lines).filter((c) => c.parentKey === null);
 
   it('skips a letter-spaced contents list and never starts an Act at a section other than 1', () => {
@@ -277,7 +299,9 @@ describe('splitStatute: whole India Code Acts (rules learned from the ADR and Pr
     ]);
     expect(units.map((u) => u.number)).toEqual(['1', '2', '3']);
     expect(units[1]!.text).toContain('(7) An arbitral award');
-    expect(units[2]!.title).toBe('Effect of arbitral and related court proceedings commenced prior to 23rd October, 2015');
+    expect(units[2]!.title).toBe(
+      'Effect of arbitral and related court proceedings commenced prior to 23rd October, 2015',
+    );
   });
 
   it('leaves out State amendments and stops at the Statement of Objects and Reasons', () => {
@@ -300,6 +324,12 @@ describe('splitStatute: whole India Code Acts (rules learned from the ADR and Pr
   });
 
   it('reports section numbers missing between 1 and the last', () => {
-    expect(missingSections([{ number: '1', parentKey: null }, { number: '2', parentKey: null }, { number: '4A', parentKey: null }])).toEqual([3]);
+    expect(
+      missingSections([
+        { number: '1', parentKey: null },
+        { number: '2', parentKey: null },
+        { number: '4A', parentKey: null },
+      ]),
+    ).toEqual([3]);
   });
 });

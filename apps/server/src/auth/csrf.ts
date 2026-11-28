@@ -11,7 +11,8 @@ export const CSRF_COOKIE = 'nyaai_csrf';
 export const CSRF_HEADER = 'x-csrf-token';
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-const sign = (token: string, userId: string, secret: string) => createHmac('sha256', secret).update(`${token}:${userId}`).digest('base64url');
+const sign = (token: string, userId: string, secret: string) =>
+  createHmac('sha256', secret).update(`${token}:${userId}`).digest('base64url');
 
 export function issueCsrf(res: Response, userId: string, secret: string, production: boolean): string {
   const token = randomBytes(24).toString('base64url');

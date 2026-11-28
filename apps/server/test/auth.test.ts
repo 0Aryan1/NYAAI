@@ -9,21 +9,37 @@ const ok = { email: 'Teacher@CNLU.ac.in', email_verified: true, hd: 'cnlu.ac.in'
 
 describe('Google claim checks (LLD §15.1)', () => {
   it('accepts a verified CNLU Workspace account', () => {
-    expect(checkGoogleClaims(ok, ['cnlu.ac.in'])).toEqual({ ok: true, email: 'teacher@cnlu.ac.in', name: 'Dr. Teacher', sub: '123' });
+    expect(checkGoogleClaims(ok, ['cnlu.ac.in'])).toEqual({
+      ok: true,
+      email: 'teacher@cnlu.ac.in',
+      name: 'Dr. Teacher',
+      sub: '123',
+    });
   });
   it('rejects unverified emails, other domains, and a missing or different hd claim', () => {
-    expect(checkGoogleClaims({ ...ok, email_verified: false }, ['cnlu.ac.in'])).toMatchObject({ reason: 'email_unverified' });
-    expect(checkGoogleClaims({ ...ok, email: 'x@gmail.com', hd: undefined }, ['cnlu.ac.in'])).toMatchObject({ reason: 'domain_not_allowed' });
+    expect(checkGoogleClaims({ ...ok, email_verified: false }, ['cnlu.ac.in'])).toMatchObject({
+      reason: 'email_unverified',
+    });
+    expect(checkGoogleClaims({ ...ok, email: 'x@gmail.com', hd: undefined }, ['cnlu.ac.in'])).toMatchObject({
+      reason: 'domain_not_allowed',
+    });
     expect(checkGoogleClaims({ ...ok, hd: undefined }, ['cnlu.ac.in'])).toMatchObject({ reason: 'hd_mismatch' });
     expect(checkGoogleClaims({ ...ok, hd: 'other.ac.in' }, ['cnlu.ac.in'])).toMatchObject({ reason: 'hd_mismatch' });
     expect(checkGoogleClaims({ email_verified: true }, ['cnlu.ac.in'])).toMatchObject({ reason: 'missing_claims' });
   });
   it('skips only the hd check when told to (development), never the domain or verification checks', () => {
     const gmail = { email: 'tester@gmail.com', email_verified: true, sub: '9' };
-    expect(checkGoogleClaims(gmail, ['gmail.com'], { requireHd: false })).toMatchObject({ ok: true, email: 'tester@gmail.com' });
+    expect(checkGoogleClaims(gmail, ['gmail.com'], { requireHd: false })).toMatchObject({
+      ok: true,
+      email: 'tester@gmail.com',
+    });
     expect(checkGoogleClaims(gmail, ['gmail.com'])).toMatchObject({ reason: 'hd_mismatch' });
-    expect(checkGoogleClaims(gmail, ['cnlu.ac.in'], { requireHd: false })).toMatchObject({ reason: 'domain_not_allowed' });
-    expect(checkGoogleClaims({ ...gmail, email_verified: false }, ['gmail.com'], { requireHd: false })).toMatchObject({ reason: 'email_unverified' });
+    expect(checkGoogleClaims(gmail, ['cnlu.ac.in'], { requireHd: false })).toMatchObject({
+      reason: 'domain_not_allowed',
+    });
+    expect(checkGoogleClaims({ ...gmail, email_verified: false }, ['gmail.com'], { requireHd: false })).toMatchObject({
+      reason: 'email_unverified',
+    });
   });
 
   it('checks the dev-login domain the same way', () => {
@@ -34,7 +50,11 @@ describe('Google claim checks (LLD §15.1)', () => {
 
 describe('session and CSRF tokens', () => {
   const secret = 's'.repeat(32);
-  const who = { userId: '00000000-0000-4000-8000-00000000000a', collegeId: '00000000-0000-4000-8000-000000000002', role: 'teacher' as const };
+  const who = {
+    userId: '00000000-0000-4000-8000-00000000000a',
+    collegeId: '00000000-0000-4000-8000-000000000002',
+    role: 'teacher' as const,
+  };
 
   it('round-trips a session and rejects a tampered or foreign one', async () => {
     const token = await signSession(who, secret);

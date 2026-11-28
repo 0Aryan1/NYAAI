@@ -56,7 +56,11 @@ export interface CourseContext {
 const MAX_TERMS = 40;
 const MAX_CASES = 30;
 
-const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const key = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 
 function uniqueBy<T>(items: T[], k: (t: T) => string): T[] {
   const seen = new Set<string>();
@@ -82,17 +86,27 @@ export function courseContext(units: CourseUnit[], unitId: string | null): Cours
   const next = after.find((u) => u.status === 'planned');
   const recent = taught.slice(-2);
   return {
-    earlier: recent.filter((u) => u.memory.summary).map((u) => ({ position: u.position, title: u.title, taughtOn: u.taughtOn, summary: u.memory.summary! })),
-    terms: uniqueBy(taught.flatMap((u) => u.memory.terms ?? []), key).slice(-MAX_TERMS),
+    earlier: recent
+      .filter((u) => u.memory.summary)
+      .map((u) => ({ position: u.position, title: u.title, taughtOn: u.taughtOn, summary: u.memory.summary! })),
+    terms: uniqueBy(
+      taught.flatMap((u) => u.memory.terms ?? []),
+      key,
+    ).slice(-MAX_TERMS),
     cases: uniqueBy(
       taught.flatMap((u) => (u.memory.cases ?? []).map((c) => ({ ...c, position: u.position }))),
       (c) => c.sourceId,
     ).slice(-MAX_CASES),
     runningExample: last?.memory.runningExample ?? null,
     // Threads left open by the last two lectures (older ones were either picked up or are stale).
-    openThreads: uniqueBy(recent.flatMap((u) => u.memory.openThreads ?? []), key),
+    openThreads: uniqueBy(
+      recent.flatMap((u) => u.memory.openThreads ?? []),
+      key,
+    ),
     next: next ? { position: next.position, title: next.title } : null,
-    untaughtEarlier: me ? before.filter((u) => u.status === 'planned').map((u) => ({ position: u.position, title: u.title })) : [],
+    untaughtEarlier: me
+      ? before.filter((u) => u.status === 'planned').map((u) => ({ position: u.position, title: u.title }))
+      : [],
     untaughtPrerequisites: me
       ? (me.prerequisites ?? [])
           .map((id) => sorted.find((u) => u.id === id))
@@ -110,15 +124,27 @@ export const hasMemory = (ctx: CourseContext) => ctx.earlier.length > 0 || ctx.t
 /** Course memory as plain text for the planner and the writer (passed inside a fenced, untrusted block). */
 export function courseMemoryText(ctx: CourseContext): string {
   const lines: string[] = [];
-  for (const e of ctx.earlier) lines.push(`${lectureNo(e.position)} ${e.title}${e.taughtOn ? ` (taught ${e.taughtOn})` : ''}: ${e.summary}`);
+  for (const e of ctx.earlier)
+    lines.push(`${lectureNo(e.position)} ${e.title}${e.taughtOn ? ` (taught ${e.taughtOn})` : ''}: ${e.summary}`);
   if (!ctx.earlier.length) lines.push('No lecture of this course has been marked taught yet.');
   if (ctx.terms.length) lines.push(`Terms the class already knows: ${ctx.terms.join('; ')}`);
-  if (ctx.cases.length) lines.push(`Cases already taught: ${ctx.cases.map((c) => `${c.name} (${lectureNo(c.position)})`).join('; ')}`);
+  if (ctx.cases.length)
+    lines.push(`Cases already taught: ${ctx.cases.map((c) => `${c.name} (${lectureNo(c.position)})`).join('; ')}`);
   if (ctx.runningExample) lines.push(`Running example used in class: ${ctx.runningExample}`);
   if (ctx.openThreads.length) lines.push(`Open threads (promised for a later class): ${ctx.openThreads.join('; ')}`);
-  if (ctx.untaughtPrerequisites.length) lines.push(`This lecture builds on lectures not taught yet (do not assume the class knows them): ${ctx.untaughtPrerequisites.map((u) => `${lectureNo(u.position)} ${u.title}`).join('; ')}`);
-  if (ctx.untaughtEarlier.length) lines.push(`Earlier lectures in the plan not taught yet (do not assume the class knows them): ${ctx.untaughtEarlier.map((u) => `${lectureNo(u.position)} ${u.title}`).join('; ')}`);
-  lines.push(ctx.next ? `Next lecture in the plan: ${lectureNo(ctx.next.position)} ${ctx.next.title}` : 'This is the last planned lecture of the course.');
+  if (ctx.untaughtPrerequisites.length)
+    lines.push(
+      `This lecture builds on lectures not taught yet (do not assume the class knows them): ${ctx.untaughtPrerequisites.map((u) => `${lectureNo(u.position)} ${u.title}`).join('; ')}`,
+    );
+  if (ctx.untaughtEarlier.length)
+    lines.push(
+      `Earlier lectures in the plan not taught yet (do not assume the class knows them): ${ctx.untaughtEarlier.map((u) => `${lectureNo(u.position)} ${u.title}`).join('; ')}`,
+    );
+  lines.push(
+    ctx.next
+      ? `Next lecture in the plan: ${lectureNo(ctx.next.position)} ${ctx.next.title}`
+      : 'This is the last planned lecture of the course.',
+  );
   return lines.join('\n');
 }
 
@@ -145,13 +171,16 @@ export interface SeriesUnit extends CourseUnit {
 export function seriesChecks(units: SeriesUnit[], classCount: number | null = null): SeriesCheck[] {
   const sorted = [...units].sort((a, b) => a.position - b.position);
   const out: SeriesCheck[] = [];
-  const casesOf = (u: SeriesUnit) => uniqueBy([...(u.lectureCases ?? []), ...(u.memory.cases ?? [])], (c) => c.sourceId);
+  const casesOf = (u: SeriesUnit) =>
+    uniqueBy([...(u.lectureCases ?? []), ...(u.memory.cases ?? [])], (c) => c.sourceId);
 
   for (const [i, u] of sorted.entries()) {
     if (u.status === 'skipped') continue;
     // A case taught again in a later lecture.
     for (const c of casesOf(u)) {
-      const first = sorted.slice(0, i).find((v) => v.status !== 'skipped' && casesOf(v).some((x) => x.sourceId === c.sourceId));
+      const first = sorted
+        .slice(0, i)
+        .find((v) => v.status !== 'skipped' && casesOf(v).some((x) => x.sourceId === c.sourceId));
       if (first) {
         out.push({
           kind: 'repeated_case',
@@ -165,7 +194,11 @@ export function seriesChecks(units: SeriesUnit[], classCount: number | null = nu
       for (const p of u.prerequisites ?? []) {
         const pre = sorted.find((v) => v.id === p);
         if (pre && pre.status !== 'taught') {
-          out.push({ kind: 'untaught_prerequisite', unitId: u.id, message: `${lectureNo(u.position)} builds on ${lectureNo(pre.position)} (${pre.title}), which is not marked taught yet.` });
+          out.push({
+            kind: 'untaught_prerequisite',
+            unitId: u.id,
+            message: `${lectureNo(u.position)} builds on ${lectureNo(pre.position)} (${pre.title}), which is not marked taught yet.`,
+          });
         }
       }
     }
@@ -183,7 +216,11 @@ export function seriesChecks(units: SeriesUnit[], classCount: number | null = nu
   }
   const planned = sorted.filter((u) => u.status !== 'skipped').length;
   if (classCount && planned > classCount) {
-    out.push({ kind: 'too_many_lectures', unitId: null, message: `The plan has ${planned} lectures for ${classCount} classes.` });
+    out.push({
+      kind: 'too_many_lectures',
+      unitId: null,
+      message: `The plan has ${planned} lectures for ${classCount} classes.`,
+    });
   }
   return out;
 }
@@ -193,17 +230,36 @@ export function seriesChecks(units: SeriesUnit[], classCount: number | null = nu
  * the slides").
  * ------------------------------------------------------------------------------------------------------------- */
 
-const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'into', 'under', 'which', 'when', 'where', 'over', 'their', 'there']);
-const contentWords = (t: string) => (t.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => w.length > 2 && !STOP.has(w));
+const STOP = new Set([
+  'the',
+  'and',
+  'for',
+  'with',
+  'from',
+  'that',
+  'this',
+  'into',
+  'under',
+  'which',
+  'when',
+  'where',
+  'over',
+  'their',
+  'there',
+]);
+const contentWords = (t: string) =>
+  (t.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => w.length > 2 && !STOP.has(w));
 
 /** A term is kept only if every word of it is on the slides (no new terms from the summariser). */
 export function termsOnSlides(terms: string[], slideText: string): string[] {
   const have = new Set(contentWords(slideText));
   return uniqueBy(
-    terms.map((t) => t.replace(/\s+/g, ' ').trim()).filter((t) => {
-      const w = contentWords(t);
-      return w.length > 0 && w.every((x) => have.has(x));
-    }),
+    terms
+      .map((t) => t.replace(/\s+/g, ' ').trim())
+      .filter((t) => {
+        const w = contentWords(t);
+        return w.length > 0 && w.every((x) => have.has(x));
+      }),
     key,
   );
 }
@@ -219,5 +275,8 @@ export function exampleOnSlides(example: string | null, slideText: string): stri
 /** Plan parts in teaching order: the recap first and the bridge last, whatever order they came in. */
 export function orderParts<P extends { kind: string }>(parts: P[]): P[] {
   const rank = (p: P) => (p.kind === 'recap' ? 0 : p.kind === 'bridge' ? 2 : 1);
-  return parts.map((p, i) => ({ p, i })).sort((a, b) => rank(a.p) - rank(b.p) || a.i - b.i).map(({ p }) => p);
+  return parts
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => rank(a.p) - rank(b.p) || a.i - b.i)
+    .map(({ p }) => p);
 }

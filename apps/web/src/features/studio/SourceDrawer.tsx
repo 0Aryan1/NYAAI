@@ -19,7 +19,8 @@ const CHECK_NAMES: Record<string, string> = {
   C10: 'Second check',
 };
 
-const squash = (s: string) => s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[‐-―]/g, '-').replace(/\s+/g, ' ').trim();
+const squash = (s: string) =>
+  s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[‐-―]/g, '-').replace(/\s+/g, ' ').trim();
 
 /** Splits the paragraph around the supporting words so they can be highlighted (spaces and quote styles aside). */
 export function highlight(text: string, span: string): [string, string, string] | null {
@@ -30,7 +31,11 @@ export function highlight(text: string, span: string): [string, string, string] 
 }
 
 export function SourceDrawer({ citationId, onClose }: { citationId: string; onClose: () => void }) {
-  const q = useQuery({ queryKey: queryKeys.citationSource(citationId), queryFn: () => api.citationSource(citationId), staleTime: 5 * 60_000 });
+  const q = useQuery({
+    queryKey: queryKeys.citationSource(citationId),
+    queryFn: () => api.citationSource(citationId),
+    staleTime: 5 * 60_000,
+  });
   const d = q.data;
   const parts = d?.text ? highlight(d.text, d.span) : null;
   // Case status is read live: an expert's later finding replaces the status the line was built with.
@@ -39,7 +44,11 @@ export function SourceDrawer({ citationId, onClose }: { citationId: string; onCl
     .filter((c) => c.result !== 'skipped')
     .map((c) =>
       c.name === 'C8' && live && live !== 'not_verified'
-        ? { ...c, result: live === 'overruled' || live === 'reversed' ? ('fail' as const) : ('pass' as const), detail: caseStatusLabel(live) }
+        ? {
+            ...c,
+            result: live === 'overruled' || live === 'reversed' ? ('fail' as const) : ('pass' as const),
+            detail: caseStatusLabel(live),
+          }
         : c,
     );
 
@@ -52,11 +61,21 @@ export function SourceDrawer({ citationId, onClose }: { citationId: string; onCl
           {d?.whyChosen && (d.whyChosen.relevance !== null || d.whyChosen.reasons.length > 0) && (
             <p className="mt-2 text-sm">
               <span className="font-medium">Why this source: </span>
-              {[d.whyChosen.relevance !== null ? `relevance ${Math.round(d.whyChosen.relevance * 10)}/10` : null, ...d.whyChosen.reasons].filter(Boolean).join(' · ')}
+              {[
+                d.whyChosen.relevance !== null ? `relevance ${Math.round(d.whyChosen.relevance * 10)}/10` : null,
+                ...d.whyChosen.reasons,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </p>
           )}
         </div>
-        <button type="button" onClick={onClose} className="rounded-control p-1 text-muted hover:bg-bg" aria-label="Close source">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-control p-1 text-muted hover:bg-bg"
+          aria-label="Close source"
+        >
           <X className="size-4" aria-hidden />
         </button>
       </div>
@@ -68,7 +87,19 @@ export function SourceDrawer({ citationId, onClose }: { citationId: string; onCl
           {(d.provisional || live) && (
             <div className="flex flex-wrap gap-2">
               {d.provisional && <Pill tone="grey">Not yet reviewed by the library team</Pill>}
-              {live && <Pill tone={live === 'not_verified' ? 'grey' : live === 'overruled' || live === 'reversed' ? 'yellow' : 'success'}>{caseStatusLabel(live)}</Pill>}
+              {live && (
+                <Pill
+                  tone={
+                    live === 'not_verified'
+                      ? 'grey'
+                      : live === 'overruled' || live === 'reversed'
+                        ? 'yellow'
+                        : 'success'
+                  }
+                >
+                  {caseStatusLabel(live)}
+                </Pill>
+              )}
             </div>
           )}
           {d.header && <p className="text-xs text-muted">{d.header}</p>}
@@ -84,12 +115,19 @@ export function SourceDrawer({ citationId, onClose }: { citationId: string; onCl
             ) : (
               <p>
                 <mark className="rounded bg-flag-yellow-bg px-0.5 text-text">{d.span || d.claim}</mark>
-                <span className="mt-2 block text-xs text-muted">The full text is no longer held; the supporting words above were saved with your lecture.</span>
+                <span className="mt-2 block text-xs text-muted">
+                  The full text is no longer held; the supporting words above were saved with your lecture.
+                </span>
               </p>
             )}
           </div>
           {d.url && (
-            <a href={d.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-sm text-accent underline">
+            <a
+              href={d.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center gap-1 text-sm text-accent underline"
+            >
               Open the official copy <ExternalLink className="size-3" aria-hidden />
             </a>
           )}
@@ -97,20 +135,20 @@ export function SourceDrawer({ citationId, onClose }: { citationId: string; onCl
             <p className="mb-1 text-xs uppercase tracking-wide text-muted">Checks on this line</p>
             <ul className="space-y-1 text-sm">
               {checks.map((c) => (
-                  <li key={c.name} className="flex items-start gap-2">
-                    {c.result === 'pass' ? (
-                      <Check className="mt-0.5 size-4 shrink-0 text-success" aria-label="passed" />
-                    ) : c.result === 'grey' ? (
-                      <Minus className="mt-0.5 size-4 shrink-0 text-flag-grey" aria-label="not verified" />
-                    ) : (
-                      <X className="mt-0.5 size-4 shrink-0 text-flag-yellow" aria-label="please verify" />
-                    )}
-                    <span className={cn(c.result === 'fail' && 'font-medium')}>
-                      {CHECK_NAMES[c.name] ?? c.name}
-                      {c.detail && <span className="block text-xs text-muted">{c.detail}</span>}
-                    </span>
-                  </li>
-                ))}
+                <li key={c.name} className="flex items-start gap-2">
+                  {c.result === 'pass' ? (
+                    <Check className="mt-0.5 size-4 shrink-0 text-success" aria-label="passed" />
+                  ) : c.result === 'grey' ? (
+                    <Minus className="mt-0.5 size-4 shrink-0 text-flag-grey" aria-label="not verified" />
+                  ) : (
+                    <X className="mt-0.5 size-4 shrink-0 text-flag-yellow" aria-label="please verify" />
+                  )}
+                  <span className={cn(c.result === 'fail' && 'font-medium')}>
+                    {CHECK_NAMES[c.name] ?? c.name}
+                    {c.detail && <span className="block text-xs text-muted">{c.detail}</span>}
+                  </span>
+                </li>
+              ))}
             </ul>
           </div>
         </div>

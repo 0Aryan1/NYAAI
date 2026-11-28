@@ -15,13 +15,38 @@ import type { Storage } from '../storage/index.ts';
 
 /** Her own rows in each table, as stored (the teacher-owned tables of the schema). */
 const HER_TABLES = [
-  'teacher_profiles', 'consents', 'courses', 'course_units', 'lectures', 'lecture_inputs', 'slides', 'slide_versions',
-  'citations', 'coverage_items', 'research_runs', 'research_questions', 'evidence_items', 'reading_list_items',
-  'uploads', 'examples', 'edit_events', 'style_changes', 'coach_suggestions', 'feedback', 'notifications', 'reports',
-  'templates', 'usage',
+  'teacher_profiles',
+  'consents',
+  'courses',
+  'course_units',
+  'lectures',
+  'lecture_inputs',
+  'slides',
+  'slide_versions',
+  'citations',
+  'coverage_items',
+  'research_runs',
+  'research_questions',
+  'evidence_items',
+  'reading_list_items',
+  'uploads',
+  'examples',
+  'edit_events',
+  'style_changes',
+  'coach_suggestions',
+  'feedback',
+  'notifications',
+  'reports',
+  'templates',
+  'usage',
 ] as const;
 
-const safeName = (s: string) => s.replace(/[^\w.\- ]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || 'file';
+const safeName = (s: string) =>
+  s
+    .replace(/[^\w.\- ]+/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || 'file';
 
 const README = `Your data from NYAAI
 ====================
@@ -37,9 +62,19 @@ notes/         The documents you uploaded as your notes, as you uploaded them.
 Your slides can also be downloaded as PowerPoint from each lecture in NYAAI.
 `;
 
-export async function exportTeacherData(c: pg.PoolClient, who: TenantIdentity, storage: Storage | undefined): Promise<Uint8Array> {
+export async function exportTeacherData(
+  c: pg.PoolClient,
+  who: TenantIdentity,
+  storage: Storage | undefined,
+): Promise<Uint8Array> {
   const data: Record<string, unknown> = { exportedAt: new Date().toISOString() };
-  data.account = (await c.query("select u.name, u.email, u.role, u.created_at, c.name as college from users u join colleges c on c.id = u.college_id where u.id = $1", [who.userId])).rows[0] ?? null;
+  data.account =
+    (
+      await c.query(
+        'select u.name, u.email, u.role, u.created_at, c.name as college from users u join colleges c on c.id = u.college_id where u.id = $1',
+        [who.userId],
+      )
+    ).rows[0] ?? null;
   for (const t of HER_TABLES) {
     data[t] = (await c.query(`select * from ${t} where owner_id = $1`, [who.userId])).rows;
   }
@@ -56,7 +91,12 @@ export async function exportTeacherData(c: pg.PoolClient, who: TenantIdentity, s
   zip.file('README.txt', README);
   zip.file('my-data.json', JSON.stringify(data, null, 2));
   if (storage) {
-    const uploads = (await c.query<{ id: string; file_name: string; storage_key: string; status: string }>("select id, file_name, storage_key, status from uploads where owner_id = $1 and status <> 'deleted'", [who.userId])).rows;
+    const uploads = (
+      await c.query<{ id: string; file_name: string; storage_key: string; status: string }>(
+        "select id, file_name, storage_key, status from uploads where owner_id = $1 and status <> 'deleted'",
+        [who.userId],
+      )
+    ).rows;
     for (const [i, u] of uploads.entries()) {
       try {
         zip.file(`notes/${i + 1}-${safeName(u.file_name)}`, await storage.get(u.storage_key));
@@ -75,8 +115,11 @@ export interface ForgetResult {
 }
 
 /** The `ops.delete_user_data` job: log, delete every row (one transaction), then her files. */
-export async function forgetTeacher(who: TenantIdentity, deps: { worker: pg.Pool; storage: Storage | null }): Promise<ForgetResult> {
-  const tenant = <T,>(fn: (c: pg.PoolClient) => Promise<T>) => withTenant(deps.worker, who, fn);
+export async function forgetTeacher(
+  who: TenantIdentity,
+  deps: { worker: pg.Pool; storage: Storage | null },
+): Promise<ForgetResult> {
+  const tenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) => withTenant(deps.worker, who, fn);
   const { logId, keys } = await tenant(async (c) => {
     const id = (
       await c.query<{ id: string }>(
@@ -84,10 +127,16 @@ export async function forgetTeacher(who: TenantIdentity, deps: { worker: pg.Pool
         [who.collegeId, who.userId, { what: 'everything', by: 'the teacher herself' }],
       )
     ).rows[0]!.id;
-    const keys = (await c.query<{ storage_key: string }>('select storage_key from uploads where owner_id = $1', [who.userId])).rows.map((r) => r.storage_key);
+    const keys = (
+      await c.query<{ storage_key: string }>('select storage_key from uploads where owner_id = $1', [who.userId])
+    ).rows.map((r) => r.storage_key);
     return { logId: id, keys };
   });
-  const counts = await tenant(async (c) => (await c.query<{ counts: Record<string, number> }>('select forget_teacher($1) as counts', [who.userId])).rows[0]!.counts);
+  const counts = await tenant(
+    async (c) =>
+      (await c.query<{ counts: Record<string, number> }>('select forget_teacher($1) as counts', [who.userId])).rows[0]!
+        .counts,
+  );
 
   // Files: every upload she made, and anything else under her private folder.
   let files = 0;
@@ -98,6 +147,8 @@ export async function forgetTeacher(who: TenantIdentity, deps: { worker: pg.Pool
       files++;
     }
   }
-  await tenant((c) => c.query('update deletion_log set counts = $2, finished_at = now() where id = $1', [logId, { ...counts, files }]));
+  await tenant((c) =>
+    c.query('update deletion_log set counts = $2, finished_at = now() where id = $1', [logId, { ...counts, files }]),
+  );
   return { logId, counts, files };
 }

@@ -6,7 +6,8 @@
 import { casePartyWords } from '@nyaai/legal';
 import { normaliseForSpan } from './normalise.ts';
 
-export type ClaimType = 'rule' | 'holding' | 'date' | 'punishment' | 'time_limit' | 'mapping' | 'quote' | 'fact' | 'example' | 'news_report';
+export type ClaimType =
+  'rule' | 'holding' | 'date' | 'punishment' | 'time_limit' | 'mapping' | 'quote' | 'fact' | 'example' | 'news_report';
 
 export interface ClaimInput {
   text: string;
@@ -88,22 +89,31 @@ export function riskOf(claim: Pick<ClaimInput, 'text' | 'type'>): 'normal' | 'hi
 
 // "held" in the meeting sense ("proceedings shall be held at New Delhi", "the hearing was held on 3 May") is not a
 // holding; "it was held that" still is.
-const HELD = /\b(?:(?<!\b(?:shall|will|to|may|must|would|should|can|could)\s+be\s+)held(?!\s+(?:at|on)\b)|holds|hold that|ruled|rules that|laid down|lays down|the court decided)\b/i;
-const CASE_NAME = /\b([A-Z][\w.&'’-]*(?:\s+(?:[A-Z][\w.&'’-]*|of|and|&))*)\s+(?:v\.?|vs\.?|versus)\s+([A-Z][\w.&'’-]*(?:\s+(?:[A-Z][\w.&'’-]*|of|and|&))*)/g;
+const HELD =
+  /\b(?:(?<!\b(?:shall|will|to|may|must|would|should|can|could)\s+be\s+)held(?!\s+(?:at|on)\b)|holds|hold that|ruled|rules that|laid down|lays down|the court decided)\b/i;
+const CASE_NAME =
+  /\b([A-Z][\w.&'’-]*(?:\s+(?:[A-Z][\w.&'’-]*|of|and|&))*)\s+(?:v\.?|vs\.?|versus)\s+([A-Z][\w.&'’-]*(?:\s+(?:[A-Z][\w.&'’-]*|of|and|&))*)/g;
 const YEAR = /\b(?:1[6-9]|20)\d{2}\b/g;
 const SECTION_REF = /\b(?:s|ss|sec|secs|section|sections)\.?\s*(\d{1,4}[A-Z]{0,3})\b/gi;
 const ARTICLE_REF = /\b(?:art|arts|article|articles)\.?\s*(\d{1,3}[A-Z]{0,3})\b/gi;
 const COURT = /\b(Supreme Court|Privy Council|(?:[A-Z][a-z]+\s+)?High Court)\b/g;
 const QUOTED = /[“"]([^”"]{12,})[”"]/g;
-const OLD_LAW = /\b(IPC|Indian Penal Code|CrPC|Cr\.P\.C\.|Code of Criminal Procedure|Indian Evidence Act|Evidence Act)\b/i;
-const NEW_LAW = /\b(BNS|Bharatiya Nyaya Sanhita|BNSS|Bharatiya Nagarik Suraksha Sanhita|BSA|Bharatiya Sakshya Adhiniyam)\b/i;
+const OLD_LAW =
+  /\b(IPC|Indian Penal Code|CrPC|Cr\.P\.C\.|Code of Criminal Procedure|Indian Evidence Act|Evidence Act)\b/i;
+const NEW_LAW =
+  /\b(BNS|Bharatiya Nyaya Sanhita|BNSS|Bharatiya Nagarik Suraksha Sanhita|BSA|Bharatiya Sakshya Adhiniyam)\b/i;
 const EQUIVALENT = /\b(equivalent|corresponds? to|same as|replaced by|re-?enacted as|identical)\b/i;
 /** "has no direct equivalent", "is not the same as": saying it is NOT equivalent is what such a row asks for. */
-const NOT_EQUIVALENT = /\b(?:no|not|without|never)\s+(?:(?:a|an|any|the|really|quite|exactly)\s+)*(?:direct\s+|exact\s+|true\s+)?(?:equivalent|counterpart|identical|the\s+same(?:\s+as)?|same\s+as|correspond(?:s|ing)?(?:\s+to)?)\b/gi;
+const NOT_EQUIVALENT =
+  /\b(?:no|not|without|never)\s+(?:(?:a|an|any|the|really|quite|exactly)\s+)*(?:direct\s+|exact\s+|true\s+)?(?:equivalent|counterpart|identical|the\s+same(?:\s+as)?|same\s+as|correspond(?:s|ing)?(?:\s+to)?)\b/gi;
 const NEWS_WORDING = /^\s*(?:it was reported|it has been reported|reports say|according to (?:news )?reports)\b/i;
 
 const lower = (s: string) => normaliseForSpan(s).toLowerCase();
-const result = (name: CheckName, ok: boolean, detail: string | null): CheckResult => ({ name, result: ok ? 'pass' : 'fail', detail: ok ? null : detail });
+const result = (name: CheckName, ok: boolean, detail: string | null): CheckResult => ({
+  name,
+  result: ok ? 'pass' : 'fail',
+  detail: ok ? null : detail,
+});
 
 /** Which piece holds the span (judgment paragraphs first, so C7 sees the paragraph's own role). */
 function locate(span: string, src: CheckSource): { piece: SourcePiece | null; start: number; end: number } | null {
@@ -122,26 +132,44 @@ function detailsCheck(claim: ClaimInput, src: CheckSource): CheckResult {
   const hay = lower(`${src.header}\n${src.title ?? ''}\n${src.text}`);
   const srcYear = src.decidedOn?.slice(0, 4) ?? src.header.match(YEAR)?.[0] ?? null;
   for (const y of claim.text.match(YEAR) ?? []) {
-    if (!hay.includes(y) && y !== srcYear) return result('C3', false, srcYear ? `Year differs: source says ${srcYear}` : `Year ${y} is not in the source`);
+    if (!hay.includes(y) && y !== srcYear)
+      return result('C3', false, srcYear ? `Year differs: source says ${srcYear}` : `Year ${y} is not in the source`);
   }
   for (const m of claim.text.matchAll(SECTION_REF)) {
     const n = m[1]!.toUpperCase();
     const own = src.section?.toUpperCase() === n;
     if (!own && !new RegExp(`(?:^|[^\\d])${n}(?:[^\\dA-Z]|$)`, 'i').test(`${src.header}\n${src.text}`)) {
-      return result('C3', false, src.section ? `Section differs: source is s. ${src.section}` : `Section ${n} is not in the source`);
+      return result(
+        'C3',
+        false,
+        src.section ? `Section differs: source is s. ${src.section}` : `Section ${n} is not in the source`,
+      );
     }
   }
   for (const m of claim.text.matchAll(ARTICLE_REF)) {
     const n = m[1]!.toUpperCase();
-    if (src.article?.toUpperCase() !== n && !new RegExp(`(?:^|[^\\d])${n}(?:[^\\dA-Z]|$)`, 'i').test(`${src.header}\n${src.text}`)) {
-      return result('C3', false, src.article ? `Article differs: source is Article ${src.article}` : `Article ${n} is not in the source`);
+    if (
+      src.article?.toUpperCase() !== n &&
+      !new RegExp(`(?:^|[^\\d])${n}(?:[^\\dA-Z]|$)`, 'i').test(`${src.header}\n${src.text}`)
+    ) {
+      return result(
+        'C3',
+        false,
+        src.article ? `Article differs: source is Article ${src.article}` : `Article ${n} is not in the source`,
+      );
     }
   }
   for (const m of claim.text.matchAll(CASE_NAME)) {
     const name = `${m[1]} v. ${m[2]}`;
     const words = casePartyWords(name);
-    const found = words.length === 2 && words.some((w) => w !== null) && words.every((w) => w === null || hay.includes(w));
-    if (!found) return result('C3', false, src.title ? `Case name differs: source is ${src.title}` : `${name} is not in the source`);
+    const found =
+      words.length === 2 && words.some((w) => w !== null) && words.every((w) => w === null || hay.includes(w));
+    if (!found)
+      return result(
+        'C3',
+        false,
+        src.title ? `Case name differs: source is ${src.title}` : `${name} is not in the source`,
+      );
   }
   for (const m of claim.text.matchAll(COURT)) {
     // "the High Court" is generic; "Calcutta High Court" must be that court.
@@ -164,27 +192,50 @@ function mappingCheck(claim: ClaimInput, mappings: MappingRow[]): CheckResult {
   // old section alone is enough.
   const row =
     mappings.find((r) => secs.some((s) => r.oldSections.includes(s)) && secs.some((s) => r.newSections.includes(s))) ??
-    mappings.find((r) => r.relation === 'no_direct_equivalent' && r.signed && secs.some((s) => r.oldSections.includes(s)));
+    mappings.find(
+      (r) => r.relation === 'no_direct_equivalent' && r.signed && secs.some((s) => r.oldSections.includes(s)),
+    );
   if (!row || !row.signed) return result('C5', false, 'Mapping not confirmed');
-  if ((row.relation === 'substantively_changed' || row.relation === 'no_direct_equivalent') && EQUIVALENT.test(claim.text.replace(NOT_EQUIVALENT, ' '))) {
-    return result('C5', false, row.relation === 'substantively_changed' ? 'Not an equivalent: substantively changed' : 'Not an equivalent: no direct equivalent');
+  if (
+    (row.relation === 'substantively_changed' || row.relation === 'no_direct_equivalent') &&
+    EQUIVALENT.test(claim.text.replace(NOT_EQUIVALENT, ' '))
+  ) {
+    return result(
+      'C5',
+      false,
+      row.relation === 'substantively_changed'
+        ? 'Not an equivalent: substantively changed'
+        : 'Not an equivalent: no direct equivalent',
+    );
   }
   return result('C5', true, null);
 }
 
 /* ------------------------------------------------------------------------------------------- C7: paragraph role */
 
-function roleCheck(claim: ClaimInput, src: CheckSource, piece: SourcePiece | null, risk: 'normal' | 'high'): CheckResult {
+function roleCheck(
+  claim: ClaimInput,
+  src: CheckSource,
+  piece: SourcePiece | null,
+  risk: 'normal' | 'high',
+): CheckResult {
   const isHeld = claim.type === 'holding' || HELD.test(claim.text);
   if (!isHeld) return { name: 'C7', result: 'skipped', detail: null };
-  if (src.sourceType !== 'judgment') return result('C7', false, 'Not the court\'s majority reasoning');
+  if (src.sourceType !== 'judgment') return result('C7', false, "Not the court's majority reasoning");
   if (!piece) return result('C7', false, 'The words run across paragraphs; cite one paragraph');
-  if (piece.kind === 'headnote' || piece.paraRole === 'headnote') return result('C7', false, 'A headnote is not what the court held');
+  if (piece.kind === 'headnote' || piece.paraRole === 'headnote')
+    return result('C7', false, 'A headnote is not what the court held');
   if (piece.opinion === 'separate_no_majority') {
     return src.holdingNote ? result('C7', true, null) : result('C7', false, 'Separate opinions, no single majority');
   }
-  if (piece.opinion !== 'majority') return result('C7', false, piece.opinion === 'dissent' ? 'This is a dissent, not what the court held' : 'Not the court\'s majority reasoning');
-  if (piece.paraRole !== 'holding' && piece.paraRole !== 'discussion') return result('C7', false, 'Not the court\'s majority reasoning');
+  if (piece.opinion !== 'majority')
+    return result(
+      'C7',
+      false,
+      piece.opinion === 'dissent' ? 'This is a dissent, not what the court held' : "Not the court's majority reasoning",
+    );
+  if (piece.paraRole !== 'holding' && piece.paraRole !== 'discussion')
+    return result('C7', false, "Not the court's majority reasoning");
   if (risk === 'high' && !src.rolesSampled) return result('C7', false, 'Labels not yet checked by an expert');
   return result('C7', true, null);
 }
@@ -192,23 +243,48 @@ function roleCheck(claim: ClaimInput, src: CheckSource, piece: SourcePiece | nul
 /* ---------------------------------------------------------------------------------------------- C1–C8 */
 
 /** Runs C1–C8 in order. C1 or C2 failing stops the checks that need the source text. */
-export function codeChecks(claim: ClaimInput, sources: ReadonlyMap<string, CheckSource>, mappings: MappingRow[] = []): CodeCheckOutcome {
+export function codeChecks(
+  claim: ClaimInput,
+  sources: ReadonlyMap<string, CheckSource>,
+  mappings: MappingRow[] = [],
+): CodeCheckOutcome {
   const risk = riskOf(claim);
   const src = sources.get(claim.tag);
   const skipped = (names: CheckName[]) => names.map((name) => ({ name, result: 'skipped' as const, detail: null }));
-  if (!src) return { results: [result('C1', false, 'Source not supplied'), ...skipped(['C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8'])], risk, chunkId: null, spanStart: null, spanEnd: null };
+  if (!src)
+    return {
+      results: [result('C1', false, 'Source not supplied'), ...skipped(['C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8'])],
+      risk,
+      chunkId: null,
+      spanStart: null,
+      spanEnd: null,
+    };
 
   const at = normaliseForSpan(claim.span).length >= 8 && !/\.\.\.|…/.test(claim.span) ? locate(claim.span, src) : null;
   if (!at) {
-    return { results: [result('C1', true, null), result('C2', false, 'These words are not in the source'), ...skipped(['C3', 'C4', 'C5', 'C6', 'C7', 'C8'])], risk, chunkId: null, spanStart: null, spanEnd: null };
+    return {
+      results: [
+        result('C1', true, null),
+        result('C2', false, 'These words are not in the source'),
+        ...skipped(['C3', 'C4', 'C5', 'C6', 'C7', 'C8']),
+      ],
+      risk,
+      chunkId: null,
+      spanStart: null,
+      spanEnd: null,
+    };
   }
 
   const results: CheckResult[] = [result('C1', true, null), result('C2', true, null), detailsCheck(claim, src)];
 
   // C4: words in quotation marks must be in the source character for character (quote styles and spaces aside).
   const srcNorm = normaliseForSpan(src.text);
-  const badQuote = [...claim.text.matchAll(QUOTED)].map((m) => m[1]!).find((q) => !srcNorm.includes(normaliseForSpan(q)));
-  results.push(badQuote === undefined ? result('C4', true, null) : result('C4', false, 'Quote differs from the source'));
+  const badQuote = [...claim.text.matchAll(QUOTED)]
+    .map((m) => m[1]!)
+    .find((q) => !srcNorm.includes(normaliseForSpan(q)));
+  results.push(
+    badQuote === undefined ? result('C4', true, null) : result('C4', false, 'Quote differs from the source'),
+  );
 
   results.push(mappingCheck(claim, mappings));
 
@@ -216,9 +292,21 @@ export function codeChecks(claim: ClaimInput, sources: ReadonlyMap<string, Check
   // examples and facts only: a statement of law (a rule, holding, date, punishment, time limit, mapping or quotation)
   // needs the Act or a judgment, so a slip in her notes never reaches the class unflagged.
   if (src.sourceType === 'news' || src.sourceType === 'web') {
-    results.push(result('C6', claim.type === 'news_report' && NEWS_WORDING.test(claim.text), 'News cannot support a statement of law'));
+    results.push(
+      result(
+        'C6',
+        claim.type === 'news_report' && NEWS_WORDING.test(claim.text),
+        'News cannot support a statement of law',
+      ),
+    );
   } else if (src.sourceType === 'teacher_note') {
-    results.push(result('C6', claim.type === 'example' || claim.type === 'fact', 'Your notes cannot support a statement of law; cite the Act or a judgment'));
+    results.push(
+      result(
+        'C6',
+        claim.type === 'example' || claim.type === 'fact',
+        'Your notes cannot support a statement of law; cite the Act or a judgment',
+      ),
+    );
   } else {
     results.push(result('C6', claim.type !== 'news_report', 'Only news can be reported as news'));
   }
@@ -229,12 +317,21 @@ export function codeChecks(claim: ClaimInput, sources: ReadonlyMap<string, Check
   if (src.sourceType === 'judgment') {
     const status = src.caseStatus ?? 'not_verified';
     if (status === 'not_verified') results.push({ name: 'C8', result: 'grey', detail: 'Status not verified' });
-    else if ((status === 'overruled' || status === 'reversed') && !new RegExp(`\\b${status}\\b`, 'i').test(claim.text)) {
+    else if (
+      (status === 'overruled' || status === 'reversed') &&
+      !new RegExp(`\\b${status}\\b`, 'i').test(claim.text)
+    ) {
       results.push(result('C8', false, status === 'overruled' ? 'This case was overruled' : 'This case was reversed'));
     } else results.push(result('C8', true, null));
   } else results.push({ name: 'C8', result: 'skipped', detail: null });
 
-  return { results, risk, chunkId: at.piece?.chunkId ?? src.pieces[0]?.chunkId ?? null, spanStart: at.start, spanEnd: at.end };
+  return {
+    results,
+    risk,
+    chunkId: at.piece?.chunkId ?? src.pieces[0]?.chunkId ?? null,
+    spanStart: at.start,
+    spanEnd: at.end,
+  };
 }
 
 /** Checks whose failure sends a claim back to the writer once (LLD §8.3, repair loop). */
@@ -260,10 +357,13 @@ export function decide(results: CheckResult[]): Decision {
   return { status: 'supported', flag: null, reason: null };
 }
 
-const LEGAL_EFFECT = /\b(?:is|are|becomes|become|shall be|will be)\s+(?:void|voidable|valid|enforceable|unenforceable|liable|punishable|discharged|frustrated)\b/i;
-const TIME_OR_PENALTY = /\b\d+\s*(?:days?|weeks?|months?|years?)\b|\bwithin\s+(?:a\s+)?(?:\d+|one|two|three|six|seven|ten|thirty|sixty|ninety)\b|\bimprisonment\b|\bfine of\b|\bpenalty of\b|\b(?:rs\.?|₹)\s*\d/i;
+const LEGAL_EFFECT =
+  /\b(?:is|are|becomes|become|shall be|will be)\s+(?:void|voidable|valid|enforceable|unenforceable|liable|punishable|discharged|frustrated)\b/i;
+const TIME_OR_PENALTY =
+  /\b\d+\s*(?:days?|weeks?|months?|years?)\b|\bwithin\s+(?:a\s+)?(?:\d+|one|two|three|six|seven|ten|thirty|sixty|ninety)\b|\bimprisonment\b|\bfine of\b|\bpenalty of\b|\b(?:rs\.?|₹)\s*\d/i;
 /** A source named and then made to say something: "Section 56 makes…", "Article 19 guarantees…". */
-const ASSERTS = /\b(?:provides?|makes?|declares?|requires?|renders?|guarantees?|prohibits?|permits?|governs?|applies to|says that|states that|lays down|holds that)\b/i;
+const ASSERTS =
+  /\b(?:provides?|makes?|declares?|requires?|renders?|guarantees?|prohibits?|permits?|governs?|applies to|says that|states that|lays down|holds that)\b/i;
 
 /**
  * A line the writer marked teaching, question or transition must not state law without a claim. It is flagged when
@@ -274,7 +374,10 @@ export function looksLegal(text: string): boolean {
   if (HELD.test(text)) return true;
   if (/\?\s*$/.test(text)) return false; // a question asks; it does not state the law
   if (LEGAL_EFFECT.test(text) || TIME_OR_PENALTY.test(text)) return true;
-  const namesSource = new RegExp(SECTION_REF.source, 'i').test(text) || new RegExp(ARTICLE_REF.source, 'i').test(text) || new RegExp(CASE_NAME.source).test(text);
+  const namesSource =
+    new RegExp(SECTION_REF.source, 'i').test(text) ||
+    new RegExp(ARTICLE_REF.source, 'i').test(text) ||
+    new RegExp(CASE_NAME.source).test(text);
   return namesSource && ASSERTS.test(text);
 }
 

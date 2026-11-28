@@ -24,7 +24,12 @@ const LABEL_BATCH_CHARS = 24_000;
 const LABEL_PARA_CHARS = 4_000;
 
 const Labels = z.object({
-  labels: z.array(z.object({ id: z.string(), role: z.enum(['facts', 'arguments', 'lower_court_summary', 'discussion', 'holding', 'unknown']) })),
+  labels: z.array(
+    z.object({
+      id: z.string(),
+      role: z.enum(['facts', 'arguments', 'lower_court_summary', 'discussion', 'holding', 'unknown']),
+    }),
+  ),
 });
 
 export interface FinishDeps {
@@ -66,7 +71,9 @@ interface ChunkRow {
 }
 
 /** Required labels per chunk (LLD §6.6). Returns what is missing. */
-export function missingLabels(c: Pick<ChunkRow, 'source_type' | 'kind' | 'act_name' | 'section' | 'article' | 'court' | 'decided_on' | 'para_no'>): string[] {
+export function missingLabels(
+  c: Pick<ChunkRow, 'source_type' | 'kind' | 'act_name' | 'section' | 'article' | 'court' | 'decided_on' | 'para_no'>,
+): string[] {
   const missing: string[] = [];
   if (c.source_type === 'act' && (!c.act_name || !c.section)) missing.push('act and section');
   if (c.source_type === 'constitution' && !c.article) missing.push('article');
@@ -80,7 +87,12 @@ export function missingLabels(c: Pick<ChunkRow, 'source_type' | 'kind' | 'act_na
 
 export async function finishSource(sourceId: string, deps: FinishDeps): Promise<FinishResult> {
   const { library } = deps;
-  const src = (await library.query<{ id: string; origin: string; type: string; college_id: string }>('select id, origin, type, college_id from sources where id = $1', [sourceId])).rows[0];
+  const src = (
+    await library.query<{ id: string; origin: string; type: string; college_id: string }>(
+      'select id, origin, type, college_id from sources where id = $1',
+      [sourceId],
+    )
+  ).rows[0];
   if (!src) throw new Error(`source ${sourceId} not found`);
   const chunks = (
     await library.query<ChunkRow>(
@@ -93,7 +105,9 @@ export async function finishSource(sourceId: string, deps: FinishDeps): Promise<
 
   // 5. Label: judgment paragraphs the rules could not place.
   let labelled = 0;
-  const unlabelled = chunks.filter((c) => c.source_type === 'judgment' && c.kind !== 'headnote' && c.para_role === null);
+  const unlabelled = chunks.filter(
+    (c) => c.source_type === 'judgment' && c.kind !== 'headnote' && c.para_role === null,
+  );
   if (unlabelled.length && deps.gateway) {
     for (const batch of batchByChars(unlabelled, LABEL_BATCH_CHARS)) {
       const boundary = randomBytes(6).toString('hex');
@@ -121,9 +135,17 @@ export async function finishSource(sourceId: string, deps: FinishDeps): Promise<
   const toEmbed = chunks.filter((c) => !c.embedded && !c.has_children);
   let embedded = 0;
   for (const batch of batchByChars(toEmbed, 200_000)) {
-    const vectors = await deps.voyage.embed(batch.map((c) => `${c.header ?? ''}\n${c.text}`), 'document', 'embed.library');
+    const vectors = await deps.voyage.embed(
+      batch.map((c) => `${c.header ?? ''}\n${c.text}`),
+      'document',
+      'embed.library',
+    );
     for (let i = 0; i < batch.length; i++) {
-      await library.query('update chunks set embedding = $2::vector, embed_model = $3 where id = $1', [batch[i]!.id, toVector(vectors[i]!), deps.embedModel]);
+      await library.query('update chunks set embedding = $2::vector, embed_model = $3 where id = $1', [
+        batch[i]!.id,
+        toVector(vectors[i]!),
+        deps.embedModel,
+      ]);
       embedded++;
     }
   }
@@ -135,7 +157,10 @@ export async function finishSource(sourceId: string, deps: FinishDeps): Promise<
   for (const c of chunks) {
     const missing = missingLabels(c);
     if (missing.length) needsReview++;
-    await library.query('update chunks set status = $2 where id = $1', [c.id, missing.length ? 'needs_review' : goodStatus]);
+    await library.query('update chunks set status = $2 where id = $1', [
+      c.id,
+      missing.length ? 'needs_review' : goodStatus,
+    ]);
   }
   const status = needsReview === chunks.length ? 'needs_review' : goodStatus;
   await library.query('update sources set status = $2 where id = $1', [sourceId, status]);

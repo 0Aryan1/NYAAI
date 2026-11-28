@@ -39,7 +39,12 @@ export function searchRouter(deps: SearchApiDeps) {
           order by greatest(similarity(name, $2), (select max(similarity(a, $2)) from unnest(aliases) a)) desc nulls last limit 4`,
         [like, q],
       );
-      const sections = await c.query<{ header: string; act_name: string | null; section: string | null; article: string | null }>(
+      const sections = await c.query<{
+        header: string;
+        act_name: string | null;
+        section: string | null;
+        article: string | null;
+      }>(
         `select header, act_name, section, article from chunks
           where visibility = 'shared' and parent_id is null and source_type in ('act', 'constitution') and status in ('live', 'provisional')
             and law_status is distinct from 'repealed'
@@ -66,7 +71,12 @@ export function searchRouter(deps: SearchApiDeps) {
         const short = x.header.split(' › ').pop() ?? x.header;
         return { kind: 'section' as const, label: short, detail: x.act_name ?? null, value: short };
       }),
-      ...rows.cases.map((x) => ({ kind: 'case' as const, label: x.title, detail: [x.court, x.decided_on?.getFullYear()].filter(Boolean).join(', ') || null, value: x.title })),
+      ...rows.cases.map((x) => ({
+        kind: 'case' as const,
+        label: x.title,
+        detail: [x.court, x.decided_on?.getFullYear()].filter(Boolean).join(', ') || null,
+        value: x.title,
+      })),
       ...rows.units.map((x) => ({ kind: 'unit' as const, label: x.title, detail: x.course, value: x.title })),
     ].slice(0, 8);
     res.setHeader('Server-Timing', `db;dur=${Date.now() - started}`);
@@ -81,7 +91,12 @@ export function searchRouter(deps: SearchApiDeps) {
 
   r.get('/events/stream', async (req, res) => {
     const userId = req.identity!.userId;
-    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+    res.writeHead(200, {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache, no-transform',
+      connection: 'keep-alive',
+      'x-accel-buffering': 'no',
+    });
     const send = (id: number, data: string) => res.write(`id: ${id}\ndata: ${data}\n\n`);
     const last = Number(req.get('last-event-id') ?? req.query.lastEventId ?? 0);
     if (last > 0) for (const e of await eventsSince(deps.redis, userId, last)) send(e.id, JSON.stringify(e.event));
@@ -105,12 +120,16 @@ export function searchRouter(deps: SearchApiDeps) {
     const body = LibrarySearchRequest.parse(req.body);
     const result = await req.db!(async (c) => {
       const usage = usageSink(c, { collegeId: req.identity!.collegeId, ownerId: req.identity!.userId });
-      return search(c, { query: body.query, purpose: 'explore', filters: { asOn: body.asOn }, noRerank: body.noRerank }, {
-        voyage: deps.voyage!(usage),
-        gateway: deps.gateway,
-        usage,
-        minScore: deps.minScore,
-      });
+      return search(
+        c,
+        { query: body.query, purpose: 'explore', filters: { asOn: body.asOn }, noRerank: body.noRerank },
+        {
+          voyage: deps.voyage!(usage),
+          gateway: deps.gateway,
+          usage,
+          minScore: deps.minScore,
+        },
+      );
     });
     res.json(result);
   });

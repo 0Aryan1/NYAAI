@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { courseContext, courseMemoryText, exampleOnSlides, hasMemory, orderParts, seriesChecks, termsOnSlides, type CourseUnit, type SeriesUnit } from './course.ts';
+import {
+  courseContext,
+  courseMemoryText,
+  exampleOnSlides,
+  hasMemory,
+  orderParts,
+  seriesChecks,
+  termsOnSlides,
+  type CourseUnit,
+  type SeriesUnit,
+} from './course.ts';
 
 const unit = (position: number, title: string, o: Partial<SeriesUnit> = {}): SeriesUnit => ({
   id: `u${position}`,
@@ -16,9 +26,35 @@ const satyabrata = { sourceId: 's-sat', name: 'Satyabrata Ghose v. Mugneeram Ban
 const energy = { sourceId: 's-ew', name: 'Energy Watchdog v. CERC' };
 
 const plan: CourseUnit[] = [
-  unit(1, 'Offer and acceptance', { status: 'taught', taughtOn: '2026-11-03', memory: { summary: 'What an offer is and when acceptance is complete.', terms: ['offer', 'acceptance'], openThreads: ['Revocation of an offer'] } }),
-  unit(2, 'Consideration', { status: 'taught', taughtOn: '2026-11-10', memory: { summary: 'Consideration and its exceptions under s. 25.', terms: ['consideration', 'Offer'], cases: [satyabrata], runningExample: 'Ravi sells his bicycle to Meena' } }),
-  unit(3, 'Void agreements', { status: 'taught', taughtOn: '2026-11-17', memory: { summary: 'Agreements the Act declares void.', terms: ['void agreement'], cases: [energy], openThreads: ['Wagering agreements'] } }),
+  unit(1, 'Offer and acceptance', {
+    status: 'taught',
+    taughtOn: '2026-11-03',
+    memory: {
+      summary: 'What an offer is and when acceptance is complete.',
+      terms: ['offer', 'acceptance'],
+      openThreads: ['Revocation of an offer'],
+    },
+  }),
+  unit(2, 'Consideration', {
+    status: 'taught',
+    taughtOn: '2026-11-10',
+    memory: {
+      summary: 'Consideration and its exceptions under s. 25.',
+      terms: ['consideration', 'Offer'],
+      cases: [satyabrata],
+      runningExample: 'Ravi sells his bicycle to Meena',
+    },
+  }),
+  unit(3, 'Void agreements', {
+    status: 'taught',
+    taughtOn: '2026-11-17',
+    memory: {
+      summary: 'Agreements the Act declares void.',
+      terms: ['void agreement'],
+      cases: [energy],
+      openThreads: ['Wagering agreements'],
+    },
+  }),
   unit(4, 'Frustration', { prerequisites: ['u3'] }),
   unit(5, 'Remedies'),
 ];
@@ -78,21 +114,29 @@ describe('series checks (suggestions only)', () => {
       ['repeated_case', 'u4'],
       ['too_many_lectures', null],
     ]);
-    expect(checks[0]!.message).toBe('L03 teaches Satyabrata Ghose v. Mugneeram Bangur, which L01 (Offer) also uses. A short recap may be enough.');
+    expect(checks[0]!.message).toBe(
+      'L03 teaches Satyabrata Ghose v. Mugneeram Bangur, which L01 (Offer) also uses. A short recap may be enough.',
+    );
     expect(checks[2]!.message).toContain('L03 was taught before L02 (Consideration)');
   });
 
   it('a skipped lecture neither repeats cases nor counts as out of order', () => {
-    const units: SeriesUnit[] = [unit(1, 'A', { status: 'skipped', memory: { cases: [satyabrata] } }), unit(2, 'B', { status: 'taught', memory: { cases: [satyabrata] } })];
+    const units: SeriesUnit[] = [
+      unit(1, 'A', { status: 'skipped', memory: { cases: [satyabrata] } }),
+      unit(2, 'B', { status: 'taught', memory: { cases: [satyabrata] } }),
+    ];
     expect(seriesChecks(units)).toEqual([]);
   });
 });
 
 describe('course memory from a taught lecture keeps only what is on the slides', () => {
-  const slides = 'Frustration of contract. Section 56 makes an agreement to do an impossible act void. Supervening impossibility. Ravi hires a hall that burns down.';
+  const slides =
+    'Frustration of contract. Section 56 makes an agreement to do an impossible act void. Supervening impossibility. Ravi hires a hall that burns down.';
 
   it('drops terms the slides never use', () => {
-    expect(termsOnSlides(['supervening impossibility', 'Frustration', 'force majeure', 'frustration'], slides)).toEqual(['supervening impossibility', 'Frustration']);
+    expect(termsOnSlides(['supervening impossibility', 'Frustration', 'force majeure', 'frustration'], slides)).toEqual(
+      ['supervening impossibility', 'Frustration'],
+    );
   });
 
   it('keeps the running example only when it is on the slides', () => {
@@ -104,7 +148,12 @@ describe('course memory from a taught lecture keeps only what is on the slides',
 
 describe('plan order', () => {
   it('puts the recap first and the bridge last', () => {
-    const parts = [{ kind: 'content', t: 'a' }, { kind: 'bridge', t: 'z' }, { kind: 'recap', t: 'r' }, { kind: 'example', t: 'b' }];
+    const parts = [
+      { kind: 'content', t: 'a' },
+      { kind: 'bridge', t: 'z' },
+      { kind: 'recap', t: 'r' },
+      { kind: 'example', t: 'b' },
+    ];
     expect(orderParts(parts).map((p) => p.t)).toEqual(['r', 'a', 'b', 'z']);
   });
 });

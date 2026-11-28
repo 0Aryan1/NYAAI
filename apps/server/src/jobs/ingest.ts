@@ -39,14 +39,34 @@ export interface IngestProcessorDeps {
   minScore?: number;
 }
 
-const JOBS = new Set(['ingest.source', 'ingest.kanoon', 'ingest.lookup', 'ingest.judgment', 'ingest.upload', 'ingest.syllabus']);
+const JOBS = new Set([
+  'ingest.source',
+  'ingest.kanoon',
+  'ingest.lookup',
+  'ingest.judgment',
+  'ingest.upload',
+  'ingest.syllabus',
+]);
 
 /** The `ingest` queue: stages 1–7, logged to jobs_log, progress as ingest.progress events, 10-minute limit. */
 export function ingestProcessor(deps: IngestProcessorDeps) {
   const { library, logger } = deps;
   return async (job: Job<IngestJobData>) => {
     if (!JOBS.has(job.name)) throw new Error(`unknown ingest job ${job.name}`);
-    const { sourceId, tid, gapId, force, requestedBy, uploadKey, replace, official, uploadId, ownerId, collegeId, courseId } = job.data;
+    const {
+      sourceId,
+      tid,
+      gapId,
+      force,
+      requestedBy,
+      uploadKey,
+      replace,
+      official,
+      uploadId,
+      ownerId,
+      collegeId,
+      courseId,
+    } = job.data;
     const logId = (
       await library.query<{ id: string }>(
         `insert into jobs_log (owner_id, queue, job_id, kind, state, attempts, started_at)
@@ -57,22 +77,62 @@ export function ingestProcessor(deps: IngestProcessorDeps) {
     const progress = async (stage: string) => {
       if (requestedBy) await publishEvent(deps.publisher, requestedBy, { type: 'ingest.progress', sourceId, stage });
     };
-    const finishDeps = { library, voyage: deps.voyage, gateway: deps.gateway, usage: deps.usage, embedModel: deps.embedModel, progress };
+    const finishDeps = {
+      library,
+      voyage: deps.voyage,
+      gateway: deps.gateway,
+      usage: deps.usage,
+      embedModel: deps.embedModel,
+      progress,
+    };
 
     const work = async () => {
       if (job.name === 'ingest.upload') {
-        if (!uploadId || !ownerId || !collegeId || !deps.worker || !deps.voyageFor) throw new Error('ingest.upload needs the upload, its owner and the worker pool');
-        return ingestUpload(uploadId, { userId: ownerId, collegeId, role: 'teacher' }, { worker: deps.worker, storage: deps.storage, voyageFor: deps.voyageFor, embedModel: deps.embedModel });
+        if (!uploadId || !ownerId || !collegeId || !deps.worker || !deps.voyageFor)
+          throw new Error('ingest.upload needs the upload, its owner and the worker pool');
+        return ingestUpload(
+          uploadId,
+          { userId: ownerId, collegeId, role: 'teacher' },
+          { worker: deps.worker, storage: deps.storage, voyageFor: deps.voyageFor, embedModel: deps.embedModel },
+        );
       }
       if (job.name === 'ingest.syllabus') {
-        if (!courseId || !ownerId || !collegeId || !deps.worker || !deps.voyageFor) throw new Error('ingest.syllabus needs the course, its owner and the worker pool');
+        if (!courseId || !ownerId || !collegeId || !deps.worker || !deps.voyageFor)
+          throw new Error('ingest.syllabus needs the course, its owner and the worker pool');
         // No AI model: the lookup gets none (names as Kanoon prints them; paragraphs labelled by rule or left for the editor).
-        const lookup = createGapLookup({ ...finishDeps, gateway: null, storage: deps.storage, kanoon: deps.kanoon, indiaCode: deps.indiaCode, web: deps.web, cacheDays: deps.cacheDays, budgetMs: 60_000 });
-        return findCourseSources(courseId, { userId: ownerId, collegeId, role: 'teacher' }, { worker: deps.worker, voyageFor: deps.voyageFor, lookup, minScore: deps.minScore ?? 0.5, budgetMs: INGEST_TIMEOUT_MS - 120_000 });
+        const lookup = createGapLookup({
+          ...finishDeps,
+          gateway: null,
+          storage: deps.storage,
+          kanoon: deps.kanoon,
+          indiaCode: deps.indiaCode,
+          web: deps.web,
+          cacheDays: deps.cacheDays,
+          budgetMs: 60_000,
+        });
+        return findCourseSources(
+          courseId,
+          { userId: ownerId, collegeId, role: 'teacher' },
+          {
+            worker: deps.worker,
+            voyageFor: deps.voyageFor,
+            lookup,
+            minScore: deps.minScore ?? 0.5,
+            budgetMs: INGEST_TIMEOUT_MS - 120_000,
+          },
+        );
       }
       if (job.name === 'ingest.lookup') {
         if (!gapId) throw new Error('ingest.lookup needs a gap id');
-        const lookup = createGapLookup({ ...finishDeps, storage: deps.storage, kanoon: deps.kanoon, indiaCode: deps.indiaCode, web: deps.web, cacheDays: deps.cacheDays, budgetMs: INGEST_TIMEOUT_MS - 60_000 });
+        const lookup = createGapLookup({
+          ...finishDeps,
+          storage: deps.storage,
+          kanoon: deps.kanoon,
+          indiaCode: deps.indiaCode,
+          web: deps.web,
+          cacheDays: deps.cacheDays,
+          budgetMs: INGEST_TIMEOUT_MS - 60_000,
+        });
         return lookup.run(gapId, { force });
       }
       if (job.name === 'ingest.judgment') {
@@ -106,7 +166,12 @@ export function ingestProcessor(deps: IngestProcessorDeps) {
       }
       if (job.name === 'ingest.kanoon') {
         if (!deps.kanoon || !tid) throw new Error('Indian Kanoon is not configured, or the job has no document id');
-        return ingestKanoonJudgment(tid, { ...finishDeps, kanoon: deps.kanoon, storage: deps.storage, cacheDays: deps.cacheDays });
+        return ingestKanoonJudgment(tid, {
+          ...finishDeps,
+          kanoon: deps.kanoon,
+          storage: deps.storage,
+          cacheDays: deps.cacheDays,
+        });
       }
       if (!sourceId) throw new Error('ingest.source needs a source id');
       const split = await ingestSource(sourceId, { library, storage: deps.storage, progress });
@@ -126,7 +191,10 @@ export function ingestProcessor(deps: IngestProcessorDeps) {
       logger.info({ job: job.name, sourceId, tid, result }, 'ingestion finished');
       return result;
     } catch (err) {
-      await library.query("update jobs_log set state = 'failed', error_code = $2, finished_at = now() where id = $1", [logId, (err as Error).name]);
+      await library.query("update jobs_log set state = 'failed', error_code = $2, finished_at = now() where id = $1", [
+        logId,
+        (err as Error).name,
+      ]);
       await progress('failed');
       throw err;
     } finally {

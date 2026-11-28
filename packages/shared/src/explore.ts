@@ -21,13 +21,40 @@ export type ConceptList = z.infer<typeof ConceptList>;
 /** GET /explore/topic/:conceptId : the topic map (EXP-1). */
 export const TopicMap = z.object({
   concept: z.object({ id: z.uuid(), name: z.string(), subject: z.string(), aliases: z.array(z.string()) }),
-  keySections: z.array(z.object({ chunkId: z.uuid(), sourceId: z.uuid(), act: z.string().nullable(), number: z.string().nullable(), heading: z.string(), excerpt: z.string() })),
+  keySections: z.array(
+    z.object({
+      chunkId: z.uuid(),
+      sourceId: z.uuid(),
+      act: z.string().nullable(),
+      number: z.string().nullable(),
+      heading: z.string(),
+      excerpt: z.string(),
+    }),
+  ),
   /** Leading cases; `confirmed` once a law expert confirmed the link (unconfirmed show a grey chip). */
-  leadingCases: z.array(z.object({ sourceId: z.uuid(), title: z.string(), court: z.string().nullable(), year: z.number().int().nullable(), confirmed: z.boolean(), caseStatus: CaseStatus })),
+  leadingCases: z.array(
+    z.object({
+      sourceId: z.uuid(),
+      title: z.string(),
+      court: z.string().nullable(),
+      year: z.number().int().nullable(),
+      confirmed: z.boolean(),
+      caseStatus: CaseStatus,
+    }),
+  ),
   /** Questions her lectures on this topic could not answer from the library. */
   openQuestions: z.array(z.string()),
   /** Where the topic sits in her courses. */
-  inCourses: z.array(z.object({ courseId: z.uuid(), courseName: z.string(), unitId: z.uuid(), position: z.number().int(), title: z.string(), lectureId: z.uuid().nullable() })),
+  inCourses: z.array(
+    z.object({
+      courseId: z.uuid(),
+      courseName: z.string(),
+      unitId: z.uuid(),
+      position: z.number().int(),
+      title: z.string(),
+      lectureId: z.uuid().nullable(),
+    }),
+  ),
 });
 export type TopicMap = z.infer<typeof TopicMap>;
 
@@ -37,7 +64,15 @@ export type ExploreAsk = z.infer<typeof ExploreAsk>;
 
 /** explore.answer: the model's reply (validated like the writer's). */
 export const ExploreReply = z.object({
-  lines: z.array(z.object({ text: z.string().min(1).max(400), kind: z.enum(['claim', 'teaching', 'question']), claims: z.array(Claim).max(4) })).max(10),
+  lines: z
+    .array(
+      z.object({
+        text: z.string().min(1).max(400),
+        kind: z.enum(['claim', 'teaching', 'question']),
+        claims: z.array(Claim).max(4),
+      }),
+    )
+    .max(10),
   notFound: z.array(z.string().max(300)).max(5),
 });
 

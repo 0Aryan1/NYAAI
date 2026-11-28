@@ -210,7 +210,10 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
   let expandedQuery: string | null = null;
   if (deps.gateway && !req.noExpand) {
     try {
-      const r = await deps.gateway.run({ prompt: PROMPTS['query.expand'], schema: Expanded, task: `Her search: ${req.query}` }, deps.usage);
+      const r = await deps.gateway.run(
+        { prompt: PROMPTS['query.expand'], schema: Expanded, task: `Her search: ${req.query}` },
+        deps.usage,
+      );
       expandedQuery = r.data.query;
     } catch {
       expandedQuery = null; // the rewrite is a help, not a requirement
@@ -237,8 +240,14 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
   ).rows.map((r) => r.id);
 
   // 3. Fuse, then rerank.
-  const fused = reciprocalRankFusion([vector, words, caseCandidates, concept.rows.map((r) => r.id)], pinned).slice(0, 50);
-  const rows = await loadRows(db, fused.map((x) => x.id));
+  const fused = reciprocalRankFusion([vector, words, caseCandidates, concept.rows.map((r) => r.id)], pinned).slice(
+    0,
+    50,
+  );
+  const rows = await loadRows(
+    db,
+    fused.map((x) => x.id),
+  );
   // Present-day questions drop cases whose confirmed status is overruled or reversed (kept, labelled, for history).
   const usable = fused
     .map((x) => rows.get(x.id))
@@ -273,11 +282,23 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
   const relevant = ranked.filter((r) => !pinnedSet.has(r.row.id) && (r.score === null || r.score >= deps.minScore));
   if (!fallback) relevant.sort((a, b) => standingOfRow(b.row, b.score).score - standingOfRow(a.row, a.score).score);
   const above = [...ranked.filter((r) => pinnedSet.has(r.row.id)), ...relevant];
-  const outcome: SearchResult['outcome'] = fallback ? (above.length ? 'ok' : 'not_found') : above.length >= 3 ? 'ok' : above.length > 0 ? 'thin' : 'not_found';
+  const outcome: SearchResult['outcome'] = fallback
+    ? above.length
+      ? 'ok'
+      : 'not_found'
+    : above.length >= 3
+      ? 'ok'
+      : above.length > 0
+        ? 'thin'
+        : 'not_found';
 
   // 4. Parent expansion and S-tags.
   const sources = await expand(db, above, max);
-  return { sources, outcome, trace: { understood, expandedQuery, pinned, vector, words, reranked, fallback, ms: Date.now() - t0 } };
+  return {
+    sources,
+    outcome,
+    trace: { understood, expandedQuery, pinned, vector, words, reranked, fallback, ms: Date.now() - t0 },
+  };
 }
 
 function standingOfRow(row: Row, relevance: number | null): Standing {
@@ -302,7 +323,11 @@ async function loadRows(db: pg.PoolClient, ids: string[]): Promise<Map<string, R
   return new Map(r.rows.map((x) => [x.id, x]));
 }
 
-async function expand(db: pg.PoolClient, ranked: { row: Row; score: number | null }[], max: number): Promise<RetrievedSource[]> {
+async function expand(
+  db: pg.PoolClient,
+  ranked: { row: Row; score: number | null }[],
+  max: number,
+): Promise<RetrievedSource[]> {
   const out: RetrievedSource[] = [];
   const seen = new Map<string, RetrievedSource>();
   for (const { row, score } of ranked) {
@@ -318,7 +343,12 @@ async function expand(db: pg.PoolClient, ranked: { row: Row; score: number | nul
     const covered = [row.id];
     if (row.parent_id) {
       // Statute child → the whole section, provisos and explanations included.
-      const p = (await db.query<{ id: string; header: string | null; text: string }>('select id, header, text from chunks where id = $1', [row.parent_id])).rows[0];
+      const p = (
+        await db.query<{ id: string; header: string | null; text: string }>(
+          'select id, header, text from chunks where id = $1',
+          [row.parent_id],
+        )
+      ).rows[0];
       if (p) {
         text = p.text;
         header = p.header ?? header;
@@ -392,11 +422,27 @@ export interface Piece {
 /** The paragraphs or statute chunks a retrieved source carries, in order, for the checks (C2 location, C7 role). */
 export async function loadPieces(db: pg.PoolClient, chunkIds: string[]): Promise<Piece[]> {
   if (!chunkIds.length) return [];
-  const r = await db.query<{ id: string; source_id: string; text: string; para_no: string | null; opinion: string | null; para_role: string | null; kind: string }>(
+  const r = await db.query<{
+    id: string;
+    source_id: string;
+    text: string;
+    para_no: string | null;
+    opinion: string | null;
+    para_role: string | null;
+    kind: string;
+  }>(
     'select id, source_id, text, para_no, opinion, para_role, kind from chunks where id = any($1) order by source_id, seq',
     [chunkIds],
   );
-  return r.rows.map((x) => ({ chunkId: x.id, sourceId: x.source_id, text: x.text, paraNo: x.para_no, opinion: x.opinion, paraRole: x.para_role, kind: x.kind }));
+  return r.rows.map((x) => ({
+    chunkId: x.id,
+    sourceId: x.source_id,
+    text: x.text,
+    paraNo: x.para_no,
+    opinion: x.opinion,
+    paraRole: x.para_role,
+    kind: x.kind,
+  }));
 }
 
 export interface SourceDetail {
@@ -411,11 +457,29 @@ export interface SourceDetail {
 
 export async function sourceDetails(db: pg.PoolClient, sourceIds: string[]): Promise<Map<string, SourceDetail>> {
   if (!sourceIds.length) return new Map();
-  const r = await db.query<{ id: string; type: string; title: string; url: string | null; holding_note: string | null; roles_sampled: boolean; status: string }>(
-    'select id, type, title, url, holding_note, roles_sampled, status from sources where id = any($1)',
-    [sourceIds],
+  const r = await db.query<{
+    id: string;
+    type: string;
+    title: string;
+    url: string | null;
+    holding_note: string | null;
+    roles_sampled: boolean;
+    status: string;
+  }>('select id, type, title, url, holding_note, roles_sampled, status from sources where id = any($1)', [sourceIds]);
+  return new Map(
+    r.rows.map((x) => [
+      x.id,
+      {
+        id: x.id,
+        type: x.type,
+        title: x.title,
+        url: x.url,
+        holdingNote: x.holding_note,
+        rolesSampled: x.roles_sampled,
+        status: x.status,
+      },
+    ]),
   );
-  return new Map(r.rows.map((x) => [x.id, { id: x.id, type: x.type, title: x.title, url: x.url, holdingNote: x.holding_note, rolesSampled: x.roles_sampled, status: x.status }]));
 }
 
 export interface StatuteUnit {
@@ -431,7 +495,16 @@ export interface StatuteUnit {
 /** The whole section or Article (top-level chunk) each cited statute chunk belongs to, for the must-cover list. */
 export async function statuteUnits(db: pg.PoolClient, chunkIds: string[]): Promise<StatuteUnit[]> {
   if (!chunkIds.length) return [];
-  const r = await db.query<{ id: string; source_id: string; source_type: 'act' | 'constitution'; act_name: string | null; section: string | null; article: string | null; header: string | null; text: string }>(
+  const r = await db.query<{
+    id: string;
+    source_id: string;
+    source_type: 'act' | 'constitution';
+    act_name: string | null;
+    section: string | null;
+    article: string | null;
+    header: string | null;
+    text: string;
+  }>(
     `select distinct p.id, p.source_id, p.source_type, p.act_name, p.section, p.article, p.header, p.text
        from chunks c join chunks p on p.id = coalesce(c.parent_id, c.id)
       where c.id = any($1) and c.source_type in ('act', 'constitution')`,
@@ -439,7 +512,15 @@ export async function statuteUnits(db: pg.PoolClient, chunkIds: string[]): Promi
   );
   return r.rows
     .filter((x) => x.section ?? x.article)
-    .map((x) => ({ chunkId: x.id, sourceId: x.source_id, sourceType: x.source_type, actName: x.act_name ?? '', number: (x.section ?? x.article)!, header: x.header ?? '', text: x.text }));
+    .map((x) => ({
+      chunkId: x.id,
+      sourceId: x.source_id,
+      sourceType: x.source_type,
+      actName: x.act_name ?? '',
+      number: (x.section ?? x.article)!,
+      header: x.header ?? '',
+      text: x.text,
+    }));
 }
 
 /**
@@ -449,7 +530,8 @@ export async function statuteUnits(db: pg.PoolClient, chunkIds: string[]): Promi
 export async function statuteSource(db: pg.PoolClient, chunkId: string): Promise<RetrievedSource | null> {
   const rows = await loadRows(db, [chunkId]);
   const row = rows.get(chunkId);
-  if (!row || !['live', 'provisional'].includes(row.status) || !['act', 'constitution'].includes(row.source_type)) return null;
+  if (!row || !['live', 'provisional'].includes(row.status) || !['act', 'constitution'].includes(row.source_type))
+    return null;
   return (await expand(db, [{ row, score: null }], 1))[0] ?? null;
 }
 
@@ -463,11 +545,18 @@ export async function noteSources(db: pg.PoolClient, sourceIds: string[]): Promi
     )
   ).rows.map((r) => r.id);
   const rows = await loadRows(db, ids);
-  return expand(db, ids.flatMap((id) => (rows.has(id) ? [{ row: rows.get(id)!, score: null }] : [])), ids.length);
+  return expand(
+    db,
+    ids.flatMap((id) => (rows.has(id) ? [{ row: rows.get(id)!, score: null }] : [])),
+    ids.length,
+  );
 }
 
 /** The topic's key sections (chunk ids) and its confirmed leading cases (source ids and titles), for the must-cover list. */
-export async function conceptMustCover(db: pg.PoolClient, conceptId: string): Promise<{ sectionChunkIds: string[]; cases: { sourceId: string; title: string }[] }> {
+export async function conceptMustCover(
+  db: pg.PoolClient,
+  conceptId: string,
+): Promise<{ sectionChunkIds: string[]; cases: { sourceId: string; title: string }[] }> {
   const r = await db.query<{ kind: string; chunk_id: string | null; source_id: string; title: string }>(
     `select cl.kind, cl.chunk_id, cl.source_id, s.title from concept_links cl join sources s on s.id = cl.source_id
       where cl.concept_id = $1 and s.status in ('live', 'provisional')
@@ -481,7 +570,10 @@ export async function conceptMustCover(db: pg.PoolClient, conceptId: string): Pr
 }
 
 /** A concept's key sections (their headers) and leading cases (titles), as hints for the planner. */
-export async function conceptHints(db: pg.PoolClient, conceptId: string): Promise<{ name: string; sections: string[]; cases: string[]; acts: string[] } | null> {
+export async function conceptHints(
+  db: pg.PoolClient,
+  conceptId: string,
+): Promise<{ name: string; sections: string[]; cases: string[]; acts: string[] } | null> {
   const r = await db.query<{ name: string; sections: string[] | null; cases: string[] | null; acts: string[] | null }>(
     `select lc.name,
             array_agg(distinct ch.act_name) filter (where cl.kind = 'key_section' and ch.act_name is not null) as acts,
@@ -497,7 +589,10 @@ export async function conceptHints(db: pg.PoolClient, conceptId: string): Promis
 }
 
 /** One chunk's words and header for the Source drawer; null when it has expired or is not visible. */
-export async function chunkForDrawer(db: pg.PoolClient, chunkId: string): Promise<{ header: string | null; text: string; parentText: string | null } | null> {
+export async function chunkForDrawer(
+  db: pg.PoolClient,
+  chunkId: string,
+): Promise<{ header: string | null; text: string; parentText: string | null } | null> {
   const r = await db.query<{ header: string | null; text: string; parent_text: string | null }>(
     'select c.header, c.text, p.text as parent_text from chunks c left join chunks p on p.id = c.parent_id where c.id = $1',
     [chunkId],
@@ -523,15 +618,37 @@ export interface ReviewParagraph {
 }
 
 export async function judgmentParagraphs(db: pg.PoolClient, sourceId: string): Promise<ReviewParagraph[]> {
-  const r = await db.query<{ id: string; seq: number; para_no: string | null; kind: string; opinion: string | null; judge: string | null; para_role: string | null; text: string }>(
+  const r = await db.query<{
+    id: string;
+    seq: number;
+    para_no: string | null;
+    kind: string;
+    opinion: string | null;
+    judge: string | null;
+    para_role: string | null;
+    text: string;
+  }>(
     "select id, seq, para_no, kind, opinion, judge, para_role, text from chunks where source_id = $1 and source_type = 'judgment' order by seq",
     [sourceId],
   );
-  return r.rows.map((x) => ({ chunkId: x.id, seq: x.seq, paraNo: x.para_no, kind: x.kind, opinion: x.opinion, judge: x.judge, role: x.para_role, text: x.text }));
+  return r.rows.map((x) => ({
+    chunkId: x.id,
+    seq: x.seq,
+    paraNo: x.para_no,
+    kind: x.kind,
+    opinion: x.opinion,
+    judge: x.judge,
+    role: x.para_role,
+    text: x.text,
+  }));
 }
 
 /** The editor's correction of one paragraph's role (and opinion, when the split was wrong). */
-export async function setParagraphLabel(db: pg.PoolClient, chunkId: string, label: { role: string; opinion?: string }): Promise<boolean> {
+export async function setParagraphLabel(
+  db: pg.PoolClient,
+  chunkId: string,
+  label: { role: string; opinion?: string },
+): Promise<boolean> {
   const r = await db.query(
     "update chunks set para_role = $2::para_role, opinion = coalesce($3::opinion_type, opinion) where id = $1 and source_type = 'judgment' and kind <> 'headnote'",
     [chunkId, label.role, label.opinion ?? null],
@@ -552,6 +669,7 @@ export async function retireSourceChunks(db: pg.PoolClient, sourceId: string): P
 /** Children of one statute section, and paragraphs within one window, collapse into one source. */
 function groupKey(r: Row): string {
   if (r.parent_id) return `parent:${r.parent_id}`;
-  if (r.source_type === 'judgment' && r.kind !== 'headnote') return `para:${r.source_id}:${r.opinion}:${Math.floor(r.seq / 5)}`;
+  if (r.source_type === 'judgment' && r.kind !== 'headnote')
+    return `para:${r.source_id}:${r.opinion}:${Math.floor(r.seq / 5)}`;
   return `chunk:${r.id}`;
 }

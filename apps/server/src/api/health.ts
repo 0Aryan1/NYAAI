@@ -21,7 +21,11 @@ export function healthRouter(deps: { pool: pg.Pool; redis: Redis }): Router {
   const router = Router();
   router.get('/health', async (_req, res) => {
     const [db, redis] = await Promise.all([
-      settle(deps.pool.query<{ v: string | null }>("select (select extversion from pg_extension where extname = 'vector') as v")),
+      settle(
+        deps.pool.query<{ v: string | null }>(
+          "select (select extversion from pg_extension where extname = 'vector') as v",
+        ),
+      ),
       settle(deps.redis.ping()),
     ]);
     const body: HealthResponse = {

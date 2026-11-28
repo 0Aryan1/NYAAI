@@ -14,6 +14,10 @@ export default async function globalTeardown() {
       /* already gone */
     }
   }
-  if (!process.env.E2E_KEEP) execFileSync('pnpm', ['--filter', '@nyaai/server', 'exec', 'tsx', 'scripts/e2e-account.ts', 'remove', email], { cwd: root, stdio: 'inherit' });
+  if (!process.env.E2E_KEEP)
+    execFileSync('pnpm', ['--filter', '@nyaai/server', 'exec', 'tsx', 'scripts/e2e-account.ts', 'remove', email], {
+      cwd: root,
+      stdio: 'inherit',
+    });
   rmSync(STATE, { force: true });
 }

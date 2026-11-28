@@ -23,7 +23,8 @@ export interface NoteChunk {
 export const NOTE_CHUNK_WORDS = 350;
 export const NOTES_LABEL = 'Your notes';
 
-export const noteHeader = (title: string, heading: string | null) => `${NOTES_LABEL}: ${title}${heading ? ` › ${heading}` : ''}`;
+export const noteHeader = (title: string, heading: string | null) =>
+  `${NOTES_LABEL}: ${title}${heading ? ` › ${heading}` : ''}`;
 
 const wordCount = (t: string) => t.split(/\s+/).filter(Boolean).length;
 const clean = (t: string) => t.replace(/\s+/g, ' ').trim();
@@ -37,7 +38,8 @@ export function splitNotes(title: string, blocks: NoteBlock[]): NoteChunk[] {
     let group: string[] = [];
     let words = 0;
     const push = () => {
-      if (group.length) out.push({ seq: out.length + 1, heading, header: noteHeader(title, heading), text: group.join('\n\n') });
+      if (group.length)
+        out.push({ seq: out.length + 1, heading, header: noteHeader(title, heading), text: group.join('\n\n') });
       group = [];
       words = 0;
     };
@@ -84,7 +86,10 @@ export function looksLikeHeading(line: string): boolean {
 export function textBlocks(text: string): NoteBlock[] {
   const out: NoteBlock[] = [];
   for (const raw of text.replace(/\r\n?/g, '\n').split(/\n\s*\n/)) {
-    const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean);
+    const lines = raw
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
     if (!lines.length) continue;
     const md = /^(#{1,6})\s+(.+)$/.exec(lines[0]!);
     if (md) {
@@ -106,7 +111,9 @@ export function textBlocks(text: string): NoteBlock[] {
 export function pdfBlocks(doc: PdfLines): NoteBlock[] {
   const out: NoteBlock[] = [];
   const body = doc.bodySize || 11;
-  const sizes = [...new Set(doc.pages.flatMap((p) => p.lines.map((l) => Math.round(l.size))).filter((s) => s >= body * 1.15))].sort((a, b) => b - a);
+  const sizes = [
+    ...new Set(doc.pages.flatMap((p) => p.lines.map((l) => Math.round(l.size))).filter((s) => s >= body * 1.15)),
+  ].sort((a, b) => b - a);
   let para: string[] = [];
   const flush = () => {
     if (para.length) out.push({ text: para.join(' '), heading: null });

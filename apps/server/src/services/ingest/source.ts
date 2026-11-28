@@ -49,8 +49,12 @@ export async function ingestSource(sourceId: string, deps: IngestDeps): Promise<
   const { library, storage } = deps;
   const progress = async (s: IngestStage) => deps.progress?.(s);
 
-  const src = (await library.query<SourceRow>('select id, college_id, type, origin, title, url, act_name, act_year from sources where id = $1', [sourceId]))
-    .rows[0];
+  const src = (
+    await library.query<SourceRow>(
+      'select id, college_id, type, origin, title, url, act_name, act_year from sources where id = $1',
+      [sourceId],
+    )
+  ).rows[0];
   if (!src) throw new Error(`source ${sourceId} not found (or not a shared source)`);
   if (!src.url) throw new Error(`source ${sourceId} has no url`);
   if (src.type !== 'act' && src.type !== 'constitution') throw new Error(`no splitter yet for source type ${src.type}`);
@@ -59,10 +63,18 @@ export async function ingestSource(sourceId: string, deps: IngestDeps): Promise<
   await progress('reading');
   const original = await fetchOriginal(src.url, { allowFile: deps.allowFile });
   const hash = sha256(original.bytes);
-  const twin = (await library.query<{ id: string }>('select id from sources where origin = $1 and content_hash = $2 and id <> $3', [src.origin, hash, src.id]))
-    .rows[0];
+  const twin = (
+    await library.query<{ id: string }>('select id from sources where origin = $1 and content_hash = $2 and id <> $3', [
+      src.origin,
+      hash,
+      src.id,
+    ])
+  ).rows[0];
   if (twin) {
-    await library.query("update sources set status = 'retired', holding_note = $2 where id = $1", [src.id, `Duplicate of ${twin.id}`]);
+    await library.query("update sources set status = 'retired', holding_note = $2 where id = $1", [
+      src.id,
+      `Duplicate of ${twin.id}`,
+    ]);
     return { kind: 'duplicate', duplicateOf: twin.id };
   }
   const key = `sources/${src.origin}/${hash}.${original.ext}`;
@@ -91,10 +103,13 @@ export async function ingestSource(sourceId: string, deps: IngestDeps): Promise<
     // Studio's source drawer still point at it. Changed text loses its embedding and is embedded again.
     const existing = new Map(
       (
-        await client.query<{ id: string; kind: string; section: string | null; article: string | null; header: string | null }>(
-          'select id, kind, section, article, header from chunks where source_id = $1',
-          [src.id],
-        )
+        await client.query<{
+          id: string;
+          kind: string;
+          section: string | null;
+          article: string | null;
+          header: string | null;
+        }>('select id, kind, section, article, header from chunks where source_id = $1', [src.id])
       ).rows.map((r) => [existingKey(src, r), r.id]),
     );
     const ids = new Map<string, string>();
@@ -136,13 +151,22 @@ export async function ingestSource(sourceId: string, deps: IngestDeps): Promise<
 }
 
 /** The splitter's key ("s56", "s56(2)", "a19(1)") for a stored chunk. */
-function existingKey(src: SourceRow, r: { kind: string; section: string | null; article: string | null; header: string | null }): string {
+function existingKey(
+  src: SourceRow,
+  r: { kind: string; section: string | null; article: string | null; header: string | null },
+): string {
   const base = `${src.type === 'constitution' ? 'a' : 's'}${r.section ?? r.article}`;
   const sub = r.kind === 'subsection' ? /\(([^()]+)\)\s*$/.exec(r.header ?? '')?.[1] : null;
   return sub ? `${base}(${sub})` : base;
 }
 
-async function updateChunk(c: pg.PoolClient, src: SourceRow, u: StatuteChunk, id: string, ids: Map<string, string>): Promise<void> {
+async function updateChunk(
+  c: pg.PoolClient,
+  src: SourceRow,
+  u: StatuteChunk,
+  id: string,
+  ids: Map<string, string>,
+): Promise<void> {
   const hash = sha256(`${u.header}\n${u.text}`);
   await c.query(
     `update chunks set parent_id = $2, seq = $3, kind = $4, header = $5, act_name = $6, act_year = $7, chapter = $8, page_no = $9,
@@ -169,7 +193,12 @@ async function updateChunk(c: pg.PoolClient, src: SourceRow, u: StatuteChunk, id
   );
 }
 
-async function insertChunk(c: pg.PoolClient, src: SourceRow, u: StatuteChunk, ids: Map<string, string>): Promise<string> {
+async function insertChunk(
+  c: pg.PoolClient,
+  src: SourceRow,
+  u: StatuteChunk,
+  ids: Map<string, string>,
+): Promise<string> {
   const isConst = src.type === 'constitution';
   const r = await c.query<{ id: string }>(
     `insert into chunks (college_id, owner_id, visibility, source_id, parent_id, seq, kind, header,

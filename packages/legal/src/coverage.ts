@@ -20,7 +20,7 @@ export interface MustCoverPart {
 const bare = (line: string) => line.replace(/^\s*\d*\[/, '').replace(/^\s+/, '');
 /** "Contract to do an act afterwards becoming impossible or unlawful.—A contract …" */
 const HEADED_PARA = /^([A-Z][A-Za-z ,'’()-]{8,140}?)\.\s*[—–]/;
-const OMITTED =/^\(?[a-z0-9]+\)?\s*(\*\s*){3,}\]?\s*$/i;
+const OMITTED = /^\(?[a-z0-9]+\)?\s*(\*\s*){3,}\]?\s*$/i;
 
 /**
  * @param text   the section or Article text as stored (lines kept)
@@ -47,7 +47,11 @@ export function mustCoverParts(text: string, kind: 'act' | 'constitution', numbe
     const exc = P.exception.exec(line);
     if (P.proviso.test(line)) {
       provisos++;
-      start('proviso', `${provisos > 1 ? `Proviso ${provisos}` : 'Proviso'} to ${where}${clause ? `(${clause})` : ''}`, line);
+      start(
+        'proviso',
+        `${provisos > 1 ? `Proviso ${provisos}` : 'Proviso'} to ${where}${clause ? `(${clause})` : ''}`,
+        line,
+      );
     } else if (exp) {
       start('explanation', `Explanation${exp[1] ? ` ${exp[1].trim()}` : ''} to ${where}`, line);
     } else if (exc) {
@@ -75,7 +79,9 @@ export function mustCoverParts(text: string, kind: 'act' | 'constitution', numbe
     }
   }
   // Clause (1) whose words are only "All citizens shall have the right—" is covered through its sub-clauses.
-  const withKids = new Set(out.filter((o) => /\)\(/.test(o.label)).map((o) => o.label.replace(/\([a-z]{1,3}\)$|\([ivx]{1,5}\)$/, '')));
+  const withKids = new Set(
+    out.filter((o) => /\)\(/.test(o.label)).map((o) => o.label.replace(/\([a-z]{1,3}\)$|\([ivx]{1,5}\)$/, '')),
+  );
   return out
     .filter((o) => !(o.kind === 'clause' && withKids.has(o.label) && o.lines.join(' ').length < 120))
     .map((o) => ({ kind: o.kind, label: o.label, text: o.lines.join('\n') }));

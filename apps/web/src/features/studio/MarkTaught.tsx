@@ -8,7 +8,12 @@ import { Button } from '@/shared/ui/button';
 
 /** Today in India, as YYYY-MM-DD (dates are shown in IST). */
 export function todayIst(now = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
 }
 
 /**
@@ -67,7 +72,14 @@ export function MarkTaught({ lecture }: { lecture: LectureSummary }) {
     >
       <label className="inline-flex items-center gap-1">
         Taught on
-        <input type="date" value={date} max={todayIst()} onChange={(e) => setDate(e.target.value)} required className="rounded-control border border-border bg-bg px-2 py-1" />
+        <input
+          type="date"
+          value={date}
+          max={todayIst()}
+          onChange={(e) => setDate(e.target.value)}
+          required
+          className="rounded-control border border-border bg-bg px-2 py-1"
+        />
       </label>
       <Button size="sm" type="submit" variant="primary" disabled={mark.isPending}>
         Save
@@ -75,10 +87,17 @@ export function MarkTaught({ lecture }: { lecture: LectureSummary }) {
       <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
         Cancel
       </Button>
-      {err && <span className="text-flag-yellow">{err instanceof ApiRequestError ? err.message : 'Not saved. Try again.'}</span>}
+      {err && (
+        <span className="text-flag-yellow">
+          {err instanceof ApiRequestError ? err.message : 'Not saved. Try again.'}
+        </span>
+      )}
     </form>
   ) : (
-    <Button title={lecture.course ? 'The next lecture in the course will open with a recap of this one' : undefined} onClick={() => setOpen(true)}>
+    <Button
+      title={lecture.course ? 'The next lecture in the course will open with a recap of this one' : undefined}
+      onClick={() => setOpen(true)}
+    >
       <CheckCircle2 className="size-4" aria-hidden />
       Mark taught
     </Button>

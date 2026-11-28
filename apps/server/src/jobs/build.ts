@@ -39,7 +39,10 @@ export function buildProcessor(deps: BuildDeps & { logger: Logger; logPool: pg.P
       return counts;
     } catch (err) {
       const code = errorCode(err);
-      await deps.logPool.query("update jobs_log set state = 'failed', error_code = $2, finished_at = now() where id = $1", [logId, code]);
+      await deps.logPool.query(
+        "update jobs_log set state = 'failed', error_code = $2, finished_at = now() where id = $1",
+        [logId, code],
+      );
       // Budget and missing lectures never get better with a retry; anything else retries, then fails for good.
       const final = err instanceof BuildError || job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
       if (final) await markFailed(data, deps, code);

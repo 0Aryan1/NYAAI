@@ -50,7 +50,11 @@ export function cleanPages(pages: Page[]): Line[] {
   // Running headers and footers.
   const counts = new Map<string, number>();
   for (const p of split) {
-    const seen = new Set(edgeIndexes(p.lines).map((i) => shape(p.lines[i] ?? '')).filter(Boolean));
+    const seen = new Set(
+      edgeIndexes(p.lines)
+        .map((i) => shape(p.lines[i] ?? ''))
+        .filter(Boolean),
+    );
     for (const s of seen) counts.set(s, (counts.get(s) ?? 0) + 1);
   }
   const threshold = split.length >= 3 ? split.length * REPEAT_SHARE : Infinity;
@@ -62,7 +66,8 @@ export function cleanPages(pages: Page[]): Line[] {
   for (const p of split) {
     for (const l of p.lines) {
       const t = l.trim();
-      if (BRACKETED.test(t) && t.split(/\s+/).length <= 12) bracketPages.set(t, (bracketPages.get(t) ?? new Set()).add(p.pageNo));
+      if (BRACKETED.test(t) && t.split(/\s+/).length <= 12)
+        bracketPages.set(t, (bracketPages.get(t) ?? new Set()).add(p.pageNo));
     }
   }
   const bracketHeaders = new Set([...bracketPages].filter(([, pages]) => pages.size >= 3).map(([t]) => t));
@@ -81,10 +86,36 @@ export function cleanPages(pages: Page[]): Line[] {
 }
 
 /** Real one- and two-letter words; any other short letter run in a line is a piece of a broken word. */
-const SHORT_WORDS = new Set(['a', 'i', 'an', 'as', 'at', 'be', 'by', 'do', 'he', 'if', 'in', 'is', 'it', 'me', 'my', 'no', 'of', 'on', 'or', 'so', 'to', 'up', 'us', 'we']);
+const SHORT_WORDS = new Set([
+  'a',
+  'i',
+  'an',
+  'as',
+  'at',
+  'be',
+  'by',
+  'do',
+  'he',
+  'if',
+  'in',
+  'is',
+  'it',
+  'me',
+  'my',
+  'no',
+  'of',
+  'on',
+  'or',
+  'so',
+  'to',
+  'up',
+  'us',
+  'we',
+]);
 const MAX_PIECES = 12;
 const lettersOf = (t: string) => t.toLowerCase().replace(/[^a-z]/g, '');
-const isFragment = (t: string, vocab: Set<string>) => /^[A-Za-z]{1,3}$/.test(t) && !SHORT_WORDS.has(t.toLowerCase()) && !(t.length === 3 && vocab.has(t.toLowerCase()));
+const isFragment = (t: string, vocab: Set<string>) =>
+  /^[A-Za-z]{1,3}$/.test(t) && !SHORT_WORDS.has(t.toLowerCase()) && !(t.length === 3 && vocab.has(t.toLowerCase()));
 
 /**
  * Some PDFs space out the letters of a paragraph (wide tracking), and the text comes out as "4 6. Tru stee ca n not
@@ -112,7 +143,7 @@ export function repairSpacedWords(lines: Line[]): Line[] {
     const tokens = tokenised[n]!;
     if (!broken(tokens, vocab)) return line;
     const out: string[] = [];
-    for (let i = 0; i < tokens.length; ) {
+    for (let i = 0; i < tokens.length;) {
       const t = tokens[i]!;
       // "4 6." → "46."
       if (/^\d$/.test(t) && /^\d+[A-Z]?\.?$/.test(tokens[i + 1] ?? '')) {
@@ -124,7 +155,11 @@ export function repairSpacedWords(lines: Line[]): Line[] {
       for (let j = Math.min(tokens.length, i + MAX_PIECES); j > i + 1; j--) {
         const span = tokens.slice(i, j);
         // Only the last piece may carry punctuation, and the run must contain a real fragment.
-        if (span.slice(0, -1).some((p) => !/^[A-Za-z]+$/.test(p)) || !/^[A-Za-z]+[.,;:)]*$/.test(span[span.length - 1]!)) continue;
+        if (
+          span.slice(0, -1).some((p) => !/^[A-Za-z]+$/.test(p)) ||
+          !/^[A-Za-z]+[.,;:)]*$/.test(span[span.length - 1]!)
+        )
+          continue;
         if (!span.some((p) => isFragment(p.replace(/[.,;:)]+$/, ''), vocab))) continue;
         if (vocab.has(lettersOf(span.join('')))) {
           taken = j - i;
@@ -149,7 +184,8 @@ export function repairSpacedWords(lines: Line[]): Line[] {
  * "sub-section", "self-acquired"). India Code PDFs do not hyphenate words at line ends, so a line-end hyphen
  * after one of these is kept; any other is treated as a soft break and removed ("compen-\nsation").
  */
-const COMPOUND_PREFIX = /(?:^|[^a-z])(?:non|co|re|pre|sub|self|quasi|inter|intra|ex|anti|counter|cross|well|ill|half|post|mis|semi|multi|under|over|by|de|un|in|out|joint|first|second|third|so)-$/i;
+const COMPOUND_PREFIX =
+  /(?:^|[^a-z])(?:non|co|re|pre|sub|self|quasi|inter|intra|ex|anti|counter|cross|well|ill|half|post|mis|semi|multi|under|over|by|de|un|in|out|joint|first|second|third|so)-$/i;
 
 /** "compen-\nsation" → "compensation"; "non-\nperformance" → "non-performance". */
 function joinHyphenated(lines: Line[]): Line[] {
@@ -198,7 +234,8 @@ function normaliseOutsideQuotes(lines: Line[]): Line[] {
       }
       if (ch === '‘' || ch === '’' || ch === '‛' || ch === '‚') text += "'";
       else if (ch === '‐' || ch === '‑' || ch === '‒' || ch === '−') text += '-';
-      else if (ch === '―' || ch === '⎯') text += '—'; // horizontal bar and line-extension dash (used by some Gazette PDFs)
+      else if (ch === '―' || ch === '⎯')
+        text += '—'; // horizontal bar and line-extension dash (used by some Gazette PDFs)
       else text += ch;
     }
     return { pageNo: line.pageNo, text };

@@ -12,7 +12,11 @@ import { Tabs } from '@/shared/ui/tabs';
 
 const OUTCOMES: { value: ReportOutcome; label: string; hint: string }[] = [
   { value: 'was_correct', label: 'The source is right', hint: 'Nothing changes; the teacher is told.' },
-  { value: 'fixed_chunk', label: 'I fixed the source text', hint: 'Every lecture line resting on it turns yellow for its teacher to check.' },
+  {
+    value: 'fixed_chunk',
+    label: 'I fixed the source text',
+    hint: 'Every lecture line resting on it turns yellow for its teacher to check.',
+  },
   { value: 'fixed_label', label: 'I fixed a paragraph label', hint: 'Lines resting on it are checked again.' },
   { value: 'fixed_mapping', label: 'I fixed a law mapping', hint: 'Lines resting on it are checked again.' },
 ];
@@ -33,10 +37,16 @@ function ReportCard({ r }: { r: QueueReport }) {
   const resolve = useMutation({
     mutationFn: () => api.resolveReport(r.id, { outcome: outcome!, note: note.trim() || undefined }),
     onSuccess: (x) => {
-      setDone(x.linesFlagged ? `Answered. ${x.linesFlagged} lecture ${x.linesFlagged === 1 ? 'line' : 'lines'} turned yellow for their teachers to check.` : 'Answered. The teacher sees your answer on her line.');
+      setDone(
+        x.linesFlagged
+          ? `Answered. ${x.linesFlagged} lecture ${x.linesFlagged === 1 ? 'line' : 'lines'} turned yellow for their teachers to check.`
+          : 'Answered. The teacher sees your answer on her line.',
+      );
       // The card stays where it is with her confirmation (not whisked out of the list); the count drops, and the
       // "Answered" tab is fresh when she opens it.
-      qc.setQueryData<ReportQueue>(queryKeys.reportQueue('open'), (old) => (old ? { ...old, open: Math.max(0, old.open - 1) } : old));
+      qc.setQueryData<ReportQueue>(queryKeys.reportQueue('open'), (old) =>
+        old ? { ...old, open: Math.max(0, old.open - 1) } : old,
+      );
       void qc.invalidateQueries({ queryKey: queryKeys.reportQueue('resolved') });
     },
   });
@@ -44,7 +54,15 @@ function ReportCard({ r }: { r: QueueReport }) {
   return (
     <li className="rounded-card border border-border bg-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-        <span>Reported {new Date(r.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+        <span>
+          Reported{' '}
+          {new Date(r.createdAt).toLocaleString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </span>
         {r.status === 'resolved' && r.outcome ? (
           <Pill tone={r.outcome === 'was_correct' ? 'success' : 'yellow'}>{OUTCOME_LABEL[r.outcome]}</Pill>
         ) : (
@@ -76,7 +94,10 @@ function ReportCard({ r }: { r: QueueReport }) {
         <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted">
           {r.sourceHeader ?? r.sourceTitle ?? r.sourceLabel}
           {r.judgmentId && (
-            <Link to={`/library?judgment=${r.judgmentId}`} className="inline-flex items-center gap-1 text-accent hover:underline">
+            <Link
+              to={`/library?judgment=${r.judgmentId}`}
+              className="inline-flex items-center gap-1 text-accent hover:underline"
+            >
               Open the judgment <ExternalLink className="size-3" aria-hidden />
             </Link>
           )}
@@ -96,8 +117,20 @@ function ReportCard({ r }: { r: QueueReport }) {
             <legend className="mb-2 text-sm font-medium">Your answer</legend>
             <div className="grid gap-2 sm:grid-cols-2">
               {OUTCOMES.map((o) => (
-                <label key={o.value} className={cn('cursor-pointer rounded-control border p-3 text-sm', outcome === o.value ? 'border-accent bg-accent/10' : 'border-border hover:bg-bg')}>
-                  <input type="radio" name={`outcome-${r.id}`} className="sr-only" checked={outcome === o.value} onChange={() => setOutcome(o.value)} />
+                <label
+                  key={o.value}
+                  className={cn(
+                    'cursor-pointer rounded-control border p-3 text-sm',
+                    outcome === o.value ? 'border-accent bg-accent/10' : 'border-border hover:bg-bg',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name={`outcome-${r.id}`}
+                    className="sr-only"
+                    checked={outcome === o.value}
+                    onChange={() => setOutcome(o.value)}
+                  />
                   <span className="block font-medium">{o.label}</span>
                   <span className="block text-xs text-muted">{o.hint}</span>
                 </label>
@@ -106,10 +139,24 @@ function ReportCard({ r }: { r: QueueReport }) {
           </fieldset>
           <label className="mt-3 block text-sm">
             <span className="mb-1 block font-medium">Note for the teacher (optional)</span>
-            <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} className="h-10 w-full rounded-control border border-border bg-bg px-3" />
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={1000}
+              className="h-10 w-full rounded-control border border-border bg-bg px-3"
+            />
           </label>
-          {resolve.error && <p className="mt-2 text-sm text-danger">{resolve.error instanceof ApiRequestError ? resolve.error.message : 'Not saved. Try again.'}</p>}
-          <Button variant="primary" className="mt-3" disabled={!outcome || resolve.isPending} onClick={() => resolve.mutate()}>
+          {resolve.error && (
+            <p className="mt-2 text-sm text-danger">
+              {resolve.error instanceof ApiRequestError ? resolve.error.message : 'Not saved. Try again.'}
+            </p>
+          )}
+          <Button
+            variant="primary"
+            className="mt-3"
+            disabled={!outcome || resolve.isPending}
+            onClick={() => resolve.mutate()}
+          >
             {resolve.isPending ? 'Saving…' : 'Send answer'}
           </Button>
         </div>
@@ -133,7 +180,9 @@ export function ReportsQueuePage() {
         <Flag className="size-5" aria-hidden />
         Wrong-fact reports
       </h1>
-      <p className="mt-2 max-w-prose text-sm text-muted">Lines teachers think are wrong, with the source words they rest on. Answer each within a day.</p>
+      <p className="mt-2 max-w-prose text-sm text-muted">
+        Lines teachers think are wrong, with the source words they rest on. Answer each within a day.
+      </p>
       <Tabs<'open' | 'resolved'>
         label="Show"
         value={state}
@@ -147,7 +196,11 @@ export function ReportsQueuePage() {
       <div className="mt-4">
         {q.isLoading && <ListSkeleton label="Loading the reports" />}
         {q.isError && <LoadError what="The reports" onRetry={() => void q.refetch()} />}
-        {q.isSuccess && list.length === 0 && <EmptyState title={state === 'open' ? 'Nothing to answer' : 'No answered reports yet'}>When a teacher reports a line, it appears here.</EmptyState>}
+        {q.isSuccess && list.length === 0 && (
+          <EmptyState title={state === 'open' ? 'Nothing to answer' : 'No answered reports yet'}>
+            When a teacher reports a line, it appears here.
+          </EmptyState>
+        )}
         <ul className="space-y-4">
           {list.map((r) => (
             <ReportCard key={r.id} r={r} />

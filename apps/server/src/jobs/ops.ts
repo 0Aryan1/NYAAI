@@ -27,14 +27,19 @@ export function opsProcessor(deps: OpsDeps) {
         return { ok: true as const, at: new Date().toISOString() };
       case 'ops.delete_user_data': {
         const { userId, collegeId } = job.data;
-        if (!userId || !collegeId || !deps.worker) throw new Error('ops.delete_user_data needs the teacher and the worker pool');
-        const r = await forgetTeacher({ userId, collegeId, role: 'teacher' }, { worker: deps.worker, storage: deps.storage ?? null });
+        if (!userId || !collegeId || !deps.worker)
+          throw new Error('ops.delete_user_data needs the teacher and the worker pool');
+        const r = await forgetTeacher(
+          { userId, collegeId, role: 'teacher' },
+          { worker: deps.worker, storage: deps.storage ?? null },
+        );
         logger.info({ logId: r.logId, files: r.files }, 'teacher data deleted');
         return r;
       }
       case 'ops.mapping_changed': {
         const { userId, collegeId, mapping } = job.data;
-        if (!userId || !collegeId || !mapping || !deps.worker) throw new Error('ops.mapping_changed needs the editor, the row and the worker pool');
+        if (!userId || !collegeId || !mapping || !deps.worker)
+          throw new Error('ops.mapping_changed needs the editor, the row and the worker pool');
         const r = await reflagMappingLines(deps.worker, { userId, collegeId }, mapping);
         logger.info({ ...r, change: mapping.change }, 'law-mapping lines re-flagged');
         return r;

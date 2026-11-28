@@ -24,7 +24,12 @@ describe('TopicBox (HOME-2)', () => {
     client.setQueryData(queryKeys.suggest('frustr'), {
       suggestions: [
         { kind: 'concept', label: 'Frustration of contract', detail: 'Contract', value: 'Frustration of contract' },
-        { kind: 'section', label: 's. 56 Agreement to do impossible act', detail: 'Indian Contract Act', value: 's. 56 Agreement to do impossible act' },
+        {
+          kind: 'section',
+          label: 's. 56 Agreement to do impossible act',
+          detail: 'Indian Contract Act',
+          value: 's. 56 Agreement to do impossible act',
+        },
       ],
     });
     render(

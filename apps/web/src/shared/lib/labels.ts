@@ -8,7 +8,8 @@ export const CASE_STATUS_LABEL: Record<string, string> = {
   overruled: 'Overruled',
   reversed: 'Reversed',
 };
-export const caseStatusLabel = (s: string | null | undefined) => (s ? (CASE_STATUS_LABEL[s] ?? s) : CASE_STATUS_LABEL.not_verified!);
+export const caseStatusLabel = (s: string | null | undefined) =>
+  s ? (CASE_STATUS_LABEL[s] ?? s) : CASE_STATUS_LABEL.not_verified!;
 
 /** Lecture number as the course plan shows it: L01, L12. */
 export const lectureNo = (position: number) => `L${String(position).padStart(2, '0')}`;

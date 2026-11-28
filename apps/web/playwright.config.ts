@@ -12,7 +12,15 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 export const API_PORT = 4100;
 export const WEB_PORT = 5174;
 // A robot clicks much faster than a teacher: the per-teacher limit (60 a minute) is raised for this run only.
-const serverEnv = { API_PORT: String(API_PORT), WEB_ORIGIN: `http://localhost:${WEB_PORT}`, E2E_FAKE_AI: 'true', QUEUE_PREFIX: 'e2e', LOG_LEVEL: 'warn', RATE_LIMIT_PER_MIN: '1000', SIGNIN_LIMIT_PER_MIN: '1000' };
+const serverEnv = {
+  API_PORT: String(API_PORT),
+  WEB_ORIGIN: `http://localhost:${WEB_PORT}`,
+  E2E_FAKE_AI: 'true',
+  QUEUE_PREFIX: 'e2e',
+  LOG_LEVEL: 'warn',
+  RATE_LIMIT_PER_MIN: '1000',
+  SIGNIN_LIMIT_PER_MIN: '1000',
+};
 
 export default defineConfig({
   testDir: './e2e',

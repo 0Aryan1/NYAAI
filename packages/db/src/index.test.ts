@@ -15,13 +15,17 @@ function fakePool(fail = false) {
   return { pool: { connect: async () => client } as unknown as pg.Pool, calls, client };
 }
 
-const who = { userId: '00000000-0000-0000-0000-000000000001', collegeId: '00000000-0000-0000-0000-000000000002', role: 'teacher' as const };
+const who = {
+  userId: '00000000-0000-0000-0000-000000000001',
+  collegeId: '00000000-0000-0000-0000-000000000002',
+  role: 'teacher' as const,
+};
 
 describe('withTenant', () => {
   it('sets identity transaction-locally before running the work, then commits', async () => {
     const { pool, calls, client } = fakePool();
     await withTenant(pool, who, (c) => c.query('select 1'));
-    expect(calls).toEqual(['begin', 'select set_config(\'app.user_id\',', 'select 1', 'commit']);
+    expect(calls).toEqual(['begin', "select set_config('app.user_id',", 'select 1', 'commit']);
     expect(client.query.mock.calls[1]?.[0]).toContain("set_config('app.role', $3, true)");
     expect(client.release).toHaveBeenCalledOnce();
   });

@@ -64,7 +64,9 @@ export const LibraryGap = z.object({
 export type LibraryGap = z.infer<typeof LibraryGap>;
 
 /** GET /library/gaps?state=… (default: everything still waiting: open, looking, loaded). */
-export const LibraryGapQuery = z.object({ state: z.union([GapState, z.literal('waiting'), z.literal('all')]).default('waiting') });
+export const LibraryGapQuery = z.object({
+  state: z.union([GapState, z.literal('waiting'), z.literal('all')]).default('waiting'),
+});
 export const LibraryGapList = z.object({ gaps: z.array(LibraryGap) });
 
 /** PATCH /library/gaps/:id: the editor closes a gap (source loaded by hand, or not something we will hold) or reopens it. */
@@ -88,7 +90,15 @@ export type ParaRole = z.infer<typeof ParaRole>;
  * A case's current status as the app shows it (HLD 5.2 a, LIB-2): the latest treatment a law expert confirmed, else
  * not verified. The app never decides "good law" itself.
  */
-export const CaseStatus = z.enum(['not_verified', 'good_law', 'followed', 'distinguished', 'doubted', 'overruled', 'reversed']);
+export const CaseStatus = z.enum([
+  'not_verified',
+  'good_law',
+  'followed',
+  'distinguished',
+  'doubted',
+  'overruled',
+  'reversed',
+]);
 export type CaseStatus = z.infer<typeof CaseStatus>;
 
 /** POST /library/judgments/:id/status: the expert's finding, with what it rests on. */
@@ -100,7 +110,10 @@ export const SetCaseStatus = z
     /** The later judgment, for doubted, overruled or reversed. */
     byCase: z.string().trim().max(300).optional(),
   })
-  .refine((v) => v.status === 'good_law' || (v.byCase?.length ?? 0) >= 5, { message: 'Name the later judgment.', path: ['byCase'] });
+  .refine((v) => v.status === 'good_law' || (v.byCase?.length ?? 0) >= 5, {
+    message: 'Name the later judgment.',
+    path: ['byCase'],
+  });
 export type SetCaseStatus = z.infer<typeof SetCaseStatus>;
 
 export const CaseStatusEntry = z.object({
@@ -147,12 +160,23 @@ export const ReviewJudgment = z.object({
   scanned: z.boolean(),
   expiresAt: z.string().nullable(),
   /** Every copy held: the official report's, uploads, and how far each agrees with the text in use. */
-  copies: z.array(z.object({ origin: z.string(), url: z.string().nullable(), citation: z.string().nullable(), scanned: z.boolean(), agreement: z.number().nullable(), inUse: z.boolean() })),
+  copies: z.array(
+    z.object({
+      origin: z.string(),
+      url: z.string().nullable(),
+      citation: z.string().nullable(),
+      scanned: z.boolean(),
+      agreement: z.number().nullable(),
+      inUse: z.boolean(),
+    }),
+  ),
   caseStatus: CaseStatus,
   /** Every confirmed status, newest first. */
   statusHistory: z.array(CaseStatusEntry),
   /** A judgment already in the library this may be the same case as (same parties; the date or court differs, or is unknown). */
-  maybeSameAs: z.object({ id: z.uuid(), title: z.string(), court: z.string().nullable(), decidedOn: z.string().nullable() }).nullable(),
+  maybeSameAs: z
+    .object({ id: z.uuid(), title: z.string(), court: z.string().nullable(), decidedOn: z.string().nullable() })
+    .nullable(),
   paragraphs: z.array(
     z.object({
       chunkId: z.uuid(),
@@ -181,8 +205,14 @@ export const UploadJudgmentQuery = z
     caseName: z.string().trim().min(5).max(300),
     court: z.string().trim().min(3).max(120),
     decidedOn: z.iso.date().optional(),
-    official: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
-    sourceUrl: z.url({ protocol: /^https$/ }).max(2000).optional(),
+    official: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
+    sourceUrl: z
+      .url({ protocol: /^https$/ })
+      .max(2000)
+      .optional(),
     replaces: z.uuid().optional(),
   })
   .refine((q) => q.replaces || q.decidedOn, { message: 'Give the date of the judgment.', path: ['decidedOn'] });
@@ -208,7 +238,10 @@ export const UploadJudgmentStatus = z.object({
 export type UploadJudgmentStatus = z.infer<typeof UploadJudgmentStatus>;
 
 /** PATCH /library/paragraphs/:chunkId */
-export const SetParagraphLabel = z.object({ role: ParaRole, opinion: z.enum(['majority', 'concurring', 'dissent', 'separate_no_majority', 'unknown']).optional() });
+export const SetParagraphLabel = z.object({
+  role: ParaRole,
+  opinion: z.enum(['majority', 'concurring', 'dissent', 'separate_no_majority', 'unknown']).optional(),
+});
 
 /* ---------------------------------------------------------------------------------------------------------------
  * Wrong-fact reports (BRD ADM-2, LIB-1; HLD F12).
@@ -218,7 +251,11 @@ export const ReportOutcome = z.enum(['fixed_chunk', 'fixed_label', 'fixed_mappin
 export type ReportOutcome = z.infer<typeof ReportOutcome>;
 
 /** POST /lectures/:id/reports: the line she thinks is wrong, and why (optional). */
-export const ReportLine = z.object({ slideId: z.uuid(), lineKey: z.string().min(1).max(40), note: z.string().trim().max(500).optional() });
+export const ReportLine = z.object({
+  slideId: z.uuid(),
+  lineKey: z.string().min(1).max(40),
+  note: z.string().trim().max(500).optional(),
+});
 export type ReportLine = z.infer<typeof ReportLine>;
 
 /** GET /lectures/:id/reports: her reports on this lecture, with the library's answer. */
@@ -300,7 +337,14 @@ export const MAPPING_PAIRS = [
   { old: 'Indian Evidence Act, 1872', new: 'Bharatiya Sakshya Adhiniyam, 2023', label: 'Evidence Act → BSA' },
 ] as const;
 
-export const MappingRelation = z.enum(['same', 'renumbered', 'merged', 'split', 'substantively_changed', 'no_direct_equivalent']);
+export const MappingRelation = z.enum([
+  'same',
+  'renumbered',
+  'merged',
+  'split',
+  'substantively_changed',
+  'no_direct_equivalent',
+]);
 export type MappingRelation = z.infer<typeof MappingRelation>;
 
 /** "s. 420", "420", "Section 53A" → "420", "53A". */
@@ -325,9 +369,14 @@ export const SaveLawMapping = z
     if (m.relation === 'no_direct_equivalent') {
       if (m.newSections.length) bad('"No direct equivalent" has no new section.');
     } else if (!m.newSections.length) bad('Add the new section, or choose "No direct equivalent".');
-    if (m.relation === 'merged' && m.oldSections.length < 2) ctx.addIssue({ code: 'custom', message: '"Merged" needs two or more old sections.', path: ['oldSections'] });
+    if (m.relation === 'merged' && m.oldSections.length < 2)
+      ctx.addIssue({ code: 'custom', message: '"Merged" needs two or more old sections.', path: ['oldSections'] });
     if (m.relation === 'split' && m.newSections.length < 2) bad('"Split" needs two or more new sections.');
-    if ((m.relation === 'same' || m.relation === 'renumbered') && (m.oldSections.length > 1 || m.newSections.length > 1)) bad('"Same" and "Renumbered" link one section to one section; use Merged or Split.');
+    if (
+      (m.relation === 'same' || m.relation === 'renumbered') &&
+      (m.oldSections.length > 1 || m.newSections.length > 1)
+    )
+      bad('"Same" and "Renumbered" link one section to one section; use Merged or Split.');
   });
 export type SaveLawMapping = z.infer<typeof SaveLawMapping>;
 

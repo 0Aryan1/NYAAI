@@ -91,10 +91,12 @@ export function createGapLookup(deps: LookupDeps): GapLookup {
 
   async function current(gapId: string): Promise<LookupResult> {
     const r = (
-      await library.query<{ state: LookupResult['state']; loaded_source_ids: string[]; attempts: Attempt[]; leads: Lead[] }>(
-        'select state, loaded_source_ids, attempts, leads from library_gaps where id = $1',
-        [gapId],
-      )
+      await library.query<{
+        state: LookupResult['state'];
+        loaded_source_ids: string[];
+        attempts: Attempt[];
+        leads: Lead[];
+      }>('select state, loaded_source_ids, attempts, leads from library_gaps where id = $1', [gapId])
     ).rows[0];
     if (!r) throw new Error(`library gap ${gapId} not found`);
     return { gapId, state: r.state, loadedSourceIds: r.loaded_source_ids, attempts: r.attempts, leads: r.leads };
@@ -104,66 +106,157 @@ export function createGapLookup(deps: LookupDeps): GapLookup {
   async function actStep(gap: GapRow, deadline: number, attempts: Attempt[], leads: Lead[], loaded: string[]) {
     const at = () => new Date().toISOString();
     if (!gap.act_name) return;
-    if (!deps.indiaCode) return void attempts.push({ at: at(), provider: 'india_code', outcome: 'skipped', detail: 'India Code lookup is not set up' });
-    const have = (await library.query<{ act_name: string | null }>("select distinct act_name from sources where type = 'act' and status <> 'retired'")).rows;
+    if (!deps.indiaCode)
+      return void attempts.push({
+        at: at(),
+        provider: 'india_code',
+        outcome: 'skipped',
+        detail: 'India Code lookup is not set up',
+      });
+    const have = (
+      await library.query<{ act_name: string | null }>(
+        "select distinct act_name from sources where type = 'act' and status <> 'retired'",
+      )
+    ).rows;
     if (have.some((h) => h.act_name && sameAct(h.act_name, gap.act_name!))) {
-      return void attempts.push({ at: at(), provider: 'india_code', outcome: 'skipped', detail: `${gap.act_name} is already in the library` });
+      return void attempts.push({
+        at: at(),
+        provider: 'india_code',
+        outcome: 'skipped',
+        detail: `${gap.act_name} is already in the library`,
+      });
     }
     const wanted = { name: gap.act_name, year: gap.act_year };
     const pick = pickAct(wanted, await deps.indiaCode.findCentralActs(wanted.name));
-    if (pick.kind === 'none') return void attempts.push({ at: at(), provider: 'india_code', outcome: 'nothing', detail: `No central Act named "${wanted.name}"${wanted.year ? `, ${wanted.year}` : ''}` });
+    if (pick.kind === 'none')
+      return void attempts.push({
+        at: at(),
+        provider: 'india_code',
+        outcome: 'nothing',
+        detail: `No central Act named "${wanted.name}"${wanted.year ? `, ${wanted.year}` : ''}`,
+      });
     if (pick.kind === 'repealed') {
-      leads.push({ provider: 'india_code', title: pick.act.title, url: pick.act.pageUrl, lastUpdated: null, checked: true });
-      return void attempts.push({ at: at(), provider: 'india_code', outcome: 'repealed', detail: `${pick.act.title} is marked repealed; not loaded` });
+      leads.push({
+        provider: 'india_code',
+        title: pick.act.title,
+        url: pick.act.pageUrl,
+        lastUpdated: null,
+        checked: true,
+      });
+      return void attempts.push({
+        at: at(),
+        provider: 'india_code',
+        outcome: 'repealed',
+        detail: `${pick.act.title} is marked repealed; not loaded`,
+      });
     }
     if (pick.kind === 'ambiguous') {
-      for (const a of pick.acts) leads.push({ provider: 'india_code', title: a.title, url: a.pageUrl, lastUpdated: null, checked: true });
-      return void attempts.push({ at: at(), provider: 'india_code', outcome: 'ambiguous', detail: `${pick.acts.length} Acts match "${wanted.name}"; the editor picks one` });
+      for (const a of pick.acts)
+        leads.push({ provider: 'india_code', title: a.title, url: a.pageUrl, lastUpdated: null, checked: true });
+      return void attempts.push({
+        at: at(),
+        provider: 'india_code',
+        outcome: 'ambiguous',
+        detail: `${pick.acts.length} Acts match "${wanted.name}"; the editor picks one`,
+      });
     }
-    if (Date.now() > deadline) return void attempts.push({ at: at(), provider: 'india_code', outcome: 'skipped', detail: 'out of time for this lookup' });
+    if (Date.now() > deadline)
+      return void attempts.push({
+        at: at(),
+        provider: 'india_code',
+        outcome: 'skipped',
+        detail: 'out of time for this lookup',
+      });
 
     const act = pick.act;
     const r = await loadIndiaCodeAct(act, { ...deps, indiaCode: deps.indiaCode }, { provisional: true });
     if (r.kind === 'no_pdf') {
       leads.push({ provider: 'india_code', title: act.title, url: act.pageUrl, lastUpdated: null, checked: true });
-      return void attempts.push({ at: at(), provider: 'india_code', outcome: 'failed', detail: `${act.title} has no English PDF on India Code` });
+      return void attempts.push({
+        at: at(),
+        provider: 'india_code',
+        outcome: 'failed',
+        detail: `${act.title} has no English PDF on India Code`,
+      });
     }
     if (r.kind === 'duplicate') {
-      return void attempts.push({ at: at(), provider: 'india_code', outcome: 'skipped', detail: `${act.title} is already in the library`, sourceIds: [r.sourceId] });
+      return void attempts.push({
+        at: at(),
+        provider: 'india_code',
+        outcome: 'skipped',
+        detail: `${act.title} is already in the library`,
+        sourceIds: [r.sourceId],
+      });
     }
     loaded.push(r.sourceId);
-    attempts.push({ at: at(), provider: 'india_code', outcome: 'loaded', detail: `${act.title}: ${r.units} sections (not yet reviewed)`, sourceIds: [r.sourceId] });
+    attempts.push({
+      at: at(),
+      provider: 'india_code',
+      outcome: 'loaded',
+      detail: `${act.title}: ${r.units} sections (not yet reviewed)`,
+      sourceIds: [r.sourceId],
+    });
   }
 
   /** Indian Kanoon: the named case, or the top judgments for the topic. */
   async function judgmentStep(gap: GapRow, deadline: number, attempts: Attempt[], loaded: string[]) {
     const at = () => new Date().toISOString();
-    if (!deps.kanoon) return void attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'skipped', detail: 'Indian Kanoon is not set up' });
+    if (!deps.kanoon)
+      return void attempts.push({
+        at: at(),
+        provider: 'indian_kanoon',
+        outcome: 'skipped',
+        detail: 'Indian Kanoon is not set up',
+      });
     const query = gap.kind === 'case' && gap.case_name ? gap.case_name : gap.question;
     let hits = await deps.kanoon.search(query, { doctypes: 'judgments' });
     if (gap.kind === 'case' && gap.case_name) {
       const named = pickCaseHit(gap.case_name, hits);
       hits = named ? [named] : [];
-    }
-    else hits = hits.slice(0, maxJudgments * 2);
-    if (!hits.length) return void attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'nothing', detail: gap.kind === 'case' ? `No judgment titled like "${gap.case_name}"` : 'No judgments found' });
+    } else hits = hits.slice(0, maxJudgments * 2);
+    if (!hits.length)
+      return void attempts.push({
+        at: at(),
+        provider: 'indian_kanoon',
+        outcome: 'nothing',
+        detail: gap.kind === 'case' ? `No judgment titled like "${gap.case_name}"` : 'No judgments found',
+      });
 
     // One case, one source: skip what the library holds by link (its own or a kept copy), then by case (parties,
     // decision date, court). A judgment that may be a held case is still loaded, and the editor is asked.
-    const held = await heldLinks(library, hits.map((h) => kanoonUrl(h.tid)));
+    const held = await heldLinks(
+      library,
+      hits.map((h) => kanoonUrl(h.tid)),
+    );
     const cases = await heldJudgments(library);
     const checked = hits.filter((h) => !held.has(kanoonUrl(h.tid))).map((h) => ({ h, match: matchHeldCase(h, cases) }));
     const sameCase = checked.filter((x) => x.match?.kind === 'same');
     const fresh = checked.filter((x) => x.match?.kind !== 'same').slice(0, gap.kind === 'case' ? 1 : maxJudgments);
     if (!fresh.length) {
       const names = sameCase.map((x) => x.match!.held.title);
-      return void attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'skipped', detail: `The judgments found are already in the library${names.length ? `: ${names.join('; ')}` : ''}` });
+      return void attempts.push({
+        at: at(),
+        provider: 'indian_kanoon',
+        outcome: 'skipped',
+        detail: `The judgments found are already in the library${names.length ? `: ${names.join('; ')}` : ''}`,
+      });
     }
-    if (Date.now() > deadline) return void attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'skipped', detail: 'out of time for this lookup' });
+    if (Date.now() > deadline)
+      return void attempts.push({
+        at: at(),
+        provider: 'indian_kanoon',
+        outcome: 'skipped',
+        detail: 'out of time for this lookup',
+      });
 
     const results = await Promise.allSettled(
       fresh.map(async ({ h, match }) => {
-        const r = await ingestKanoonJudgment(h.tid, { ...deps, kanoon: deps.kanoon!, storage: deps.storage, cacheDays: deps.cacheDays });
+        const r = await ingestKanoonJudgment(h.tid, {
+          ...deps,
+          kanoon: deps.kanoon!,
+          storage: deps.storage,
+          cacheDays: deps.cacheDays,
+        });
         if (match?.kind === 'maybe' && match.held.sourceId !== r.sourceId) {
           await library.query('update sources set maybe_same_as = $2 where id = $1', [r.sourceId, match.held.sourceId]);
         }
@@ -173,15 +266,32 @@ export function createGapLookup(deps: LookupDeps): GapLookup {
     const ok = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
     const failed = results.flatMap((r) => (r.status === 'rejected' ? [errText(r.reason)] : []));
     loaded.push(...ok.map((r) => r.sourceId));
-    if (ok.length) attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'loaded', detail: `${ok.map((r) => (r.maybeSameAs ? `${r.caseName} (may be the same case as ${r.maybeSameAs})` : r.caseName)).join('; ')} (not yet reviewed)`, sourceIds: ok.map((r) => r.sourceId) });
-    if (failed.length) attempts.push({ at: at(), provider: 'indian_kanoon', outcome: 'failed', detail: failed.join(' | ').slice(0, 300) });
+    if (ok.length)
+      attempts.push({
+        at: at(),
+        provider: 'indian_kanoon',
+        outcome: 'loaded',
+        detail: `${ok.map((r) => (r.maybeSameAs ? `${r.caseName} (may be the same case as ${r.maybeSameAs})` : r.caseName)).join('; ')} (not yet reviewed)`,
+        sourceIds: ok.map((r) => r.sourceId),
+      });
+    if (failed.length)
+      attempts.push({
+        at: at(),
+        provider: 'indian_kanoon',
+        outcome: 'failed',
+        detail: failed.join(' | ').slice(0, 300),
+      });
   }
 
   /** Web: allowlisted official links for the editor. */
   async function webStep(gap: GapRow, attempts: Attempt[], leads: Lead[]) {
     const at = () => new Date().toISOString();
-    if (!deps.web) return void attempts.push({ at: at(), provider: 'web', outcome: 'skipped', detail: 'Web search is not set up' });
-    const query = gap.act_name && !gap.question.toLowerCase().includes(gap.act_name.toLowerCase()) ? `${gap.question} ${gap.act_name}` : gap.question;
+    if (!deps.web)
+      return void attempts.push({ at: at(), provider: 'web', outcome: 'skipped', detail: 'Web search is not set up' });
+    const query =
+      gap.act_name && !gap.question.toLowerCase().includes(gap.act_name.toLowerCase())
+        ? `${gap.question} ${gap.act_name}`
+        : gap.question;
     const found = await deps.web.findLeads(`${query} India law`);
     const checked = found.filter((l) => l.checked);
     leads.push(...checked.map((l) => ({ ...l, provider: 'web' as const })));
@@ -189,7 +299,9 @@ export function createGapLookup(deps: LookupDeps): GapLookup {
       at: at(),
       provider: 'web',
       outcome: checked.length ? 'loaded' : 'nothing',
-      detail: checked.length ? `${checked.length} official link(s) for the editor (not added to the library)` : 'No official links that open',
+      detail: checked.length
+        ? `${checked.length} official link(s) for the editor (not added to the library)`
+        : 'No official links that open',
     });
   }
 
@@ -207,7 +319,12 @@ export function createGapLookup(deps: LookupDeps): GapLookup {
       ).rows[0];
       if (!claimed) {
         const now = await current(gapId);
-        const skipped = now.state === 'resolved' || now.state === 'wont_fill' ? 'closed' : now.state === 'looking' ? 'busy' : 'recent';
+        const skipped =
+          now.state === 'resolved' || now.state === 'wont_fill'
+            ? 'closed'
+            : now.state === 'looking'
+              ? 'busy'
+              : 'recent';
         return { ...now, loadedSourceIds: [], skipped };
       }
 
@@ -223,12 +340,18 @@ export function createGapLookup(deps: LookupDeps): GapLookup {
         }
       };
       try {
-        if (claimed.kind === 'act') await guard('india_code', () => actStep(claimed, deadline, attempts, leads, loaded));
+        if (claimed.kind === 'act')
+          await guard('india_code', () => actStep(claimed, deadline, attempts, leads, loaded));
         // Judgments for cases and topics; for an Act gap only when the Act itself could not be loaded.
-        if (claimed.kind !== 'act' || loaded.length === 0) await guard('indian_kanoon', () => judgmentStep(claimed, deadline, attempts, loaded));
-        if (loaded.length === 0 || claimed.kind === 'topic') await guard('web', () => webStep(claimed, attempts, leads));
+        if (claimed.kind !== 'act' || loaded.length === 0)
+          await guard('indian_kanoon', () => judgmentStep(claimed, deadline, attempts, loaded));
+        if (loaded.length === 0 || claimed.kind === 'topic')
+          await guard('web', () => webStep(claimed, attempts, leads));
       } finally {
-        const mergedLeads = [...leads, ...claimed.leads.filter((old) => !leads.some((l) => l.url === old.url))].slice(0, MAX_LEADS_KEPT);
+        const mergedLeads = [...leads, ...claimed.leads.filter((old) => !leads.some((l) => l.url === old.url))].slice(
+          0,
+          MAX_LEADS_KEPT,
+        );
         const allAttempts = [...claimed.attempts, ...attempts].slice(-MAX_ATTEMPTS_KEPT);
         await library.query(
           `update library_gaps
@@ -289,8 +412,19 @@ export async function searchWithLookup(
   if (first.outcome === 'ok' || req.purpose === 'eval' || req.purpose === 'suggest') return { ...first, gap: null };
 
   const gapId = await tenant(async (c) => {
-    const acts = (await c.query<{ act_name: string }>("select distinct act_name from sources where type in ('act', 'constitution') and status in ('live', 'provisional') and act_name is not null")).rows;
-    return recordGap(c, req.query, classifyGap(req.query, acts.map((a) => a.act_name)));
+    const acts = (
+      await c.query<{ act_name: string }>(
+        "select distinct act_name from sources where type in ('act', 'constitution') and status in ('live', 'provisional') and act_name is not null",
+      )
+    ).rows;
+    return recordGap(
+      c,
+      req.query,
+      classifyGap(
+        req.query,
+        acts.map((a) => a.act_name),
+      ),
+    );
   });
   if (!lookup) return { ...first, gap: { id: gapId, lookup: null, recheck: null } };
 

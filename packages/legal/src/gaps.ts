@@ -34,12 +34,53 @@ export const sameAct = (a: string, b: string) => actKey(a) === actKey(b);
 
 // A capitalised name ending in "Act", "Code" or "Sanhita", optionally followed by its year:
 // "Transfer of Property Act, 1882", "the Limitation Act 1963", "Code of Civil Procedure, 1908".
-const ACT_NAME = /\b((?:[A-Z][A-Za-z]+)(?:\s+(?:[A-Z][A-Za-z]+|of|and|for|on|in|the|\([A-Z][A-Za-z]+\)))*?\s+(?:Act|Code|Sanhita|Adhiniyam))\b(?:,?\s+((?:1[6-9]|20)\d{2}))?/g;
+const ACT_NAME =
+  /\b((?:[A-Z][A-Za-z]+)(?:\s+(?:[A-Z][A-Za-z]+|of|and|for|on|in|the|\([A-Z][A-Za-z]+\)))*?\s+(?:Act|Code|Sanhita|Adhiniyam))\b(?:,?\s+((?:1[6-9]|20)\d{2}))?/g;
 /** Words that start a sentence or a phrase, never an Act's name. */
 const LEAD_WORDS = new Set([
-  'the', 'a', 'an', 'is', 'are', 'was', 'what', 'which', 'how', 'why', 'when', 'where', 'who', 'explain', 'discuss', 'describe',
-  'define', 'compare', 'under', 'in', 'on', 'of', 'and', 'for', 'this', 'that', 'does', 'do', 'can', 'teach', 'lecture', 'notes',
-  'section', 'sections', 'chapter', 'about', 'per', 'as', 'by', 'from', 'with', 'new', 'old',
+  'the',
+  'a',
+  'an',
+  'is',
+  'are',
+  'was',
+  'what',
+  'which',
+  'how',
+  'why',
+  'when',
+  'where',
+  'who',
+  'explain',
+  'discuss',
+  'describe',
+  'define',
+  'compare',
+  'under',
+  'in',
+  'on',
+  'of',
+  'and',
+  'for',
+  'this',
+  'that',
+  'does',
+  'do',
+  'can',
+  'teach',
+  'lecture',
+  'notes',
+  'section',
+  'sections',
+  'chapter',
+  'about',
+  'per',
+  'as',
+  'by',
+  'from',
+  'with',
+  'new',
+  'old',
 ]);
 
 /** Acts a question names: known aliases first (with their year), then any capitalised "… Act[, year]". */
@@ -80,13 +121,38 @@ export function classifyGap(question: string, loadedActs: string[]): GapClass {
 
 /** "The Sale of Goods Act, 1930" → "Sale of Goods Act": the library `act_name` style. */
 export function libraryActName(title: string): string {
-  return title.replace(/^\s*The\s+/i, '').replace(/,?\s*(1[6-9]|20)\d{2}\s*$/, '').replace(/\s+/g, ' ').trim();
+  return title
+    .replace(/^\s*The\s+/i, '')
+    .replace(/,?\s*(1[6-9]|20)\d{2}\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-const PARTY_NOISE = new Set(['the', 'state', 'union', 'of', 'and', 'ltd', 'limited', 'pvt', 'private', 'company', 'co', 'india', 'others', 'ors', 'anr']);
+const PARTY_NOISE = new Set([
+  'the',
+  'state',
+  'union',
+  'of',
+  'and',
+  'ltd',
+  'limited',
+  'pvt',
+  'private',
+  'company',
+  'co',
+  'india',
+  'others',
+  'ors',
+  'anr',
+]);
 /** First distinctive word of a party: "M/s. Satyabrata Ghose" → "satyabrata"; "State of Bihar" → "bihar". */
 function partyWord(party: string): string | null {
-  return party.toLowerCase().match(/[a-z]{3,}/g)?.find((w) => !PARTY_NOISE.has(w)) ?? null;
+  return (
+    party
+      .toLowerCase()
+      .match(/[a-z]{3,}/g)
+      ?.find((w) => !PARTY_NOISE.has(w)) ?? null
+  );
 }
 
 /** The distinctive word of each party of "X v. Y" (null for a generic party such as "State of U.P."). */
@@ -130,10 +196,18 @@ export function pickCaseHit<T extends CaseHit>(
 ): T | null {
   const sc = (h: T) => /supreme court of india/i.test(h.docsource ?? '');
   const named = (h: T) =>
-    opts.titleWords?.length ? opts.titleWords.every((w) => h.title.toLowerCase().includes(w.toLowerCase())) : caseMatches(caseName, h.title);
+    opts.titleWords?.length
+      ? opts.titleWords.every((w) => h.title.toLowerCase().includes(w.toLowerCase()))
+      : caseMatches(caseName, h.title);
   const ok = hits.filter((h) => named(h) && (opts.court !== 'SC' || sc(h)));
-  const score = (h: T) => (opts.year && (h.publishdate?.startsWith(String(opts.year)) || h.title.endsWith(String(opts.year))) ? 2 : 0) + (sc(h) ? 1 : 0);
-  return ok.map((h, i) => ({ h, i, s: score(h) })).sort((a, b) => b.s - a.s || (b.h.docsize ?? 0) - (a.h.docsize ?? 0) || a.i - b.i)[0]?.h ?? null;
+  const score = (h: T) =>
+    (opts.year && (h.publishdate?.startsWith(String(opts.year)) || h.title.endsWith(String(opts.year))) ? 2 : 0) +
+    (sc(h) ? 1 : 0);
+  return (
+    ok
+      .map((h, i) => ({ h, i, s: score(h) }))
+      .sort((a, b) => b.s - a.s || (b.h.docsize ?? 0) - (a.h.docsize ?? 0) || a.i - b.i)[0]?.h ?? null
+  );
 }
 
 /**
@@ -142,7 +216,9 @@ export function pickCaseHit<T extends CaseHit>(
  */
 export function titleQuery(caseName: string): string {
   const parties = caseName.split(/\s+(?:v\.?|vs\.?|versus)\s+/i);
-  const words = parties.flatMap((p) => (p.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter((w) => !PARTY_NOISE.has(w)).slice(0, 2));
+  const words = parties.flatMap((p) =>
+    (p.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter((w) => !PARTY_NOISE.has(w)).slice(0, 2),
+  );
   return `title: ${words.join(' ')}`;
 }
 
@@ -162,10 +238,7 @@ export interface ActCandidate {
 }
 
 export type ActPick<T extends ActCandidate> =
-  | { kind: 'one'; act: T }
-  | { kind: 'none' }
-  | { kind: 'repealed'; act: T }
-  | { kind: 'ambiguous'; acts: T[] };
+  { kind: 'one'; act: T } | { kind: 'none' } | { kind: 'repealed'; act: T } | { kind: 'ambiguous'; acts: T[] };
 
 /**
  * Picks the Act to load automatically. Only an exact name match counts (never "closest"), the year must agree when
@@ -173,7 +246,9 @@ export type ActPick<T extends ActCandidate> =
  * is the mistake this must not make.
  */
 export function pickAct<T extends ActCandidate>(wanted: ActMention, candidates: T[]): ActPick<T> {
-  const exact = candidates.filter((c) => sameAct(c.title, wanted.name) && (wanted.year === null || c.year === wanted.year));
+  const exact = candidates.filter(
+    (c) => sameAct(c.title, wanted.name) && (wanted.year === null || c.year === wanted.year),
+  );
   if (exact.length === 0) return { kind: 'none' };
   const inForce = exact.filter((c) => !c.repealed);
   if (inForce.length === 1) return { kind: 'one', act: inForce[0]! };

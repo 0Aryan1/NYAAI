@@ -9,10 +9,12 @@
 const SHINGLE = 4;
 
 export function wordsOf(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[‘’`´]/g, "'")
-    .match(/[a-z0-9]+/g) ?? [];
+  return (
+    text
+      .toLowerCase()
+      .replace(/[‘’`´]/g, "'")
+      .match(/[a-z0-9]+/g) ?? []
+  );
 }
 
 export function shingles(text: string, n = SHINGLE): Set<string> {

@@ -4,7 +4,12 @@ import type { Suggestion } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { cn } from '@/shared/lib/utils';
 
-const KIND_LABEL: Record<Suggestion['kind'], string> = { concept: 'Topic', section: 'Section', case: 'Case', unit: 'Your plan' };
+const KIND_LABEL: Record<Suggestion['kind'], string> = {
+  concept: 'Topic',
+  section: 'Section',
+  case: 'Case',
+  unit: 'Your plan',
+};
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -24,7 +29,12 @@ export function TopicBox({ value, onChange }: { value: string; onChange: (v: str
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const q = useDebounced(value.trim(), 150);
-  const suggest = useQuery({ queryKey: queryKeys.suggest(q), queryFn: () => api.suggest(q), enabled: q.length >= 2, staleTime: 5 * 60_000 });
+  const suggest = useQuery({
+    queryKey: queryKeys.suggest(q),
+    queryFn: () => api.suggest(q),
+    enabled: q.length >= 2,
+    staleTime: 5 * 60_000,
+  });
   const items = q.length >= 2 ? (suggest.data?.suggestions ?? []) : [];
   const showList = open && items.length > 0;
 
@@ -75,7 +85,12 @@ export function TopicBox({ value, onChange }: { value: string; onChange: (v: str
         className="h-12 w-full rounded-control border border-border bg-surface px-4 text-base placeholder:text-muted focus:border-accent"
       />
       {showList && (
-        <ul id={`${id}-list`} role="listbox" aria-label="Suggestions from the library" className="absolute z-20 mt-1 w-full overflow-hidden rounded-card border border-border bg-surface shadow-popover">
+        <ul
+          id={`${id}-list`}
+          role="listbox"
+          aria-label="Suggestions from the library"
+          className="absolute z-20 mt-1 w-full overflow-hidden rounded-card border border-border bg-surface shadow-popover"
+        >
           {items.map((s, i) => (
             <li
               key={`${s.kind}:${s.label}`}

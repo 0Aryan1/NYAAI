@@ -33,15 +33,26 @@ describe('a course plan from a syllabus', () => {
   it('reads the units and their topics, and leaves out objectives, readings, marks and case lists', () => {
     expect(outline.courseName).toBe('Alternative Dispute Resolution');
     expect(outline.units).toEqual([
-      { title: 'Arbitration Agreement', topics: ['Meaning and essentials of an arbitration agreement', 'Arbitrability of disputes'] },
-      { title: 'Composition of the Arbitral Tribunal', topics: ['Appointment of arbitrators', 'Challenge to arbitrators'] },
+      {
+        title: 'Arbitration Agreement',
+        topics: ['Meaning and essentials of an arbitration agreement', 'Arbitrability of disputes'],
+      },
+      {
+        title: 'Composition of the Arbitral Tribunal',
+        topics: ['Appointment of arbitrators', 'Challenge to arbitrators'],
+      },
       { title: 'Interim measures', topics: ['Section 9 and Section 17', 'Emergency arbitration'] },
       { title: 'Setting aside of awards', topics: [] },
     ]);
   });
 
   it('one lecture per unit, or per topic (a unit without topics stays one lecture)', () => {
-    expect(syllabusLectures(outline, 'unit')).toEqual(['Arbitration Agreement', 'Composition of the Arbitral Tribunal', 'Interim measures', 'Setting aside of awards']);
+    expect(syllabusLectures(outline, 'unit')).toEqual([
+      'Arbitration Agreement',
+      'Composition of the Arbitral Tribunal',
+      'Interim measures',
+      'Setting aside of awards',
+    ]);
     expect(syllabusLectures(outline, 'topic')).toEqual([
       'Meaning and essentials of an arbitration agreement',
       'Arbitrability of disputes',
@@ -56,13 +67,23 @@ describe('a course plan from a syllabus', () => {
   });
 
   it('a plain list with no units is the plan, one lecture per line', () => {
-    const o = readSyllabus(syllabusLines('1. Transfer of property\n\n2. Doctrine of lis pendens\n\n3. Part performance'));
-    expect(syllabusLectures(o, 'unit')).toEqual(['Transfer of property', 'Doctrine of lis pendens', 'Part performance']);
+    const o = readSyllabus(
+      syllabusLines('1. Transfer of property\n\n2. Doctrine of lis pendens\n\n3. Part performance'),
+    );
+    expect(syllabusLectures(o, 'unit')).toEqual([
+      'Transfer of property',
+      'Doctrine of lis pendens',
+      'Part performance',
+    ]);
   });
 
   it('a unit line listing its topics with commas: the first names the unit', () => {
-    const o = readSyllabus([{ text: 'Module 2: Mortgage, kinds of mortgage, rights of mortgagor, redemption', heading: null }]);
-    expect(o.units).toEqual([{ title: 'Mortgage', topics: ['kinds of mortgage', 'rights of mortgagor', 'redemption'] }]);
+    const o = readSyllabus([
+      { text: 'Module 2: Mortgage, kinds of mortgage, rights of mortgagor, redemption', heading: null },
+    ]);
+    expect(o.units).toEqual([
+      { title: 'Mortgage', topics: ['kinds of mortgage', 'rights of mortgagor', 'redemption'] },
+    ]);
   });
 
   it('roman, numbered and lettered units all count; Word headings start units too', () => {
@@ -79,7 +100,28 @@ describe('a course plan from a syllabus', () => {
 
   it('a PDF line that carries on the one before is joined to it', () => {
     const line = (text: string, size = 11) => ({ text, size, x: 72, y: 0, marks: [] });
-    const blocks = syllabusPdfLines({ bodySize: 11, scanned: false, pages: [{ pageNo: 1, lines: [line('Property Law', 16), line('Unit 1: Transfer of property'), line('1. Rule against perpetuity and the'), line('exceptions to it'), line('2. Lis pendens'), line('4')] }] });
-    expect(readSyllabus(blocks)).toEqual({ courseName: 'Property Law', units: [{ title: 'Transfer of property', topics: ['Rule against perpetuity and the exceptions to it', 'Lis pendens'] }] });
+    const blocks = syllabusPdfLines({
+      bodySize: 11,
+      scanned: false,
+      pages: [
+        {
+          pageNo: 1,
+          lines: [
+            line('Property Law', 16),
+            line('Unit 1: Transfer of property'),
+            line('1. Rule against perpetuity and the'),
+            line('exceptions to it'),
+            line('2. Lis pendens'),
+            line('4'),
+          ],
+        },
+      ],
+    });
+    expect(readSyllabus(blocks)).toEqual({
+      courseName: 'Property Law',
+      units: [
+        { title: 'Transfer of property', topics: ['Rule against perpetuity and the exceptions to it', 'Lis pendens'] },
+      ],
+    });
   });
 });

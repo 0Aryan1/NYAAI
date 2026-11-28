@@ -6,7 +6,12 @@ import { costMicroUsd, createGateway, GatewayError } from '../src/services/llm-g
 import type { UsageRow } from '../src/services/usage.ts';
 
 const Schema = z.object({ role: z.enum(['facts', 'holding', 'unknown']) });
-const usageBlock = { input_tokens: 1000, output_tokens: 100, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+const usageBlock = {
+  input_tokens: 1000,
+  output_tokens: 100,
+  cache_creation_input_tokens: 0,
+  cache_read_input_tokens: 0,
+};
 
 type Step = { parsed?: unknown; stop?: string } | Error;
 
@@ -19,7 +24,11 @@ function fakeClient(steps: Step[]) {
         const step = steps.shift();
         if (!step) throw new Error('no more steps');
         if (step instanceof Error) throw step;
-        return { content: [{ type: 'text', text: JSON.stringify(step.parsed ?? null) }], stop_reason: step.stop ?? 'end_turn', usage: usageBlock };
+        return {
+          content: [{ type: 'text', text: JSON.stringify(step.parsed ?? null) }],
+          stop_reason: step.stop ?? 'end_turn',
+          usage: usageBlock,
+        };
       },
     },
   } as unknown as Pick<Anthropic, 'messages'>;
@@ -29,9 +38,17 @@ function fakeClient(steps: Step[]) {
 const gateway = (steps: Step[]) => {
   const f = fakeClient(steps);
   const usage: UsageRow[] = [];
-  const g = createGateway({ lightModel: 'claude-haiku-5-5', heavyModel: 'claude-sonnet-5-5', client: f.client, sleep: async () => {} });
+  const g = createGateway({
+    lightModel: 'claude-haiku-5-5',
+    heavyModel: 'claude-sonnet-5-5',
+    client: f.client,
+    sleep: async () => {},
+  });
   const run = (forceHeavy = false) =>
-    g.run({ prompt: PROMPTS['labeller.roles'], schema: Schema, task: 'label', forceHeavy }, async (u) => void usage.push(u));
+    g.run(
+      { prompt: PROMPTS['labeller.roles'], schema: Schema, task: 'label', forceHeavy },
+      async (u) => void usage.push(u),
+    );
   return { run, calls: f.calls, usage };
 };
 
@@ -41,7 +58,13 @@ describe('LLM gateway (LLD §17.2)', () => {
   it('answers on the light tier and records cost', async () => {
     const g = gateway([{ parsed: { role: 'holding' } }]);
     await expect(g.run()).resolves.toMatchObject({ data: { role: 'holding' }, tier: 'light', escalated: false });
-    expect(g.usage[0]).toMatchObject({ provider: 'anthropic', model: 'claude-haiku-5-5', promptId: 'labeller.roles', promptVersion: '1', tier: 'light' });
+    expect(g.usage[0]).toMatchObject({
+      provider: 'anthropic',
+      model: 'claude-haiku-5-5',
+      promptId: 'labeller.roles',
+      promptVersion: '1',
+      tier: 'light',
+    });
     expect(g.usage[0]!.costMicroUsd).toBe(costMicroUsd('claude-haiku-5-5', usageBlock));
   });
 
@@ -71,35 +94,63 @@ describe('LLM gateway (LLD §17.2)', () => {
 
   it('treats a refusal and a cut-off reply as failures, never as answers', async () => {
     await expect(gateway([{ stop: 'refusal' }]).run()).rejects.toBeInstanceOf(GatewayError);
-    const g = gateway([{ parsed: { role: 'facts' }, stop: 'max_tokens' }, { parsed: { role: 'facts' }, stop: 'max_tokens' }, { parsed: { role: 'facts' } }]);
+    const g = gateway([
+      { parsed: { role: 'facts' }, stop: 'max_tokens' },
+      { parsed: { role: 'facts' }, stop: 'max_tokens' },
+      { parsed: { role: 'facts' } },
+    ]);
     await expect(g.run()).resolves.toMatchObject({ tier: 'heavy' });
   });
 });
 
 describe('cache breakpoints (LLD §17.1)', () => {
   it('marks the end of a long shared prefix, never a prefix too short to cache, and never the task', async () => {
-    const seen: { system: { cache_control?: unknown }[]; messages: { content: { text: string; cache_control?: unknown }[] }[] }[] = [];
+    const seen: {
+      system: { cache_control?: unknown }[];
+      messages: { content: { text: string; cache_control?: unknown }[] }[];
+    }[] = [];
     const client = {
       messages: {
         create: async (params: (typeof seen)[number]) => {
           seen.push(params);
-          return { content: [{ type: 'text', text: JSON.stringify({ role: 'facts' }) }], stop_reason: 'end_turn', usage: usageBlock };
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ role: 'facts' }) }],
+            stop_reason: 'end_turn',
+            usage: usageBlock,
+          };
         },
       },
     } as unknown as Pick<Anthropic, 'messages'>;
-    const g = createGateway({ lightModel: 'claude-haiku-5-5', heavyModel: 'claude-sonnet-5-5', client, sleep: async () => {} });
+    const g = createGateway({
+      lightModel: 'claude-haiku-5-5',
+      heavyModel: 'claude-sonnet-5-5',
+      client,
+      sleep: async () => {},
+    });
     const teacher = 'TEACHER style';
     const sources = 'SOURCES '.repeat(500);
-    await g.run({ prompt: PROMPTS['writer.part'], schema: Schema, context: [teacher, sources], task: 'TASK: WRITE' }, async () => {});
-    await g.run({ prompt: PROMPTS['writer.repair'], schema: Schema, context: [teacher, sources], task: 'TASK: REPAIR' }, async () => {});
+    await g.run(
+      { prompt: PROMPTS['writer.part'], schema: Schema, context: [teacher, sources], task: 'TASK: WRITE' },
+      async () => {},
+    );
+    await g.run(
+      { prompt: PROMPTS['writer.repair'], schema: Schema, context: [teacher, sources], task: 'TASK: REPAIR' },
+      async () => {},
+    );
     for (const req of seen) {
       const blocks = req.messages[0]!.content;
-      expect(blocks.map((b) => !!b.cache_control)).toEqual([PROMPTS['writer.part'].system.length + teacher.length >= 2400, true, false]);
+      expect(blocks.map((b) => !!b.cache_control)).toEqual([
+        PROMPTS['writer.part'].system.length + teacher.length >= 2400,
+        true,
+        false,
+      ]);
     }
     // Writer and repair send byte-identical prefixes, so the repair can read the writer's cache entry.
     expect(PROMPTS['writer.repair'].system).toBe(PROMPTS['writer.part'].system);
     expect(PROMPTS['writer.repair'].effort).toBe(PROMPTS['writer.part'].effort);
-    expect(JSON.stringify(seen[1]!.messages[0]!.content.slice(0, 2))).toBe(JSON.stringify(seen[0]!.messages[0]!.content.slice(0, 2)));
+    expect(JSON.stringify(seen[1]!.messages[0]!.content.slice(0, 2))).toBe(
+      JSON.stringify(seen[0]!.messages[0]!.content.slice(0, 2)),
+    );
     // A short prompt with no context gets no marker at all.
     seen.length = 0;
     await g.run({ prompt: PROMPTS['query.expand'], schema: Schema, task: 'expand' }, async () => {});
@@ -111,7 +162,9 @@ describe('writer and repair share one output schema (cache prefix)', () => {
   it('sends byte-identical JSON schemas; the refinements stay on our side', async () => {
     const { zodOutputFormat } = await import('@anthropic-ai/sdk/helpers/zod');
     const { WriterReplyRepair, WriterReplyWrite } = await import('@nyaai/shared');
-    expect(JSON.stringify(zodOutputFormat(WriterReplyWrite).schema)).toBe(JSON.stringify(zodOutputFormat(WriterReplyRepair).schema));
+    expect(JSON.stringify(zodOutputFormat(WriterReplyWrite).schema)).toBe(
+      JSON.stringify(zodOutputFormat(WriterReplyRepair).schema),
+    );
     expect(WriterReplyWrite.safeParse({ written: null, repairs: [] }).success).toBe(false);
     expect(WriterReplyRepair.safeParse({ written: null, repairs: [] }).success).toBe(true);
   });

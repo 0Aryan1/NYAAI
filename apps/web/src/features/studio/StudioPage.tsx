@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ChevronLeft, ChevronRight, CircleHelp, CloudOff, Download, ListChecks, Loader2, RefreshCw, Undo2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  CloudOff,
+  Download,
+  ListChecks,
+  Loader2,
+  RefreshCw,
+  Undo2,
+} from 'lucide-react';
 import type { LectureSummary, StudioSlide } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { useEventStream } from '@/shared/hooks/useEventStream';
@@ -22,7 +33,9 @@ import { ReportDialog } from './ReportDialog';
 
 /** Every open (yellow) line in slide order, for N / Shift+N. */
 export function openPoints(slides: StudioSlide[]): { slide: number; lineKey: string }[] {
-  return slides.flatMap((s, i) => [...s.lines, ...s.notes].filter((l) => l.flag === 'yellow').map((l) => ({ slide: i, lineKey: l.lineKey })));
+  return slides.flatMap((s, i) =>
+    [...s.lines, ...s.notes].filter((l) => l.flag === 'yellow').map((l) => ({ slide: i, lineKey: l.lineKey })),
+  );
 }
 
 type Panel = 'source' | 'coverage';
@@ -40,7 +53,8 @@ export function StudioPage() {
   const slidesQ = useQuery({
     queryKey: queryKeys.slides(id),
     queryFn: () => api.slides(id),
-    refetchInterval: (q) => (q.state.data?.slides.some((s) => [...s.lines, ...s.notes].some((l) => l.flagReason === CHECKING)) ? 4000 : false),
+    refetchInterval: (q) =>
+      q.state.data?.slides.some((s) => [...s.lines, ...s.notes].some((l) => l.flagReason === CHECKING)) ? 4000 : false,
   });
   const editor = useSlideEditor(id);
   const online = useOnline();
@@ -55,11 +69,15 @@ export function StudioPage() {
   const [reporting, setReporting] = useState<{ slideId: string; lineKey: string; text: string } | null>(null);
   const reportsQ = useQuery({ queryKey: queryKeys.lectureReports(id), queryFn: () => api.lectureReports(id) });
   // Her latest report on each line (ADM-2).
-  const reports = useMemo(() => new Map((reportsQ.data?.reports ?? []).map((r) => [`${r.slideId}|${r.lineKey}`, r])), [reportsQ.data]);
+  const reports = useMemo(
+    () => new Map((reportsQ.data?.reports ?? []).map((r) => [`${r.slideId}|${r.lineKey}`, r])),
+    [reportsQ.data],
+  );
   const points = useMemo(() => openPoints(slides), [slides]);
 
   useEventStream((e) => {
-    if ('lectureId' in e && e.lectureId === id && (e.type === 'build.part_ready' || e.type === 'build.done')) void qc.invalidateQueries({ queryKey: ['lecture', id] });
+    if ('lectureId' in e && e.lectureId === id && (e.type === 'build.part_ready' || e.type === 'build.done'))
+      void qc.invalidateQueries({ queryKey: ['lecture', id] });
   });
 
   const go = useCallback((i: number) => {
@@ -74,14 +92,20 @@ export function StudioPage() {
       const next = points[(here + dir + points.length) % points.length] ?? points[0]!;
       setCurrent(next.slide);
       setActiveLine(next.lineKey);
-      requestAnimationFrame(() => document.getElementById(`line-${next.lineKey}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+      requestAnimationFrame(() =>
+        document.getElementById(`line-${next.lineKey}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+      );
     },
     [points, current, activeLine],
   );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLElement && (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName))) return;
+      if (
+        e.target instanceof HTMLElement &&
+        (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName))
+      )
+        return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === ']') setCurrent((c) => Math.min(c + 1, slides.length - 1));
       else if (e.key === '[') setCurrent((c) => Math.max(c - 1, 0));
@@ -141,32 +165,56 @@ export function StudioPage() {
 
       {lec.mayNeedUpdate && <MayNeedUpdate lectureId={id} note={lec.mayNeedUpdate} />}
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-bg px-6 py-2 text-sm" aria-label="Points to check">
+      <div
+        className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-bg px-6 py-2 text-sm"
+        aria-label="Points to check"
+      >
         <button
           type="button"
           onClick={() => jump(1)}
           disabled={!lec.counts.yellow}
-          className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1', lec.counts.yellow ? 'bg-flag-yellow-bg text-flag-yellow hover:brightness-95' : 'text-muted')}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-full px-3 py-1',
+            lec.counts.yellow ? 'bg-flag-yellow-bg text-flag-yellow hover:brightness-95' : 'text-muted',
+          )}
           title="Go to the next point to verify (N)"
         >
           <AlertTriangle className="size-4" aria-hidden />
           {lec.counts.yellow ? `${lec.counts.yellow} to verify` : 'Nothing to verify'}
         </button>
         {lec.counts.grey > 0 && (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-flag-grey" title="Lines resting on a case whose current status no law expert has confirmed yet">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-flag-grey"
+            title="Lines resting on a case whose current status no law expert has confirmed yet"
+          >
             <CircleHelp className="size-4" aria-hidden />
             {lec.counts.grey} on cases not yet confirmed
           </span>
         )}
-        <button type="button" onClick={() => setPanel('coverage')} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-flag-coverage hover:bg-flag-coverage-bg">
+        <button
+          type="button"
+          onClick={() => setPanel('coverage')}
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-flag-coverage hover:bg-flag-coverage-bg"
+        >
           <ListChecks className="size-4" aria-hidden />
-          Coverage{lec.coverageCounts && lec.coverageCounts.counted > 0 ? ` ${lec.coverageCounts.covered} of ${lec.coverageCounts.counted}` : ''}
+          Coverage
+          {lec.coverageCounts && lec.coverageCounts.counted > 0
+            ? ` ${lec.coverageCounts.covered} of ${lec.coverageCounts.counted}`
+            : ''}
           {lec.counts.coverage > 0 && ` · ${lec.counts.coverage} ${lec.counts.coverage === 1 ? 'note' : 'notes'}`}
         </button>
-        {lec.status === 'building' && <span className="text-muted">Still preparing: slides appear as each part is finished.</span>}
+        {lec.status === 'building' && (
+          <span className="text-muted">Still preparing: slides appear as each part is finished.</span>
+        )}
         <label className="ml-auto inline-flex cursor-pointer items-center gap-2 text-muted">
           <span>Show sources and checks</span>
-          <input type="checkbox" role="switch" checked={showChecks} onChange={(e) => setShowChecks(e.target.checked)} className="peer sr-only" />
+          <input
+            type="checkbox"
+            role="switch"
+            checked={showChecks}
+            onChange={(e) => setShowChecks(e.target.checked)}
+            className="peer sr-only"
+          />
           <span
             aria-hidden
             className="relative h-5 w-9 rounded-full bg-border transition-colors after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-surface after:shadow after:transition-transform peer-checked:bg-accent peer-checked:after:translate-x-4 peer-focus-visible:outline-2 peer-focus-visible:outline-accent"
@@ -175,7 +223,10 @@ export function StudioPage() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <nav aria-label="Outline" className="hidden w-72 shrink-0 relative overflow-y-auto border-r border-border bg-surface px-3 py-4 lg:block">
+        <nav
+          aria-label="Outline"
+          className="hidden w-72 shrink-0 relative overflow-y-auto border-r border-border bg-surface px-3 py-4 lg:block"
+        >
           {parts.map((p, pi) => (
             <section key={pi} className="mb-5">
               <h2 className="mb-1 flex items-baseline justify-between gap-2 px-2 text-xs font-semibold text-text">
@@ -199,7 +250,12 @@ export function StudioPage() {
                       >
                         <span className="w-5 shrink-0 text-right text-xs tabular-nums leading-5">{si + 1}</span>
                         <span className="line-clamp-2">{s.title}</span>
-                        {[...s.lines, ...s.notes].some((l) => l.flag === 'yellow') && <span className="ml-auto mt-1.5 size-2 shrink-0 rounded-full bg-flag-yellow" aria-label="has points to verify" />}
+                        {[...s.lines, ...s.notes].some((l) => l.flag === 'yellow') && (
+                          <span
+                            className="ml-auto mt-1.5 size-2 shrink-0 rounded-full bg-flag-yellow"
+                            aria-label="has points to verify"
+                          />
+                        )}
                       </button>
                     </li>
                   ),
@@ -229,9 +285,14 @@ export function StudioPage() {
                     {editor.pending > 0 && editor.state !== 'saving' && (
                       <span className="inline-flex items-center gap-1 text-flag-yellow">
                         <CloudOff className="size-3.5" aria-hidden />
-                        {editor.pending === 1 ? '1 slide' : `${editor.pending} slides`} not saved yet: saving when you’re back online
+                        {editor.pending === 1 ? '1 slide' : `${editor.pending} slides`} not saved yet: saving when
+                        you’re back online
                         {online && (
-                          <button type="button" className="ml-1 text-accent underline" onClick={() => void editor.retryNow()}>
+                          <button
+                            type="button"
+                            className="ml-1 text-accent underline"
+                            onClick={() => void editor.retryNow()}
+                          >
                             Try now
                           </button>
                         )}
@@ -245,15 +306,32 @@ export function StudioPage() {
                     )}
                   </span>
                   {slide.version > 1 && lec.status !== 'building' && (
-                    <Button size="sm" variant="ghost" onClick={() => void editor.undo(slide)} title="Undo the last change to this slide">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void editor.undo(slide)}
+                      title="Undo the last change to this slide"
+                    >
                       <Undo2 className="size-4" aria-hidden />
                       Undo
                     </Button>
                   )}
-                  <Button size="sm" variant="ghost" disabled={current === 0} onClick={() => go(current - 1)} aria-label="Previous slide ([)">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={current === 0}
+                    onClick={() => go(current - 1)}
+                    aria-label="Previous slide ([)"
+                  >
                     <ChevronLeft className="size-4" aria-hidden />
                   </Button>
-                  <Button size="sm" variant="ghost" disabled={current >= slides.length - 1} onClick={() => go(current + 1)} aria-label="Next slide (])">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={current >= slides.length - 1}
+                    onClick={() => go(current + 1)}
+                    aria-label="Next slide (])"
+                  >
                     <ChevronRight className="size-4" aria-hidden />
                   </Button>
                 </span>
@@ -266,11 +344,19 @@ export function StudioPage() {
                 onOpenSource={openSource}
                 editor={lec.status === 'building' ? undefined : editor}
                 reports={reports}
-                onReport={lec.status === 'building' ? undefined : (lineKey, text) => setReporting({ slideId: slide.id, lineKey, text })}
+                onReport={
+                  lec.status === 'building'
+                    ? undefined
+                    : (lineKey, text) => setReporting({ slideId: slide.id, lineKey, text })
+                }
               />
             </article>
           ) : (
-            <p className="text-muted">{lec.status === 'building' ? 'Slides appear here as each part is finished.' : 'This lecture has no slides.'}</p>
+            <p className="text-muted">
+              {lec.status === 'building'
+                ? 'Slides appear here as each part is finished.'
+                : 'This lecture has no slides.'}
+            </p>
           )}
         </main>
 
@@ -290,7 +376,9 @@ export function StudioPage() {
               citation ? (
                 <SourceDrawer citationId={citation} onClose={() => setCitation(null)} />
               ) : (
-                <p className="text-sm text-muted">Click a small number on the slide to see the exact words it rests on, and the checks they passed.</p>
+                <p className="text-sm text-muted">
+                  Click a small number on the slide to see the exact words it rests on, and the checks they passed.
+                </p>
               )
             ) : (
               <CoveragePanel
@@ -299,7 +387,9 @@ export function StudioPage() {
                   const i = slides.findIndex((x) => x.id === slideId);
                   if (i >= 0) go(i);
                   setActiveLine(lineKey);
-                  requestAnimationFrame(() => document.getElementById(`line-${lineKey}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+                  requestAnimationFrame(() =>
+                    document.getElementById(`line-${lineKey}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+                  );
                 }}
               />
             )}
@@ -348,7 +438,10 @@ function MayNeedUpdate({ lectureId, note }: { lectureId: string; note: NonNullab
     onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.lecture(lectureId) }),
   });
   return (
-    <div role="status" className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-flag-yellow-bg px-6 py-2 text-sm">
+    <div
+      role="status"
+      className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-flag-yellow-bg px-6 py-2 text-sm"
+    >
       <RefreshCw className="size-4 shrink-0 text-flag-yellow" aria-hidden />
       <span className="min-w-0 flex-1">
         <span className="font-medium">May need update: </span>
@@ -360,7 +453,8 @@ function MayNeedUpdate({ lectureId, note }: { lectureId: string; note: NonNullab
             </Link>
           </span>
         ))}{' '}
-        {note.from.length === 1 ? 'was' : 'were'} changed after this lecture was prepared. Its recap, terms or cases may no longer match.
+        {note.from.length === 1 ? 'was' : 'were'} changed after this lecture was prepared. Its recap, terms or cases may
+        no longer match.
       </span>
       <Button size="sm" variant="ghost" disabled={clear.isPending} onClick={() => clear.mutate()}>
         It’s still right

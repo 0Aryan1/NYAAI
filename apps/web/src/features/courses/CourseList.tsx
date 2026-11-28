@@ -45,7 +45,10 @@ export function CourseListPage() {
         <LoadError what="Your courses" onRetry={() => void list.refetch()} className="mb-10" />
       ) : (
         <div className="mb-10">
-          <EmptyState title="No courses yet">Lectures in a course open with a recap of the last class and end with a link to the next. Make your first course below.</EmptyState>
+          <EmptyState title="No courses yet">
+            Lectures in a course open with a recap of the last class and end with a link to the next. Make your first
+            course below.
+          </EmptyState>
         </div>
       )}
 
@@ -55,7 +58,13 @@ export function CourseListPage() {
 }
 
 /** A new course: from her syllabus file, a pasted list of topics, or empty. Also the last step of Setup. */
-export function NewCourseForm({ onCreated, title = 'New course' }: { onCreated: (courseId: string) => void; title?: string }) {
+export function NewCourseForm({
+  onCreated,
+  title = 'New course',
+}: {
+  onCreated: (courseId: string) => void;
+  title?: string;
+}) {
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [semester, setSemester] = useState('');
@@ -74,7 +83,13 @@ export function NewCourseForm({ onCreated, title = 'New course' }: { onCreated: 
   };
   const create = useMutation({
     mutationFn: () =>
-      api.createCourse({ name, semester: semester || undefined, classCount: classCount ? Number(classCount) : undefined, topics: topicsFrom(topics), findSources: findSources && topicsFrom(topics).length > 0 }),
+      api.createCourse({
+        name,
+        semester: semester || undefined,
+        classCount: classCount ? Number(classCount) : undefined,
+        topics: topicsFrom(topics),
+        findSources: findSources && topicsFrom(topics).length > 0,
+      }),
     onSuccess: (c) => {
       void qc.invalidateQueries({ queryKey: queryKeys.courses });
       void qc.invalidateQueries({ queryKey: queryKeys.home });
@@ -99,16 +114,35 @@ export function NewCourseForm({ onCreated, title = 'New course' }: { onCreated: 
       <h2 className="text-base font-semibold">{title}</h2>
       <label className="block">
         <span className="mb-1 block font-medium">Name</span>
-        <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} placeholder="Alternative Dispute Resolution" className="w-full rounded-control border border-border bg-bg px-2 py-2" />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          minLength={2}
+          placeholder="Alternative Dispute Resolution"
+          className="w-full rounded-control border border-border bg-bg px-2 py-2"
+        />
       </label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
           <span className="mb-1 block font-medium">Semester (optional)</span>
-          <input value={semester} onChange={(e) => setSemester(e.target.value)} placeholder="Semester VII" className="w-full rounded-control border border-border bg-bg px-2 py-2" />
+          <input
+            value={semester}
+            onChange={(e) => setSemester(e.target.value)}
+            placeholder="Semester VII"
+            className="w-full rounded-control border border-border bg-bg px-2 py-2"
+          />
         </label>
         <label className="block">
           <span className="mb-1 block font-medium">Number of classes (optional)</span>
-          <input type="number" min={1} max={80} value={classCount} onChange={(e) => setClassCount(e.target.value)} className="w-full rounded-control border border-border bg-bg px-2 py-2" />
+          <input
+            type="number"
+            min={1}
+            max={80}
+            value={classCount}
+            onChange={(e) => setClassCount(e.target.value)}
+            className="w-full rounded-control border border-border bg-bg px-2 py-2"
+          />
         </label>
       </div>
       <div className="rounded-control border border-dashed border-border bg-bg p-3">
@@ -131,7 +165,9 @@ export function NewCourseForm({ onCreated, title = 'New course' }: { onCreated: 
               applyPlan(s, s.suggested);
               setFindSources(true);
             } catch (err) {
-              setReadError(err instanceof Error ? err.message : 'We could not read that file. Paste the topics instead.');
+              setReadError(
+                err instanceof Error ? err.message : 'We could not read that file. Paste the topics instead.',
+              );
             } finally {
               setReading(false);
             }
@@ -142,7 +178,9 @@ export function NewCourseForm({ onCreated, title = 'New course' }: { onCreated: 
             <FileUp className="size-4" aria-hidden />
             {reading ? 'Reading…' : 'Upload your syllabus'}
           </Button>
-          <span className="text-xs text-muted">Word, PDF or text. We list its lectures below for you to check; the file is not kept.</span>
+          <span className="text-xs text-muted">
+            Word, PDF or text. We list its lectures below for you to check; the file is not kept.
+          </span>
         </div>
         {readError && <p className="mt-2 text-xs text-danger">{readError}</p>}
         {syllabus && syllabus.perUnit.length !== syllabus.perTopic.length && (
@@ -161,22 +199,43 @@ export function NewCourseForm({ onCreated, title = 'New course' }: { onCreated: 
       </div>
       <label className="block">
         <span className="mb-1 block font-medium">Lectures, one per line (optional)</span>
-        <textarea value={topics} onChange={(e) => setTopics(e.target.value)} rows={8} placeholder={'Arbitration agreement\nComposition of the tribunal\nInterim measures'} className="w-full rounded-control border border-border bg-bg px-2 py-2" />
+        <textarea
+          value={topics}
+          onChange={(e) => setTopics(e.target.value)}
+          rows={8}
+          placeholder={'Arbitration agreement\nComposition of the tribunal\nInterim measures'}
+          className="w-full rounded-control border border-border bg-bg px-2 py-2"
+        />
         <span className="mt-1 block text-xs text-muted">
-          {syllabus ? 'Check the list: fix any line we read wrongly, delete what is not a lecture.' : 'Or paste the topics from your syllabus.'} You can reorder, rename and add lectures later.
+          {syllabus
+            ? 'Check the list: fix any line we read wrongly, delete what is not a lecture.'
+            : 'Or paste the topics from your syllabus.'}{' '}
+          You can reorder, rename and add lectures later.
           {planned ? ` ${planned} lectures.` : ''}
         </span>
       </label>
       {planned > 0 && (
         <label className="flex items-start gap-2">
-          <input type="checkbox" className="mt-0.5" checked={findSources} onChange={(e) => setFindSources(e.target.checked)} />
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={findSources}
+            onChange={(e) => setFindSources(e.target.checked)}
+          />
           <span>
             Find the sources for every lecture now
-            <span className="block text-xs text-muted">The library looks up the Acts and judgments for each lecture in the background, so they are ready when you prepare it.</span>
+            <span className="block text-xs text-muted">
+              The library looks up the Acts and judgments for each lecture in the background, so they are ready when you
+              prepare it.
+            </span>
           </span>
         </label>
       )}
-      {create.error && <p className="text-flag-yellow">{create.error instanceof ApiRequestError ? create.error.message : 'The course was not saved. Try again.'}</p>}
+      {create.error && (
+        <p className="text-flag-yellow">
+          {create.error instanceof ApiRequestError ? create.error.message : 'The course was not saved. Try again.'}
+        </p>
+      )}
       <Button type="submit" variant="primary" disabled={create.isPending || name.trim().length < 2}>
         {create.isPending ? 'Saving…' : 'Create course'}
       </Button>

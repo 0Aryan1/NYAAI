@@ -81,20 +81,25 @@ export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, sto
   r.post('/library/sources', async (req, res) => {
     if (!ingestQueue) throw new AppError('SERVICE_UNAVAILABLE', 'Loading sources is not available right now.');
     const body = CreateSourceRequest.parse(req.body);
-    const sourceId = await req.db!(async (c) =>
-      (
-        await c.query<{ id: string }>(
-          `insert into sources (college_id, visibility, type, origin, title, act_name, act_year, url, content_hash)
+    const sourceId = await req.db!(
+      async (c) =>
+        (
+          await c.query<{ id: string }>(
+            `insert into sources (college_id, visibility, type, origin, title, act_name, act_year, url, content_hash)
            values (global_college(), 'shared', $1, $2, $3, $4, $5, $6, 'pending:' || gen_random_uuid())
            returning id`,
-          [body.type, body.origin, body.title, body.actName, body.actYear ?? null, body.url],
-        )
-      ).rows[0]!.id,
+            [body.type, body.origin, body.title, body.actName, body.actYear ?? null, body.url],
+          )
+        ).rows[0]!.id,
     );
     let job;
     try {
       // BullMQ custom ids may not contain ':'. One job per source keeps a double click idempotent.
-      job = await ingestQueue.add('ingest.source', { sourceId, requestedBy: req.identity!.userId }, { ...INGEST_JOB_OPTIONS, jobId: `ingest.source-${sourceId}` });
+      job = await ingestQueue.add(
+        'ingest.source',
+        { sourceId, requestedBy: req.identity!.userId },
+        { ...INGEST_JOB_OPTIONS, jobId: `ingest.source-${sourceId}` },
+      );
     } catch (err) {
       await req.db!((c) => c.query('delete from sources where id = $1', [sourceId]));
       throw err;
@@ -103,31 +108,47 @@ export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, sto
   });
 
   r.get('/library/sources/:id', async (req, res) => {
-    const row = await req.db!(async (c) =>
-      (
-        await c.query<{ id: string; title: string; status: SourceStatus['status']; fetched_at: Date | null; chunk_count: number }>(
-          `select s.id, s.title, s.status, s.fetched_at, (select count(*)::int from chunks k where k.source_id = s.id) as chunk_count
+    const row = await req.db!(
+      async (c) =>
+        (
+          await c.query<{
+            id: string;
+            title: string;
+            status: SourceStatus['status'];
+            fetched_at: Date | null;
+            chunk_count: number;
+          }>(
+            `select s.id, s.title, s.status, s.fetched_at, (select count(*)::int from chunks k where k.source_id = s.id) as chunk_count
              from sources s where s.id = $1`,
-          [req.params.id],
-        )
-      ).rows[0],
+            [req.params.id],
+          )
+        ).rows[0],
     );
     if (!row) throw new AppError('NOT_FOUND', 'We could not find that source.');
-    res.json(SourceStatus.parse({ id: row.id, title: row.title, status: row.status, chunkCount: row.chunk_count, fetchedAt: row.fetched_at?.toISOString() ?? null }));
+    res.json(
+      SourceStatus.parse({
+        id: row.id,
+        title: row.title,
+        status: row.status,
+        chunkCount: row.chunk_count,
+        fetchedAt: row.fetched_at?.toISOString() ?? null,
+      }),
+    );
   });
 
   // Most teachers first, then most recent. Row-level security limits rows to her college and GLOBAL.
   r.get('/library/gaps', async (req, res) => {
     const { state } = LibraryGapQuery.parse(req.query);
     const states = state === 'waiting' ? ['open', 'looking', 'loaded'] : state === 'all' ? null : [state];
-    const rows = await req.db!(async (c) =>
-      (
-        await c.query<GapRow>(
-          `select ${GAP_COLUMNS} from library_gaps where ($1::gap_state[] is null or state = any($1))
+    const rows = await req.db!(
+      async (c) =>
+        (
+          await c.query<GapRow>(
+            `select ${GAP_COLUMNS} from library_gaps where ($1::gap_state[] is null or state = any($1))
             order by teachers desc, asks desc, last_seen_at desc limit 200`,
-          [states],
-        )
-      ).rows,
+            [states],
+          )
+        ).rows,
     );
     res.json(LibraryGapList.parse({ gaps: rows.map(toGap) }));
   });
@@ -165,9 +186,13 @@ export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, sto
   r.post('/library/gaps/:id/lookup', async (req, res) => {
     if (!ingestQueue) throw new AppError('SERVICE_UNAVAILABLE', 'Looking up sources is not available right now.');
     const id = Id.parse(req.params.id);
-    const state = await req.db!(async (c) => (await c.query<{ state: string }>('select state from library_gaps where id = $1', [id])).rows[0]?.state);
+    const state = await req.db!(
+      async (c) =>
+        (await c.query<{ state: string }>('select state from library_gaps where id = $1', [id])).rows[0]?.state,
+    );
     if (!state) throw new AppError('NOT_FOUND', 'We could not find that gap.');
-    if (state === 'resolved' || state === 'wont_fill') throw new AppError('GAP_CLOSED', 'This gap is closed. Reopen it first.');
+    if (state === 'resolved' || state === 'wont_fill')
+      throw new AppError('GAP_CLOSED', 'This gap is closed. Reopen it first.');
     // Every click runs a lookup: the page shows its progress until it ends. Two at once on one gap cannot happen, as
     // the job claims the gap first (a second one finds it "looking" and stops), and the button waits for the result.
     const job = await ingestQueue.add(
@@ -193,10 +218,25 @@ export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, sto
     const hash = createHash('sha256').update(bytes).digest('hex');
     const key = `sources/${origin}/${hash}.pdf`;
     const sourceId = await req.db!(async (c) => {
-      const same = (await c.query<{ id: string; title: string }>("select id, title from sources where content_hash = $1 and type = 'judgment' and status <> 'retired'", [hash])).rows[0];
-      if (same) throw new AppError('ALREADY_IN_LIBRARY', `This file is already in the library as ${same.title.replace(/\.$/, '')}.`, { sourceId: same.id });
+      const same = (
+        await c.query<{ id: string; title: string }>(
+          "select id, title from sources where content_hash = $1 and type = 'judgment' and status <> 'retired'",
+          [hash],
+        )
+      ).rows[0];
+      if (same)
+        throw new AppError(
+          'ALREADY_IN_LIBRARY',
+          `This file is already in the library as ${same.title.replace(/\.$/, '')}.`,
+          { sourceId: same.id },
+        );
       if (q.replaces) {
-        const target = (await c.query<{ id: string }>("select id from sources where id = $1 and type = 'judgment' and visibility = 'shared' and status <> 'retired'", [q.replaces])).rows[0];
+        const target = (
+          await c.query<{ id: string }>(
+            "select id from sources where id = $1 and type = 'judgment' and visibility = 'shared' and status <> 'retired'",
+            [q.replaces],
+          )
+        ).rows[0];
         if (!target) throw new AppError('NOT_FOUND', 'We could not find the judgment this file should replace.');
         return target.id;
       }
@@ -219,9 +259,13 @@ export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, sto
 
   r.get('/library/uploads/:jobId', async (req, res) => {
     if (!ingestQueue) throw new AppError('SERVICE_UNAVAILABLE', 'Uploading is not available right now.');
-    const jobId = z.string().regex(/^ingest\.judgment-[0-9a-f-]{36}-[0-9a-f]{12}$/).parse(req.params.jobId);
+    const jobId = z
+      .string()
+      .regex(/^ingest\.judgment-[0-9a-f-]{36}-[0-9a-f]{12}$/)
+      .parse(req.params.jobId);
     const job = await ingestQueue.getJob(jobId);
-    if (!job || job.data.requestedBy !== req.identity!.userId) throw new AppError('NOT_FOUND', 'We could not find that upload.');
+    if (!job || job.data.requestedBy !== req.identity!.userId)
+      throw new AppError('NOT_FOUND', 'We could not find that upload.');
     const state = await job.getState();
     const result = job.returnvalue as JudgmentPdfResult | null;
     const outcome =
@@ -237,9 +281,15 @@ export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, sto
         : null;
     res.json(
       UploadJudgmentStatus.parse({
-        state: state === 'completed' ? 'done' : state === 'failed' ? 'failed' : state === 'active' ? 'reading' : 'waiting',
+        state:
+          state === 'completed' ? 'done' : state === 'failed' ? 'failed' : state === 'active' ? 'reading' : 'waiting',
         outcome,
-        message: state === 'failed' ? (job.failedReason?.includes('text layer') ? 'This PDF is a picture with no text in it. Upload a copy with selectable text.' : 'We could not read this PDF.') : null,
+        message:
+          state === 'failed'
+            ? job.failedReason?.includes('text layer')
+              ? 'This PDF is a picture with no text in it. Upload a copy with selectable text.'
+              : 'We could not read this PDF.'
+            : null,
       }),
     );
   });

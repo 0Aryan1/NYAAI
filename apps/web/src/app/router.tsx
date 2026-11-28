@@ -28,7 +28,8 @@ async function signedInLoader({ request }: { request: Request }) {
   if (me.user.role === 'teacher' && !me.setupDone) throw redirect(stepPath(me.setupStep));
   // Consent withdrawn: nothing works that sends her work out, so she agrees again first. "Your data" stays open, so
   // she can still download or delete everything without agreeing.
-  if (me.user.role === 'teacher' && !me.consented && !new URL(request.url).pathname.startsWith('/account')) throw redirect('/setup/consent');
+  if (me.user.role === 'teacher' && !me.consented && !new URL(request.url).pathname.startsWith('/account'))
+    throw redirect('/setup/consent');
   if (me.user.role === 'library_editor' && new URL(request.url).pathname === '/') throw redirect('/library');
   return null;
 }
@@ -70,20 +71,59 @@ export const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: 'build/:lectureId', element: <BuildPage /> },
       // The Studio is the heaviest screen: its own chunk, loaded on demand (LLD §11.1).
-      { path: 'library/gaps', lazy: async () => ({ Component: (await import('@/features/library/GapsPage')).GapsPage }) },
-      { path: 'library/mappings', lazy: async () => ({ Component: (await import('@/features/library/MappingsPage')).MappingsPage }) },
-      { path: 'library/topics', lazy: async () => ({ Component: (await import('@/features/library/TopicsReviewPage')).TopicsReviewPage }) },
-      { path: 'library/reports', lazy: async () => ({ Component: (await import('@/features/library/ReportsQueuePage')).ReportsQueuePage }) },
-      { path: 'library', lazy: async () => ({ Component: (await import('@/features/library/LibraryReviewPage')).LibraryReviewPage }) },
-      { path: 'account/data', lazy: async () => ({ Component: (await import('@/features/account/AccountDataPage')).AccountDataPage }) },
-      { path: 'research', lazy: async () => ({ Component: (await import('@/features/research/ResearchPage')).ResearchPage }) },
-      { path: 'research/:runId', lazy: async () => ({ Component: (await import('@/features/research/ResearchRunPage')).ResearchRunPage }) },
-      { path: 'explore', lazy: async () => ({ Component: (await import('@/features/explore/ExplorePage')).ExplorePage }) },
-      { path: 'explore/:conceptId', lazy: async () => ({ Component: (await import('@/features/explore/TopicPage')).TopicPage }) },
+      {
+        path: 'library/gaps',
+        lazy: async () => ({ Component: (await import('@/features/library/GapsPage')).GapsPage }),
+      },
+      {
+        path: 'library/mappings',
+        lazy: async () => ({ Component: (await import('@/features/library/MappingsPage')).MappingsPage }),
+      },
+      {
+        path: 'library/topics',
+        lazy: async () => ({ Component: (await import('@/features/library/TopicsReviewPage')).TopicsReviewPage }),
+      },
+      {
+        path: 'library/reports',
+        lazy: async () => ({ Component: (await import('@/features/library/ReportsQueuePage')).ReportsQueuePage }),
+      },
+      {
+        path: 'library',
+        lazy: async () => ({ Component: (await import('@/features/library/LibraryReviewPage')).LibraryReviewPage }),
+      },
+      {
+        path: 'account/data',
+        lazy: async () => ({ Component: (await import('@/features/account/AccountDataPage')).AccountDataPage }),
+      },
+      {
+        path: 'research',
+        lazy: async () => ({ Component: (await import('@/features/research/ResearchPage')).ResearchPage }),
+      },
+      {
+        path: 'research/:runId',
+        lazy: async () => ({ Component: (await import('@/features/research/ResearchRunPage')).ResearchRunPage }),
+      },
+      {
+        path: 'explore',
+        lazy: async () => ({ Component: (await import('@/features/explore/ExplorePage')).ExplorePage }),
+      },
+      {
+        path: 'explore/:conceptId',
+        lazy: async () => ({ Component: (await import('@/features/explore/TopicPage')).TopicPage }),
+      },
       { path: 'notes', lazy: async () => ({ Component: (await import('@/features/notes/NotesPage')).NotesPage }) },
-      { path: 'courses', lazy: async () => ({ Component: (await import('@/features/courses/CourseList')).CourseListPage }) },
-      { path: 'courses/:id', lazy: async () => ({ Component: (await import('@/features/courses/CoursePlan')).CoursePlanPage }) },
-      { path: 'lectures/:id', lazy: async () => ({ Component: (await import('@/features/studio/StudioPage')).StudioPage }) },
+      {
+        path: 'courses',
+        lazy: async () => ({ Component: (await import('@/features/courses/CourseList')).CourseListPage }),
+      },
+      {
+        path: 'courses/:id',
+        lazy: async () => ({ Component: (await import('@/features/courses/CoursePlan')).CoursePlanPage }),
+      },
+      {
+        path: 'lectures/:id',
+        lazy: async () => ({ Component: (await import('@/features/studio/StudioPage')).StudioPage }),
+      },
     ],
   },
   { path: '*', element: <RouteError notFound /> },

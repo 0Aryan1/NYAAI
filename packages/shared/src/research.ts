@@ -24,12 +24,24 @@ export const StartResearch = z.object({
 });
 export type StartResearch = z.infer<typeof StartResearch>;
 
-export const ResearchStatus = z.enum(['planning', 'awaiting_edit', 'gathering', 'writing', 'checking', 'ready', 'failed']);
+export const ResearchStatus = z.enum([
+  'planning',
+  'awaiting_edit',
+  'gathering',
+  'writing',
+  'checking',
+  'ready',
+  'failed',
+]);
 
 /** research.plan: 3–5 sub-questions for a quick run, each answerable from law sources. */
 export const ResearchPlanReply = z.object({ subQuestions: z.array(z.string().min(5).max(300)).min(2).max(8) });
 
-const BriefLineIn = z.object({ text: z.string().min(1).max(500), kind: z.enum(['claim', 'teaching']), claims: z.array(Claim).max(4) });
+const BriefLineIn = z.object({
+  text: z.string().min(1).max(500),
+  kind: z.enum(['claim', 'teaching']),
+  claims: z.array(Claim).max(4),
+});
 
 /** research.write: the brief, from the evidence rows (S1…S8) only, and how each row relates to the question. */
 export const ResearchWriteReply = z.object({
@@ -99,7 +111,15 @@ export type ResearchRunView = z.infer<typeof ResearchRunView>;
 
 /** GET /research: "My research". */
 export const ResearchList = z.object({
-  runs: z.array(z.object({ id: z.uuid(), question: z.string(), status: ResearchStatus, createdAt: z.string(), yellow: z.number().int() })),
+  runs: z.array(
+    z.object({
+      id: z.uuid(),
+      question: z.string(),
+      status: ResearchStatus,
+      createdAt: z.string(),
+      yellow: z.number().int(),
+    }),
+  ),
 });
 export type ResearchList = z.infer<typeof ResearchList>;
 

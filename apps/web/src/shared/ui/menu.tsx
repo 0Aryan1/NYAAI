@@ -13,7 +13,19 @@ export interface MenuItem {
  * A small dropdown: a trigger and a list of actions (rarely used actions live here, not on the screen). Closes on
  * outside click, Escape and after a choice; arrow keys move between items.
  */
-export function Menu({ trigger, label, items, align = 'end', header }: { trigger: ReactNode; label: string; items: MenuItem[]; align?: 'start' | 'end'; header?: ReactNode }) {
+export function Menu({
+  trigger,
+  label,
+  items,
+  align = 'end',
+  header,
+}: {
+  trigger: ReactNode;
+  label: string;
+  items: MenuItem[];
+  align?: 'start' | 'end';
+  header?: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -38,11 +50,28 @@ export function Menu({ trigger, label, items, align = 'end', header }: { trigger
   };
   return (
     <div ref={root} className="relative inline-block">
-      <button type="button" aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={label} onClick={() => setOpen((o) => !o)} className="inline-flex items-center rounded-control">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={id}
+        aria-label={label}
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center rounded-control"
+      >
         {trigger}
       </button>
       {open && (
-        <div id={id} role="menu" aria-label={label} onKeyDown={move} className={cn('absolute z-30 mt-1 min-w-52 rounded-card border border-border bg-surface p-1 shadow-popover', align === 'end' ? 'right-0' : 'left-0')}>
+        <div
+          id={id}
+          role="menu"
+          aria-label={label}
+          onKeyDown={move}
+          className={cn(
+            'absolute z-30 mt-1 min-w-52 rounded-card border border-border bg-surface p-1 shadow-popover',
+            align === 'end' ? 'right-0' : 'left-0',
+          )}
+        >
           {header && <div className="border-b border-border px-3 pb-2 pt-1.5 text-sm">{header}</div>}
           {items.map((it, i) => (
             <button
@@ -54,7 +83,10 @@ export function Menu({ trigger, label, items, align = 'end', header }: { trigger
                 setOpen(false);
                 it.onSelect();
               }}
-              className={cn('flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm hover:bg-bg focus:bg-bg focus:outline-none disabled:opacity-50', it.danger && 'text-danger')}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-control px-3 py-2 text-left text-sm hover:bg-bg focus:bg-bg focus:outline-none disabled:opacity-50',
+                it.danger && 'text-danger',
+              )}
             >
               {it.icon}
               {it.label}

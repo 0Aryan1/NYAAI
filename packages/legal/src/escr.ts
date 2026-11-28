@@ -37,17 +37,33 @@ export function escrPages(path: string): number {
 
 /** "COX AND KINGS LTD. versus SAP INDIA PVT. LTD. & ANR." → "COX AND KINGS LTD. v. SAP INDIA PVT. LTD. & ANR." */
 export function escrCaseName(title: string): string {
-  return title.replace(/\s+versus\s+/i, ' v. ').replace(/\s+/g, ' ').trim();
+  return title
+    .replace(/\s+versus\s+/i, ' v. ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
  * The e-SCR record that is the named case: party words must match (or every one of `titleWords`), the decision year
  * breaks ties, then the longer report (a later order in the same matter is short).
  */
-export function pickEscrRecord(caseName: string, records: EscrRecord[], opts: { year?: number | null; titleWords?: string[] } = {}): EscrRecord | null {
+export function pickEscrRecord(
+  caseName: string,
+  records: EscrRecord[],
+  opts: { year?: number | null; titleWords?: string[] } = {},
+): EscrRecord | null {
   const hits = records
     .filter((r) => r.english)
-    .map((r) => ({ title: escrCaseName(r.title), publishdate: r.decidedOn, docsource: 'Supreme Court of India', docsize: escrPages(r.path), r }) satisfies CaseHit & { r: EscrRecord });
+    .map(
+      (r) =>
+        ({
+          title: escrCaseName(r.title),
+          publishdate: r.decidedOn,
+          docsource: 'Supreme Court of India',
+          docsize: escrPages(r.path),
+          r,
+        }) satisfies CaseHit & { r: EscrRecord },
+    );
   return pickCaseHit(caseName, hits, { year: opts.year, court: 'SC', titleWords: opts.titleWords })?.r ?? null;
 }
 
@@ -59,7 +75,10 @@ export function pickEscrByDate(caseName: string, records: EscrRecord[], decidedO
   const words = casePartyWords(caseName).filter((w): w is string => !!w);
   if (!words.length) return null;
   const hits = records.filter(
-    (r) => r.english && r.decidedOn === decidedOn && words.some((w) => new RegExp(`(?:^|[^a-z])${w}(?:[^a-z]|$)`).test(r.title.toLowerCase())),
+    (r) =>
+      r.english &&
+      r.decidedOn === decidedOn &&
+      words.some((w) => new RegExp(`(?:^|[^a-z])${w}(?:[^a-z]|$)`).test(r.title.toLowerCase())),
   );
   return hits.length === 1 ? hits[0]! : null;
 }

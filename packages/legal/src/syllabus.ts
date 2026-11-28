@@ -19,26 +19,35 @@ export interface SyllabusOutline {
 }
 
 const MAX_LECTURES = 80;
-const UNIT = /^(?:unit|module|part|chapter|week|topic|lecture|class|session)\s*[-–—:.]?\s*(?:[ivxlc]+|\d{1,2}|[a-h])\b\s*[-–—:.)]*\s*(.*)$/i;
+const UNIT =
+  /^(?:unit|module|part|chapter|week|topic|lecture|class|session)\s*[-–—:.]?\s*(?:[ivxlc]+|\d{1,2}|[a-h])\b\s*[-–—:.)]*\s*(.*)$/i;
 const ITEM = /^(?:[-*•▪◦●○■□➢✓]|\(?\d{1,2}(?:\.\d{1,2})*[.)]|\(?[a-h][.)]|\(?(?:i{1,3}|iv|vi{0,3}|ix|x)[.)])\s+(.+)$/i;
 /** Sections of a syllabus that are not lectures: everything after one, up to the next unit, is left out. */
 const NOT_LECTURES =
   /^(?:(?:suggested|recommended|prescribed|essential|further|additional)\s+)?(?:readings?|reading list|books?|text\s*books?|references?|bibliography|materials?|evaluation|assessment|marks|marking|grading|course (?:objectives?|outcomes?|description|overview)|objectives?|learning outcomes?|outcomes?|teaching (?:method|methodology|plan)|pedagogy|methodology|credits?|attendance|instructions?|note)\b/i;
 const CASE_LINE = /\s(?:v\.?|vs\.?|versus)\s/i;
-const NOISE = /^(?:syllabus|course outline|course plan|course content|contents?|session plan|lecture plan|topics?)\s*:?$/i;
+const NOISE =
+  /^(?:syllabus|course outline|course plan|course content|contents?|session plan|lecture plan|topics?)\s*:?$/i;
 
 const tidy = (t: string) =>
   t
     .replace(/\s+/g, ' ')
     .replace(/^[\s:–—-]+|[\s:;,.–—-]+$/g, '')
     .trim();
-const usable = (t: string) => t.length >= 3 && t.length <= 200 && /[a-z]/i.test(t) && !CASE_LINE.test(t) && !NOISE.test(t);
+const usable = (t: string) =>
+  t.length >= 3 && t.length <= 200 && /[a-z]/i.test(t) && !CASE_LINE.test(t) && !NOISE.test(t);
 
 /** A line of several short topics ("Meaning; kinds; essentials") is split; a sentence is kept whole. */
 function splitTopics(line: string): string[] {
-  const bySemi = line.split(/\s*;\s*/).map(tidy).filter(Boolean);
+  const bySemi = line
+    .split(/\s*;\s*/)
+    .map(tidy)
+    .filter(Boolean);
   if (bySemi.length > 1) return bySemi;
-  const byComma = line.split(/\s*,\s*/).map(tidy).filter(Boolean);
+  const byComma = line
+    .split(/\s*,\s*/)
+    .map(tidy)
+    .filter(Boolean);
   if (byComma.length >= 3 && byComma.every((p) => p.split(' ').length <= 8)) return byComma;
   return [tidy(line)];
 }
@@ -139,7 +148,9 @@ export function readSyllabus(blocks: NoteBlock[]): SyllabusOutline {
     else if (!current && text.split(' ').length <= 15) addTopic(text);
   }
 
-  const kept = units.filter((u) => usable(u.title) || u.topics.length).map((u) => ({ title: usable(u.title) ? u.title : (u.topics[0] ?? ''), topics: u.topics }));
+  const kept = units
+    .filter((u) => usable(u.title) || u.topics.length)
+    .map((u) => ({ title: usable(u.title) ? u.title : (u.topics[0] ?? ''), topics: u.topics }));
   // A syllabus with no units: its list is the plan, one lecture per line.
   if (!kept.length && loose.length) return { courseName, units: loose.map((t) => ({ title: t, topics: [] })) };
   return { courseName, units: kept };
@@ -147,7 +158,10 @@ export function readSyllabus(blocks: NoteBlock[]): SyllabusOutline {
 
 /** One lecture per unit, or one per topic (a unit with no topics is one lecture either way). */
 export function syllabusLectures(outline: SyllabusOutline, per: 'unit' | 'topic'): string[] {
-  const out = per === 'unit' ? outline.units.map((u) => u.title) : outline.units.flatMap((u) => (u.topics.length ? u.topics : [u.title]));
+  const out =
+    per === 'unit'
+      ? outline.units.map((u) => u.title)
+      : outline.units.flatMap((u) => (u.topics.length ? u.topics : [u.title]));
   return [...new Set(out.map(tidy).filter((t) => t.length >= 2))].slice(0, MAX_LECTURES);
 }
 

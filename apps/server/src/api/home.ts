@@ -5,10 +5,15 @@ import { HomeResponse } from '@nyaai/shared';
 export function homeRouter() {
   const r = express.Router();
   r.get('/home', async (req, res) => {
-    const rows = await req.db!(async (c) =>
-      (
-        await c.query<{ id: string; name: string; next_unit: { id: string; position: number; title: string } | null }>(
-          `select c.id, c.name,
+    const rows = await req.db!(
+      async (c) =>
+        (
+          await c.query<{
+            id: string;
+            name: string;
+            next_unit: { id: string; position: number; title: string } | null;
+          }>(
+            `select c.id, c.name,
                   (select json_build_object('id', u.id, 'position', u.position, 'title', u.title)
                      from course_units u
                     where u.course_id = c.id and u.status = 'planned'
@@ -16,8 +21,8 @@ export function homeRouter() {
              from courses c
             where c.archived_at is null
             order by c.created_at`,
-        )
-      ).rows,
+          )
+        ).rows,
     );
     res.json(HomeResponse.parse({ courses: rows.map((r) => ({ id: r.id, name: r.name, nextUnit: r.next_unit })) }));
   });

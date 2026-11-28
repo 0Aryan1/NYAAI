@@ -3,7 +3,14 @@
  * Runs inside the teacher's tenant transaction (worker role), so every row is hers under RLS.
  */
 import type pg from 'pg';
-import { coverageScore, decide, matchCoverage, openGroups, type CheckResult, type MustCoverItem } from '@nyaai/checker-rules';
+import {
+  coverageScore,
+  decide,
+  matchCoverage,
+  openGroups,
+  type CheckResult,
+  type MustCoverItem,
+} from '@nyaai/checker-rules';
 import { mustCoverParts } from '@nyaai/legal';
 import { statuteUnits } from '../search/index.ts';
 import type { BuiltLine, PartOutput } from './part.ts';
@@ -16,7 +23,11 @@ export interface Owner {
 /** Tiptap-shaped document: one `claimLine` node per line, carrying its stable key (LLD §11.4). */
 const doc = (lines: BuiltLine[]) => ({
   type: 'doc',
-  content: lines.map((l) => ({ type: 'claimLine', attrs: { lineKey: l.lineKey, kind: l.kind, yourExample: l.yourExample }, content: [{ type: 'text', text: l.text }] })),
+  content: lines.map((l) => ({
+    type: 'claimLine',
+    attrs: { lineKey: l.lineKey, kind: l.kind, yourExample: l.yourExample },
+    content: [{ type: 'text', text: l.text }],
+  })),
 });
 
 const SLIDE_STRIDE = 100; // positions: part 0 → 0…99, part 1 → 100…
@@ -33,7 +44,17 @@ export async function savePart(c: pg.PoolClient, lectureId: string, who: Owner, 
       await c.query<{ id: string }>(
         `insert into slides (college_id, owner_id, lecture_id, position, part_index, layout, title, body, notes)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
-        [who.collegeId, who.ownerId, lectureId, out.partIndex * SLIDE_STRIDE + i, out.partIndex, s.layout, s.title, body, notes],
+        [
+          who.collegeId,
+          who.ownerId,
+          lectureId,
+          out.partIndex * SLIDE_STRIDE + i,
+          out.partIndex,
+          s.layout,
+          s.title,
+          body,
+          notes,
+        ],
       )
     ).rows[0]!.id;
     await c.query(
@@ -45,7 +66,14 @@ export async function savePart(c: pg.PoolClient, lectureId: string, who: Owner, 
   }
 }
 
-async function saveLine(c: pg.PoolClient, lectureId: string, slideId: string, who: Owner, out: PartOutput, line: BuiltLine) {
+async function saveLine(
+  c: pg.PoolClient,
+  lectureId: string,
+  slideId: string,
+  who: Owner,
+  out: PartOutput,
+  line: BuiltLine,
+) {
   if (line.lineFlag) {
     // A legal statement with no source, or a question the library could not answer: one open row for the line.
     const checks: CheckResult[] = [{ name: 'C1', result: 'fail', detail: line.lineFlag }];
@@ -53,7 +81,17 @@ async function saveLine(c: pg.PoolClient, lectureId: string, slideId: string, wh
       `insert into citations (college_id, owner_id, lecture_id, slide_id, line_key, claim_text, claim_type, risk, span_text,
                               check_status, checks, flag_kind, flag_reason, part_index)
        values ($1, $2, $3, $4, $5, $6, 'fact', 'normal', '', 'open', $7, 'yellow', $8, $9)`,
-      [who.collegeId, who.ownerId, lectureId, slideId, line.lineKey, line.text, JSON.stringify(checks), line.lineFlag, out.partIndex],
+      [
+        who.collegeId,
+        who.ownerId,
+        lectureId,
+        slideId,
+        line.lineKey,
+        line.text,
+        JSON.stringify(checks),
+        line.lineFlag,
+        out.partIndex,
+      ],
     );
   }
   for (const cl of line.claims) {
@@ -63,9 +101,32 @@ async function saveLine(c: pg.PoolClient, lectureId: string, slideId: string, wh
                               span_text, span_start, span_end, check_status, checks, flag_kind, flag_reason, tag, source_label, part_index, source_relevance)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
       [
-        who.collegeId, who.ownerId, lectureId, slideId, line.lineKey, cl.claim.text, cl.claim.type, cl.risk, cl.sourceId, cl.chunkId,
-        cl.claim.span, cl.spanStart, cl.spanEnd, d.status, JSON.stringify(cl.results.map((r) => ({ ...r, ...(r.name === 'C10' && cl.correctedClaim ? { corrected: cl.correctedClaim } : {}) }))),
-        d.flag, d.reason, cl.claim.tag, out.labels.get(cl.claim.tag) ?? cl.claim.tag, out.partIndex, out.relevance.get(cl.claim.tag) ?? null,
+        who.collegeId,
+        who.ownerId,
+        lectureId,
+        slideId,
+        line.lineKey,
+        cl.claim.text,
+        cl.claim.type,
+        cl.risk,
+        cl.sourceId,
+        cl.chunkId,
+        cl.claim.span,
+        cl.spanStart,
+        cl.spanEnd,
+        d.status,
+        JSON.stringify(
+          cl.results.map((r) => ({
+            ...r,
+            ...(r.name === 'C10' && cl.correctedClaim ? { corrected: cl.correctedClaim } : {}),
+          })),
+        ),
+        d.flag,
+        d.reason,
+        cl.claim.tag,
+        out.labels.get(cl.claim.tag) ?? cl.claim.tag,
+        out.partIndex,
+        out.relevance.get(cl.claim.tag) ?? null,
       ],
     );
   }
@@ -102,7 +163,14 @@ export async function finaliseLecture(
   for (const u of units) {
     const sectionKey = `${u.actName}:${u.sourceType === 'constitution' ? 'a' : 's'}${u.number}`;
     for (const p of mustCoverParts(u.text, u.sourceType === 'constitution' ? 'constitution' : 'act', u.number)) {
-      items.push({ key: `${sectionKey}|${p.label}`, sectionKey, kind: p.kind, label: p.label, text: p.text, ref: u.chunkId });
+      items.push({
+        key: `${sectionKey}|${p.label}`,
+        sectionKey,
+        kind: p.kind,
+        label: p.label,
+        text: p.text,
+        ref: u.chunkId,
+      });
     }
   }
   if (opts.conceptId) {
@@ -113,14 +181,28 @@ export async function finaliseLecture(
         [opts.conceptId],
       )
     ).rows;
-    for (const k of cases) items.push({ key: `concept:${opts.conceptId}|${k.source_id}`, sectionKey: `Leading cases: ${k.name}`, kind: 'leading_case', label: k.title, text: null, ref: k.source_id });
+    for (const k of cases)
+      items.push({
+        key: `concept:${opts.conceptId}|${k.source_id}`,
+        sectionKey: `Leading cases: ${k.name}`,
+        kind: 'leading_case',
+        label: k.title,
+        text: null,
+        ref: k.source_id,
+      });
   }
-  const covered = matchCoverage(items, cited.map((x) => ({ citationId: x.id, sourceId: x.source_id, chunkId: x.chunk_id, span: x.span_text })));
+  const covered = matchCoverage(
+    items,
+    cited.map((x) => ({ citationId: x.id, sourceId: x.source_id, chunkId: x.chunk_id, span: x.span_text })),
+  );
 
   const ticked = new Set(
-    (await c.query<{ section_key: string; item_label: string }>("select section_key, item_label from coverage_items where lecture_id = $1 and state = 'left_out_by_teacher'", [lectureId])).rows.map(
-      (r) => `${r.section_key}|${r.item_label}`,
-    ),
+    (
+      await c.query<{ section_key: string; item_label: string }>(
+        "select section_key, item_label from coverage_items where lecture_id = $1 and state = 'left_out_by_teacher'",
+        [lectureId],
+      )
+    ).rows.map((r) => `${r.section_key}|${r.item_label}`),
   );
   await c.query("delete from coverage_items where lecture_id = $1 and state <> 'left_out_by_teacher'", [lectureId]);
   const states: ('covered' | 'missing' | 'left_out_by_teacher')[] = [];
@@ -161,7 +243,13 @@ export async function finaliseLecture(
   const grey = lines.filter((l) => !l.statuses.includes('open') && l.flags.includes('grey')).length;
   const coverage = openGroups(kept);
   const score = coverageScore(states);
-  const cost = Number((await c.query<{ sum: string | null }>('select sum(cost_micro_usd) sum from usage where lecture_id = $1', [lectureId])).rows[0]?.sum ?? 0);
+  const cost = Number(
+    (
+      await c.query<{ sum: string | null }>('select sum(cost_micro_usd) sum from usage where lecture_id = $1', [
+        lectureId,
+      ])
+    ).rows[0]?.sum ?? 0,
+  );
 
   await c.query(
     `update lectures set yellow_open = $2, grey_open = $3, coverage_open = $4, coverage_score = $5, cost_micro_usd = $6,

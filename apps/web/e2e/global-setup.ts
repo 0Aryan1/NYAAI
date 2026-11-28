@@ -11,7 +11,10 @@ export const STATE = path.join(root, 'apps/web/e2e/.run.json');
 
 export default async function globalSetup() {
   const email = `e2e-${Date.now().toString(36)}@cnlu.ac.in`;
-  execFileSync('pnpm', ['--filter', '@nyaai/server', 'exec', 'tsx', 'scripts/e2e-account.ts', 'create', email], { cwd: root, stdio: 'inherit' });
+  execFileSync('pnpm', ['--filter', '@nyaai/server', 'exec', 'tsx', 'scripts/e2e-account.ts', 'create', email], {
+    cwd: root,
+    stdio: 'inherit',
+  });
   const worker = spawn('pnpm', ['--filter', '@nyaai/server', 'exec', 'tsx', 'src/main.worker.ts'], {
     cwd: root,
     env: { ...process.env, ...serverEnv },

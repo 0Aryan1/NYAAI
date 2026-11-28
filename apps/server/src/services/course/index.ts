@@ -5,7 +5,14 @@
  */
 import { randomBytes } from 'node:crypto';
 import type pg from 'pg';
-import { exampleOnSlides, termsOnSlides, type CourseCase, type CourseUnit, type SeriesUnit, type UnitMemory } from '@nyaai/legal';
+import {
+  exampleOnSlides,
+  termsOnSlides,
+  type CourseCase,
+  type CourseUnit,
+  type SeriesUnit,
+  type UnitMemory,
+} from '@nyaai/legal';
 import { PROMPTS, fence } from '@nyaai/prompts';
 import { LearnSummary } from '@nyaai/shared';
 import type { Gateway } from '../llm-gateway/index.ts';
@@ -22,7 +29,10 @@ interface UnitRow {
   lecture_id: string | null;
 }
 
-export async function loadUnits(c: pg.PoolClient, courseId: string): Promise<(CourseUnit & { lectureId: string | null })[]> {
+export async function loadUnits(
+  c: pg.PoolClient,
+  courseId: string,
+): Promise<(CourseUnit & { lectureId: string | null })[]> {
   const rows = (
     await c.query<UnitRow>(
       `select id, position, title, status, to_char(taught_on, 'YYYY-MM-DD') taught_on, prerequisites, memory, lecture_id
@@ -30,7 +40,16 @@ export async function loadUnits(c: pg.PoolClient, courseId: string): Promise<(Co
       [courseId],
     )
   ).rows;
-  return rows.map((r) => ({ id: r.id, position: r.position, title: r.title, status: r.status, taughtOn: r.taught_on, prerequisites: r.prerequisites ?? [], memory: r.memory ?? {}, lectureId: r.lecture_id }));
+  return rows.map((r) => ({
+    id: r.id,
+    position: r.position,
+    title: r.title,
+    status: r.status,
+    taughtOn: r.taught_on,
+    prerequisites: r.prerequisites ?? [],
+    memory: r.memory ?? {},
+    lectureId: r.lecture_id,
+  }));
 }
 
 /**
@@ -50,24 +69,43 @@ export async function lectureCases(c: pg.PoolClient, lectureIds: string[]): Prom
       [lectureIds],
     )
   ).rows;
-  for (const r of rows) out.set(r.lecture_id, [...(out.get(r.lecture_id) ?? []), { sourceId: r.source_id, name: r.title }]);
+  for (const r of rows)
+    out.set(r.lecture_id, [...(out.get(r.lecture_id) ?? []), { sourceId: r.source_id, name: r.title }]);
   return out;
 }
 
 /** Units with what their current lecture teaches, for the series checks. */
-export async function seriesUnits(c: pg.PoolClient, courseId: string): Promise<(SeriesUnit & { lectureId: string | null })[]> {
+export async function seriesUnits(
+  c: pg.PoolClient,
+  courseId: string,
+): Promise<(SeriesUnit & { lectureId: string | null })[]> {
   const units = await loadUnits(c, courseId);
-  const cases = await lectureCases(c, units.map((u) => u.lectureId).filter((x): x is string => !!x));
-  return units.map((u) => ({ ...u, lectureCases: u.lectureId ? (cases.get(u.lectureId) ?? []) : [], hasLecture: !!u.lectureId }));
+  const cases = await lectureCases(
+    c,
+    units.map((u) => u.lectureId).filter((x): x is string => !!x),
+  );
+  return units.map((u) => ({
+    ...u,
+    lectureCases: u.lectureId ? (cases.get(u.lectureId) ?? []) : [],
+    hasLecture: !!u.lectureId,
+  }));
 }
 
 /** Slide text of a lecture as students saw it: titles and lines, in order (speaker notes are hers, not the class's). */
 export async function slideText(c: pg.PoolClient, lectureId: string): Promise<string> {
   const rows = (
-    await c.query<{ title: string; body: { content?: { content?: { text?: string }[] }[] } }>('select title, body from slides where lecture_id = $1 order by position', [lectureId])
+    await c.query<{ title: string; body: { content?: { content?: { text?: string }[] }[] } }>(
+      'select title, body from slides where lecture_id = $1 order by position',
+      [lectureId],
+    )
   ).rows;
   return rows
-    .map((s) => [`# ${s.title}`, ...(s.body.content ?? []).map((n) => `- ${(n.content ?? []).map((t) => t.text ?? '').join('')}`)].join('\n'))
+    .map((s) =>
+      [
+        `# ${s.title}`,
+        ...(s.body.content ?? []).map((n) => `- ${(n.content ?? []).map((t) => t.text ?? '').join('')}`),
+      ].join('\n'),
+    )
     .join('\n\n');
 }
 
@@ -84,9 +122,17 @@ export type TenantTx = <T>(fn: (c: pg.PoolClient) => Promise<T>) => Promise<T>;
  * they are on the slides; cases come from the lecture's citations, not from the summariser. Written only while the
  * lecture is still marked taught (she may have undone it while the job waited).
  */
-export async function summariseTaught(job: LearnJob, deps: { tenant: TenantTx; gateway: Gateway; usage: UsageSink }): Promise<UnitMemory | null> {
+export async function summariseTaught(
+  job: LearnJob,
+  deps: { tenant: TenantTx; gateway: Gateway; usage: UsageSink },
+): Promise<UnitMemory | null> {
   const loaded = await deps.tenant(async (c) => {
-    const l = (await c.query<{ unit_id: string | null; status: string; topic: string }>('select unit_id, status, topic from lectures where id = $1', [job.lectureId])).rows[0];
+    const l = (
+      await c.query<{ unit_id: string | null; status: string; topic: string }>(
+        'select unit_id, status, topic from lectures where id = $1',
+        [job.lectureId],
+      )
+    ).rows[0];
     if (!l || l.status !== 'taught' || !l.unit_id) return null;
     const text = await slideText(c, job.lectureId);
     const cases = (await lectureCases(c, [job.lectureId])).get(job.lectureId) ?? [];
@@ -95,8 +141,12 @@ export async function summariseTaught(job: LearnJob, deps: { tenant: TenantTx; g
   if (!loaded || !loaded.text.trim()) return null;
 
   const boundary = randomBytes(6).toString('hex');
-  const task = [`LECTURE: ${loaded.topic}`, fence('slides of the taught lecture', loaded.text.slice(0, 60_000), boundary)].join('\n\n');
-  const data = (await deps.gateway.run({ prompt: PROMPTS['learn.summary'], schema: LearnSummary, task }, deps.usage)).data;
+  const task = [
+    `LECTURE: ${loaded.topic}`,
+    fence('slides of the taught lecture', loaded.text.slice(0, 60_000), boundary),
+  ].join('\n\n');
+  const data = (await deps.gateway.run({ prompt: PROMPTS['learn.summary'], schema: LearnSummary, task }, deps.usage))
+    .data;
   const memory: UnitMemory = {
     summary: data.summary.trim(),
     terms: termsOnSlides(data.terms, loaded.text),
@@ -106,14 +156,15 @@ export async function summariseTaught(job: LearnJob, deps: { tenant: TenantTx; g
     lectureId: job.lectureId,
     updatedAt: new Date().toISOString(),
   };
-  const saved = await deps.tenant(async (c) =>
-    (
-      await c.query(
-        `update course_units u set memory = $3
+  const saved = await deps.tenant(
+    async (c) =>
+      (
+        await c.query(
+          `update course_units u set memory = $3
            from lectures l where u.id = $2 and l.id = $1 and l.status = 'taught' and l.unit_id = u.id and u.status = 'taught'`,
-        [job.lectureId, loaded.unitId, memory],
-      )
-    ).rowCount,
+          [job.lectureId, loaded.unitId, memory],
+        )
+      ).rowCount,
   );
   return saved ? memory : null;
 }

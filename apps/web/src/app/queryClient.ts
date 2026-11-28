@@ -6,5 +6,7 @@ import { ApiRequestError } from '@/shared/api/client';
  * requests": retrying at once would only be refused again (the banner asks her to wait a minute).
  */
 export const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, retry: (n, err) => n < 1 && !(err instanceof ApiRequestError && err.status === 429) } },
+  defaultOptions: {
+    queries: { staleTime: 30_000, retry: (n, err) => n < 1 && !(err instanceof ApiRequestError && err.status === 429) },
+  },
 });

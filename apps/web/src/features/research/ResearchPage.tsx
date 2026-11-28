@@ -8,7 +8,15 @@ import { ChipGroup } from '@/shared/ui/chip-group';
 import { Pill } from '@/shared/ui/pill';
 import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
 
-const STATUS: Record<string, string> = { planning: 'Planning', awaiting_edit: 'Waiting for you', gathering: 'Gathering', writing: 'Writing', checking: 'Checking', ready: 'Ready', failed: 'Did not finish' };
+const STATUS: Record<string, string> = {
+  planning: 'Planning',
+  awaiting_edit: 'Waiting for you',
+  gathering: 'Gathering',
+  writing: 'Writing',
+  checking: 'Checking',
+  ready: 'Ready',
+  failed: 'Did not finish',
+};
 
 /**
  * Research (RES-1): a question and its scope; a quick run takes about two minutes and gives an evidence table and a
@@ -27,7 +35,11 @@ export function ResearchPage() {
     mutationFn: () =>
       api.startResearch({
         question: question.trim(),
-        scope: { comparative: scope === 'comparative', fromYear: fromYear ? Number(fromYear) : undefined, toYear: toYear ? Number(toYear) : undefined },
+        scope: {
+          comparative: scope === 'comparative',
+          fromYear: fromYear ? Number(fromYear) : undefined,
+          toYear: toYear ? Number(toYear) : undefined,
+        },
       }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: queryKeys.research, exact: true });
@@ -47,8 +59,8 @@ export function ResearchPage() {
         Research
       </h1>
       <p className="mt-2 max-w-prose text-sm text-muted">
-        Ask a research question. NYAAI splits it into smaller questions, gathers the Acts and judgments for each, and writes a short brief from that evidence
-        only, every line checked. It takes about two minutes.
+        Ask a research question. NYAAI splits it into smaller questions, gathers the Acts and judgments for each, and
+        writes a short brief from that evidence only, every line checked. It takes about two minutes.
       </p>
 
       <form onSubmit={submit} className="mt-6 space-y-5 rounded-card border border-border bg-surface p-5">
@@ -78,16 +90,38 @@ export function ResearchPage() {
             <label className="sr-only" htmlFor="from-year">
               From year
             </label>
-            <input id="from-year" type="number" min={1800} max={2100} value={fromYear} onChange={(e) => setFromYear(e.target.value)} placeholder="Year" className="h-10 w-28 rounded-control border border-border bg-bg px-3" />
+            <input
+              id="from-year"
+              type="number"
+              min={1800}
+              max={2100}
+              value={fromYear}
+              onChange={(e) => setFromYear(e.target.value)}
+              placeholder="Year"
+              className="h-10 w-28 rounded-control border border-border bg-bg px-3"
+            />
             <span className="text-muted">to</span>
             <label className="sr-only" htmlFor="to-year">
               To year
             </label>
-            <input id="to-year" type="number" min={1800} max={2100} value={toYear} onChange={(e) => setToYear(e.target.value)} placeholder="Year" className="h-10 w-28 rounded-control border border-border bg-bg px-3" />
+            <input
+              id="to-year"
+              type="number"
+              min={1800}
+              max={2100}
+              value={toYear}
+              onChange={(e) => setToYear(e.target.value)}
+              placeholder="Year"
+              className="h-10 w-28 rounded-control border border-border bg-bg px-3"
+            />
           </div>
           <span className="mt-1 block text-xs text-muted">Acts always count. Leave empty for all years.</span>
         </fieldset>
-        {start.error && <p className="text-sm text-danger">{start.error instanceof ApiRequestError ? start.error.message : 'The research did not start. Try again.'}</p>}
+        {start.error && (
+          <p className="text-sm text-danger">
+            {start.error instanceof ApiRequestError ? start.error.message : 'The research did not start. Try again.'}
+          </p>
+        )}
         <Button type="submit" variant="primary" disabled={start.isPending || question.trim().length < 10}>
           {start.isPending ? 'Starting…' : 'Start research'}
         </Button>
@@ -96,7 +130,9 @@ export function ResearchPage() {
       <h2 className="mb-3 mt-10 text-lg font-semibold">My research</h2>
       {list.isLoading && <ListSkeleton rows={2} label="Loading your research" />}
       {list.isError && <LoadError what="Your research" onRetry={() => void list.refetch()} />}
-      {list.isSuccess && runs.length === 0 && <EmptyState title="No research yet">Your questions and their briefs are kept here.</EmptyState>}
+      {list.isSuccess && runs.length === 0 && (
+        <EmptyState title="No research yet">Your questions and their briefs are kept here.</EmptyState>
+      )}
       {runs.length > 0 && (
         <ul className="divide-y divide-border rounded-card border border-border bg-surface">
           {runs.map((r) => (
@@ -104,11 +140,19 @@ export function ResearchPage() {
               <Link to={`/research/${r.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-bg">
                 <span className="min-w-0">
                   <span className="line-clamp-2 text-sm font-medium">{r.question}</span>
-                  <span className="text-xs text-muted">{new Date(r.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  <span className="text-xs text-muted">
+                    {new Date(r.createdAt).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
                 </span>
                 <span className="flex shrink-0 gap-1.5">
                   {r.yellow > 0 && <Pill tone="yellow">{r.yellow} to verify</Pill>}
-                  <Pill tone={r.status === 'ready' ? 'success' : r.status === 'failed' ? 'danger' : 'grey'}>{STATUS[r.status] ?? r.status}</Pill>
+                  <Pill tone={r.status === 'ready' ? 'success' : r.status === 'failed' ? 'danger' : 'grey'}>
+                    {STATUS[r.status] ?? r.status}
+                  </Pill>
                 </span>
               </Link>
             </li>

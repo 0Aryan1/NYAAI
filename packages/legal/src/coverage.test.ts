@@ -30,21 +30,39 @@ describe('mustCoverParts', () => {
   it('lists the Explanations of s. 25', () => {
     const fixture = readFileSync(new URL('../test/fixtures/ica-1872-ss25-32-56.txt', import.meta.url), 'utf8');
     const s25 = fixture.slice(fixture.indexOf('25. Agreement without consideration'), fixture.indexOf('\n32. '));
-    expect(mustCoverParts(s25, 'act', '25').map((p) => p.label)).toEqual(expect.arrayContaining(['Explanation 1 to s. 25', 'Explanation 2 to s. 25']));
+    expect(mustCoverParts(s25, 'act', '25').map((p) => p.label)).toEqual(
+      expect.arrayContaining(['Explanation 1 to s. 25', 'Explanation 2 to s. 25']),
+    );
   });
 
   it('lists the clauses and sub-clauses of Article 19, skipping the omitted (f)', () => {
     const fixture = readFileSync(new URL('../test/fixtures/constitution-arts18-20.txt', import.meta.url), 'utf8');
-    const a19 = fixture.slice(fixture.indexOf('19. Protection of certain rights'), fixture.indexOf('\n20. ')).replace(/\d\[/g, '[');
+    const a19 = fixture
+      .slice(fixture.indexOf('19. Protection of certain rights'), fixture.indexOf('\n20. '))
+      .replace(/\d\[/g, '[');
     const labels = mustCoverParts(a19, 'constitution', '19').map((p) => p.label);
-    expect(labels).toEqual(expect.arrayContaining(['Article 19(1)(a)', 'Article 19(1)(g)', 'Article 19(2)', 'Article 19(6)']));
+    expect(labels).toEqual(
+      expect.arrayContaining(['Article 19(1)(a)', 'Article 19(1)(g)', 'Article 19(2)', 'Article 19(6)']),
+    );
     expect(labels).not.toContain('Article 19(1)(f)');
     expect(labels).not.toContain('Article 19(1)');
   });
 
   it('lists provisos with their number and the sub-section they belong to', () => {
-    const t = ['10. Thing.—(1) A rule.', 'Provided that first.', 'Provided further that second.', '(2) Another rule.', 'Provided that third.'].join('\n');
-    expect(mustCoverParts(t, 'act', '10').map((p) => p.label)).toEqual(['Proviso to s. 10(1)', 'Proviso 2 to s. 10(1)', 'Proviso 3 to s. 10(2)']);
-    expect(mustCoverParts('11. Plain.—A rule.\nProvided that x.', 'act', '11').map((p) => p.label)).toEqual(['Proviso to s. 11']);
+    const t = [
+      '10. Thing.—(1) A rule.',
+      'Provided that first.',
+      'Provided further that second.',
+      '(2) Another rule.',
+      'Provided that third.',
+    ].join('\n');
+    expect(mustCoverParts(t, 'act', '10').map((p) => p.label)).toEqual([
+      'Proviso to s. 10(1)',
+      'Proviso 2 to s. 10(1)',
+      'Proviso 3 to s. 10(2)',
+    ]);
+    expect(mustCoverParts('11. Plain.—A rule.\nProvided that x.', 'act', '11').map((p) => p.label)).toEqual([
+      'Proviso to s. 11',
+    ]);
   });
 });

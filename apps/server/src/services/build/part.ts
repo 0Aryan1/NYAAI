@@ -6,7 +6,13 @@
 import { randomBytes } from 'node:crypto';
 import { REPAIRABLE, looksLegal, type CheckSource, type ClaimInput, type MappingRow } from '@nyaai/checker-rules';
 import { PROMPTS, fence } from '@nyaai/prompts';
-import { UnsourcedVerdicts, WriterReplyRepair, WriterReplyWrite, type LecturePlan, type WrittenLine } from '@nyaai/shared';
+import {
+  UnsourcedVerdicts,
+  WriterReplyRepair,
+  WriterReplyWrite,
+  type LecturePlan,
+  type WrittenLine,
+} from '@nyaai/shared';
 import type { Gateway } from '../llm-gateway/index.ts';
 import type { TenantRunner } from '../lookup/index.ts';
 import { loadPieces, sourceDetails, type RetrievedSource } from '../search/index.ts';
@@ -81,7 +87,10 @@ export function sourceLabel(s: RetrievedSource, title: string | null): string {
   if (s.meta.sourceType === 'teacher_note') return s.header.split(' › ').slice(0, 2).join(' › ');
   if (s.meta.article) return `Art. ${s.meta.article}`;
   if (s.meta.section) return `s. ${s.meta.section} ${ACT_SHORT[s.meta.act ?? ''] ?? s.meta.act ?? ''}`.trim();
-  const name = (title ?? s.header.split(' › ')[0] ?? '').split(/\s+v\.?\s+/i)[0]!.replace(/^(M\/s\.?|The)\s+/i, '').trim();
+  const name = (title ?? s.header.split(' › ')[0] ?? '')
+    .split(/\s+v\.?\s+/i)[0]!
+    .replace(/^(M\/s\.?|The)\s+/i, '')
+    .trim();
   return s.meta.paraNo ? `${name} ¶${s.meta.paraNo}` : name;
 }
 
@@ -94,7 +103,10 @@ export async function checkSourcesFor(
   found: RetrievedSource[],
 ): Promise<{ sources: Map<string, CheckSource>; labels: Map<string, string>; relevance: Map<string, number | null> }> {
   const { pieces, details } = await tenant(async (c) => ({
-    pieces: await loadPieces(c, found.flatMap((s) => s.coveredChunkIds)),
+    pieces: await loadPieces(
+      c,
+      found.flatMap((s) => s.coveredChunkIds),
+    ),
     details: await sourceDetails(c, [...new Set(found.map((s) => s.sourceId))]),
   }));
   const sources = new Map<string, CheckSource>();
@@ -110,7 +122,18 @@ export async function checkSourcesFor(
       title: d?.title ?? null,
       header: s.header,
       text: s.text,
-      pieces: mine.length ? mine : [{ chunkId: s.chunkId, text: s.text, paraNo: s.meta.paraNo ?? null, opinion: s.meta.opinion ?? null, paraRole: s.meta.paraRole ?? null, kind: 'section' }],
+      pieces: mine.length
+        ? mine
+        : [
+            {
+              chunkId: s.chunkId,
+              text: s.text,
+              paraNo: s.meta.paraNo ?? null,
+              opinion: s.meta.opinion ?? null,
+              paraRole: s.meta.paraRole ?? null,
+              kind: 'section',
+            },
+          ],
       court: s.meta.court ?? null,
       decidedOn: s.meta.decidedOn ?? null,
       section: s.meta.section ?? null,
@@ -139,9 +162,18 @@ export interface PartBrief {
   elsewhere: string[];
 }
 
-export async function runPart(partIndex: number, part: LecturePlan['parts'][number], ctx: PartContext, deps: PartDeps, brief: PartBrief): Promise<PartOutput> {
+export async function runPart(
+  partIndex: number,
+  part: LecturePlan['parts'][number],
+  ctx: PartContext,
+  deps: PartDeps,
+  brief: PartBrief,
+): Promise<PartOutput> {
   // 1. The part's research notes, tagged S1…S8 for this writer.
-  const found = { outcome: brief.outcome, sources: brief.sources.slice(0, 8).map((s, i) => ({ ...s, tag: `S${i + 1}` })) };
+  const found = {
+    outcome: brief.outcome,
+    sources: brief.sources.slice(0, 8).map((s, i) => ({ ...s, tag: `S${i + 1}` })),
+  };
   // A recap or bridge the library has nothing for is still written, from the outline and course memory alone: its
   // lines are questions and teaching lines, and any legal statement in them is flagged like any other.
   const framing = part.kind === 'recap' || part.kind === 'bridge';
@@ -152,7 +184,14 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
         {
           layout: 'question',
           title: part.title,
-          lines: part.questions.map((q, i) => ({ lineKey: `p${partIndex}-s1-l${i + 1}`, text: q, kind: 'question' as const, yourExample: false, claims: [], lineFlag: 'Not found in the library' })),
+          lines: part.questions.map((q, i) => ({
+            lineKey: `p${partIndex}-s1-l${i + 1}`,
+            text: q,
+            kind: 'question' as const,
+            yourExample: false,
+            claims: [],
+            lineFlag: 'Not found in the library',
+          })),
           notes: [],
         },
       ],
@@ -178,34 +217,73 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
     `PART ${partIndex + 1}: ${part.title} (${part.minutes} minutes, kind ${part.kind})${partIndex === 0 ? ', the first part' : ''}`,
     `QUESTIONS THIS PART MUST ANSWER:\n${part.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`,
     mustCoverLines(brief.mustCover, found.sources),
-    brief.elsewhere.length ? `CASES TAUGHT IN FULL IN ANOTHER PART (mention them here only briefly, without retelling the facts):\n${brief.elsewhere.map((e) => `- ${e}`).join('\n')}` : '',
-    part.mustInclude && ctx.mustIncludeText ? fence('teacher example to use in this part', ctx.mustIncludeText, boundary) : '',
+    brief.elsewhere.length
+      ? `CASES TAUGHT IN FULL IN ANOTHER PART (mention them here only briefly, without retelling the facts):\n${brief.elsewhere.map((e) => `- ${e}`).join('\n')}`
+      : '',
+    part.mustInclude && ctx.mustIncludeText
+      ? fence('teacher example to use in this part', ctx.mustIncludeText, boundary)
+      : '',
     ctx.courseMemory ?? '',
     `Fill "written" (partIndex ${partIndex}) and set "repairs" to null. Tags available: ${sources.size ? [...sources.keys()].join(', ') : 'none (the library holds nothing for this part: write questions and teaching lines only)'}.`,
   ]
     .filter(Boolean)
     .join('\n\n');
-  const written = (await deps.gateway.run({ prompt: PROMPTS['writer.part'], schema: WriterReplyWrite, context: [ctx.teacherBlock, srcBlock], task, traceId: deps.traceId }, deps.usage)).data.written!;
+  const written = (
+    await deps.gateway.run(
+      {
+        prompt: PROMPTS['writer.part'],
+        schema: WriterReplyWrite,
+        context: [ctx.teacherBlock, srcBlock],
+        task,
+        traceId: deps.traceId,
+      },
+      deps.usage,
+    )
+  ).data.written!;
 
   // 4. Stable line keys, then the ten checks.
   const slides: BuiltSlide[] = written.slides.map((s, si) => ({
     // The recap and bridge slides carry their own layouts (LLD §8.1) so the deck and the Studio mark them.
     layout: framing && si === 0 && s.layout !== 'question' ? part.kind : s.layout,
     title: s.title,
-    lines: s.lines.map((l, li) => toLine(`p${partIndex}-s${si + 1}-l${li + 1}`, l.text, l.kind, l.claims, ctx, part.mustInclude)),
-    notes: s.notes.map((n, ni) => toLine(`p${partIndex}-s${si + 1}-n${ni + 1}`, n.text, n.claims.length ? 'claim' : 'teaching', n.claims, ctx, false)),
+    lines: s.lines.map((l, li) =>
+      toLine(`p${partIndex}-s${si + 1}-l${li + 1}`, l.text, l.kind, l.claims, ctx, part.mustInclude),
+    ),
+    notes: s.notes.map((n, ni) =>
+      toLine(
+        `p${partIndex}-s${si + 1}-n${ni + 1}`,
+        n.text,
+        n.claims.length ? 'claim' : 'teaching',
+        n.claims,
+        ctx,
+        false,
+      ),
+    ),
   }));
-  await flagUnsourcedLaw(slides.flatMap((s) => [...s.lines, ...s.notes]), deps);
+  await flagUnsourcedLaw(
+    slides.flatMap((s) => [...s.lines, ...s.notes]),
+    deps,
+  );
   const pending = new Map<string, ClaimInput>();
   const all = slides.flatMap((s) => [...s.lines, ...s.notes]);
-  for (const line of all) (line as BuiltLine & { raw?: ClaimInput[] }).raw?.forEach((c, i) => pending.set(`${line.lineKey}#${i}`, c));
-  const checked = await checkClaims([...pending].map(([id, claim]) => ({ id, claim })), sources, ctx.mappings, { gateway: deps.gateway, usage: deps.usage, traceId: deps.traceId });
+  for (const line of all)
+    (line as BuiltLine & { raw?: ClaimInput[] }).raw?.forEach((c, i) => pending.set(`${line.lineKey}#${i}`, c));
+  const checked = await checkClaims(
+    [...pending].map(([id, claim]) => ({ id, claim })),
+    sources,
+    ctx.mappings,
+    { gateway: deps.gateway, usage: deps.usage, traceId: deps.traceId },
+  );
   attach(all, checked);
 
   // 5. One repair round for lines whose claims failed C1–C4, C7 or C9.
   // Also lines that state law with no source at all: give them a source, turn them into a question, or drop them.
   const UNSOURCED = 'No source for this statement';
-  const broken = all.filter((l) => l.lineFlag === UNSOURCED || l.claims.some((c) => c.results.some((r) => r.result === 'fail' && REPAIRABLE.has(r.name))));
+  const broken = all.filter(
+    (l) =>
+      l.lineFlag === UNSOURCED ||
+      l.claims.some((c) => c.results.some((r) => r.result === 'fail' && REPAIRABLE.has(r.name))),
+  );
   if (broken.length) {
     const task2 = broken
       .map((l) =>
@@ -213,13 +291,34 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
           `LINE id=${l.lineKey}`,
           `TEXT: ${l.text}`,
           ...(l.lineFlag === UNSOURCED && !l.claims.length
-            ? ['problem: this line states law but cites no source. Give it claims with exact spans from SOURCES, or rewrite it as a question to the class that states no law, or drop it.']
+            ? [
+                'problem: this line states law but cites no source. Give it claims with exact spans from SOURCES, or rewrite it as a question to the class that states no law, or drop it.',
+              ]
             : []),
-          ...l.claims.map((c) => `CLAIM [${c.claim.tag}] ${c.claim.text}\n  span: ${c.claim.span}\n  problem: ${c.results.filter((r) => r.result === 'fail').map((r) => r.detail).join('; ') || 'none'}`),
+          ...l.claims.map(
+            (c) =>
+              `CLAIM [${c.claim.tag}] ${c.claim.text}\n  span: ${c.claim.span}\n  problem: ${
+                c.results
+                  .filter((r) => r.result === 'fail')
+                  .map((r) => r.detail)
+                  .join('; ') || 'none'
+              }`,
+          ),
         ].join('\n'),
       )
       .join('\n\n');
-    const repairs = (await deps.gateway.run({ prompt: PROMPTS['writer.repair'], schema: WriterReplyRepair, context: [ctx.teacherBlock, srcBlock], task: `TASK: REPAIR. Fix or drop each line. Fill "repairs" and set "written" to null.\n\n${task2}`, traceId: deps.traceId }, deps.usage)).data.repairs!;
+    const repairs = (
+      await deps.gateway.run(
+        {
+          prompt: PROMPTS['writer.repair'],
+          schema: WriterReplyRepair,
+          context: [ctx.teacherBlock, srcBlock],
+          task: `TASK: REPAIR. Fix or drop each line. Fill "repairs" and set "written" to null.\n\n${task2}`,
+          traceId: deps.traceId,
+        },
+        deps.usage,
+      )
+    ).data.repairs!;
     const byId = new Map(repairs.map((r) => [r.id, r]));
     const redo: { id: string; claim: ClaimInput }[] = [];
     const rephrased: BuiltLine[] = [];
@@ -238,14 +337,30 @@ export async function runPart(partIndex: number, part: LecturePlan['parts'][numb
     }
     // A line rewritten without a source is read again by the unsourced-line check.
     await flagUnsourcedLaw(rephrased, deps);
-    if (redo.length) attach(all, await checkClaims(redo, sources, ctx.mappings, { gateway: deps.gateway, usage: deps.usage, traceId: deps.traceId }));
+    if (redo.length)
+      attach(
+        all,
+        await checkClaims(redo, sources, ctx.mappings, {
+          gateway: deps.gateway,
+          usage: deps.usage,
+          traceId: deps.traceId,
+        }),
+      );
     for (const s of slides) {
       s.lines = s.lines.filter((l) => !(l as BuiltLine & { dropped?: boolean }).dropped);
       s.notes = s.notes.filter((l) => !(l as BuiltLine & { dropped?: boolean }).dropped);
     }
   }
 
-  return { partIndex, slides: slides.filter((s) => s.lines.length || s.notes.length), notFound: written.notFound, leftOut: written.leftOut, labels, relevance, searchOutcome: found.outcome };
+  return {
+    partIndex,
+    slides: slides.filter((s) => s.lines.length || s.notes.length),
+    notFound: written.notFound,
+    leftOut: written.leftOut,
+    labels,
+    relevance,
+    searchOutcome: found.outcome,
+  };
 }
 
 /** "MUST COVER" for the writer: each item with the tag of the source that holds its section. */
@@ -259,8 +374,20 @@ function mustCoverLines(items: PartBrief['mustCover'], sources: RetrievedSource[
     : '';
 }
 
-function toLine(lineKey: string, text: string, kind: WrittenLine['kind'], claims: ClaimInput[], ctx: PartContext, mustIncludePart: boolean): BuiltLine & { raw: ClaimInput[] } {
-  const yourExample = kind === 'example' && claims.length === 0 && mustIncludePart && !!ctx.mustIncludeText && overlaps(text, ctx.mustIncludeText);
+function toLine(
+  lineKey: string,
+  text: string,
+  kind: WrittenLine['kind'],
+  claims: ClaimInput[],
+  ctx: PartContext,
+  mustIncludePart: boolean,
+): BuiltLine & { raw: ClaimInput[] } {
+  const yourExample =
+    kind === 'example' &&
+    claims.length === 0 &&
+    mustIncludePart &&
+    !!ctx.mustIncludeText &&
+    overlaps(text, ctx.mustIncludeText);
   let lineFlag: string | null = null;
   if (claims.length === 0 && !yourExample) {
     if (kind === 'claim') lineFlag = 'No source for this statement';
@@ -298,13 +425,27 @@ function overlaps(line: string, example: string): boolean {
  * part reads the rest (rule 1: nothing that states law goes out unchecked). If the call fails the line keeps the
  * word-rule result and the build goes on: this check only ever adds flags.
  */
-async function flagUnsourcedLaw(candidates: BuiltLine[], deps: Pick<PartDeps, 'gateway' | 'usage' | 'traceId'>): Promise<void> {
-  const lines = candidates.filter((l) => !l.lineFlag && !l.yourExample && !((l as BuiltLine & { raw?: ClaimInput[] }).raw?.length) && l.text.trim().length > 12);
+async function flagUnsourcedLaw(
+  candidates: BuiltLine[],
+  deps: Pick<PartDeps, 'gateway' | 'usage' | 'traceId'>,
+): Promise<void> {
+  const lines = candidates.filter(
+    (l) =>
+      !l.lineFlag &&
+      !l.yourExample &&
+      !(l as BuiltLine & { raw?: ClaimInput[] }).raw?.length &&
+      l.text.trim().length > 12,
+  );
   if (!lines.length) return;
   const boundary = randomBytes(6).toString('hex');
   const task = lines.map((l) => `ITEM id=${l.lineKey}\n${fence('line', l.text, boundary)}`).join('\n\n');
   try {
-    const { verdicts } = (await deps.gateway.run({ prompt: PROMPTS['checker.unsourced'], schema: UnsourcedVerdicts, task, traceId: deps.traceId }, deps.usage)).data;
+    const { verdicts } = (
+      await deps.gateway.run(
+        { prompt: PROMPTS['checker.unsourced'], schema: UnsourcedVerdicts, task, traceId: deps.traceId },
+        deps.usage,
+      )
+    ).data;
     const says = new Map(verdicts.map((v) => [v.id, v.statesLaw]));
     for (const l of lines) if (says.get(l.lineKey)) l.lineFlag = 'No source for this statement';
   } catch {

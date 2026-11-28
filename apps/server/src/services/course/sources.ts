@@ -33,19 +33,32 @@ export interface CourseSourcesResult {
   notChecked: number;
 }
 
-export async function findCourseSources(courseId: string, who: TenantIdentity, deps: CourseSourcesDeps): Promise<CourseSourcesResult> {
-  const tenant = <T,>(fn: (c: pg.PoolClient) => Promise<T>) => withTenant(deps.worker, who, fn);
-  const course = await tenant(async (c) => (await c.query<{ name: string }>('select name from courses where id = $1', [courseId])).rows[0]);
+export async function findCourseSources(
+  courseId: string,
+  who: TenantIdentity,
+  deps: CourseSourcesDeps,
+): Promise<CourseSourcesResult> {
+  const tenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) => withTenant(deps.worker, who, fn);
+  const course = await tenant(
+    async (c) => (await c.query<{ name: string }>('select name from courses where id = $1', [courseId])).rows[0],
+  );
   const out: CourseSourcesResult = { checked: 0, ok: 0, thin: 0, notFound: 0, notChecked: 0 };
   if (!course) return out;
-  const units = await tenant(async (c) =>
-    (await c.query<{ id: string; title: string }>("select id, title from course_units where course_id = $1 and sources->>'state' = 'waiting' order by position", [courseId])).rows,
+  const units = await tenant(
+    async (c) =>
+      (
+        await c.query<{ id: string; title: string }>(
+          "select id, title from course_units where course_id = $1 and sources->>'state' = 'waiting' order by position",
+          [courseId],
+        )
+      ).rows,
   );
   const searchDeps = (c: pg.PoolClient): SearchDeps => {
     const usage = usageSink(c, { collegeId: who.collegeId, ownerId: who.userId });
     return { voyage: deps.voyageFor(usage), gateway: null, usage, minScore: deps.minScore };
   };
-  const save = (id: string, s: UnitSources) => tenant((c) => c.query('update course_units set sources = $2 where id = $1', [id, s]));
+  const save = (id: string, s: UnitSources) =>
+    tenant((c) => c.query('update course_units set sources = $2 where id = $1', [id, s]));
   const started = Date.now();
 
   for (const u of units) {
@@ -54,9 +67,19 @@ export async function findCourseSources(courseId: string, who: TenantIdentity, d
       out.notChecked++;
       continue;
     }
-    const r = await searchWithLookup(tenant, { query: `${course.name}: ${u.title}`.slice(0, 500), purpose: 'lecture_part', noExpand: true, maxSources: 6 }, searchDeps, deps.lookup);
+    const r = await searchWithLookup(
+      tenant,
+      { query: `${course.name}: ${u.title}`.slice(0, 500), purpose: 'lecture_part', noExpand: true, maxSources: 6 },
+      searchDeps,
+      deps.lookup,
+    );
     const state = r.outcome;
-    await save(u.id, { state, found: r.sources.length, loaded: r.gap?.lookup?.loadedSourceIds.length ?? 0, checkedAt: new Date().toISOString() });
+    await save(u.id, {
+      state,
+      found: r.sources.length,
+      loaded: r.gap?.lookup?.loadedSourceIds.length ?? 0,
+      checkedAt: new Date().toISOString(),
+    });
     out.checked++;
     if (state === 'ok') out.ok++;
     else if (state === 'thin') out.thin++;

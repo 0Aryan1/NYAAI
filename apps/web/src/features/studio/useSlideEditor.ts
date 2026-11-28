@@ -34,7 +34,10 @@ export function useSlideEditor(lectureId: string) {
   const flushing = useRef(false);
 
   const setSlide = useCallback(
-    (slide: StudioSlide) => qc.setQueryData<{ slides: StudioSlide[] }>(queryKeys.slides(lectureId), (old) => (old ? { slides: old.slides.map((s) => (s.id === slide.id ? slide : s)) } : old)),
+    (slide: StudioSlide) =>
+      qc.setQueryData<{ slides: StudioSlide[] }>(queryKeys.slides(lectureId), (old) =>
+        old ? { slides: old.slides.map((s) => (s.id === slide.id ? slide : s)) } : old,
+      ),
     [qc, lectureId],
   );
   const saved = useCallback(
@@ -170,11 +173,32 @@ export function useSlideEditor(lectureId: string) {
     pending: count,
     retryNow: flush,
     editLine: (s: StudioSlide, key: string, text: string) =>
-      save(s, asEdit(s, s.lines.some((l) => l.lineKey === key) ? { lines: replace(s.lines, key, text) } : { notes: replace(s.notes, key, text) })),
+      save(
+        s,
+        asEdit(
+          s,
+          s.lines.some((l) => l.lineKey === key)
+            ? { lines: replace(s.lines, key, text) }
+            : { notes: replace(s.notes, key, text) },
+        ),
+      ),
     removeLine: (s: StudioSlide, key: string) =>
-      save(s, asEdit(s, s.lines.some((l) => l.lineKey === key) ? { lines: replace(s.lines, key, null) } : { notes: replace(s.notes, key, null) })),
+      save(
+        s,
+        asEdit(
+          s,
+          s.lines.some((l) => l.lineKey === key)
+            ? { lines: replace(s.lines, key, null) }
+            : { notes: replace(s.notes, key, null) },
+        ),
+      ),
     addLine: (s: StudioSlide, text: string, where: 'lines' | 'notes' = 'lines') =>
-      save(s, asEdit(s, { [where]: [...(where === 'lines' ? s.lines : s.notes).map(toEdit), { lineKey: null, text, kind: 'teaching' }] })),
+      save(
+        s,
+        asEdit(s, {
+          [where]: [...(where === 'lines' ? s.lines : s.notes).map(toEdit), { lineKey: null, text, kind: 'teaching' }],
+        }),
+      ),
     editTitle: (s: StudioSlide, title: string) => save(s, asEdit(s, { title })),
     verify: (s: StudioSlide, key: string) => run(() => api.verifyLine(s.id, key)),
     addExample: (s: StudioSlide, text: string, keep: boolean) => run(() => api.addExample(s.id, text, keep)),

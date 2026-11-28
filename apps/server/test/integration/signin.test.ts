@@ -63,8 +63,15 @@ describe.skipIf(!up)('sign-in, CSRF and setup (integration)', () => {
     owner = new pg.Pool({ connectionString: process.env.DATABASE_URL_MIGRATE, max: 1 });
     pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
     redis = new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
-    await owner.query("insert into colleges (id, name, slug) values ($1, 'Integration College', $2)", [college, `it-${college}`]);
-    await owner.query("insert into invite_allowlist (college_id, email) values ($1, $2), ($1, $3)", [college, emailA, emailB]);
+    await owner.query("insert into colleges (id, name, slug) values ($1, 'Integration College', $2)", [
+      college,
+      `it-${college}`,
+    ]);
+    await owner.query('insert into invite_allowlist (college_id, email) values ($1, $2), ($1, $3)', [
+      college,
+      emailA,
+      emailB,
+    ]);
     const config = parseConfig({ ...base, NODE_ENV: 'development', DEV_LOGIN: 'true' });
     app = createApp({ config, logger: pino({ level: 'silent' }), pool, redis });
   });
@@ -82,7 +89,10 @@ describe.skipIf(!up)('sign-in, CSRF and setup (integration)', () => {
 
   it('refuses /me without a session, and an email that was never invited', async () => {
     await request(app).get('/api/v1/me').expect(401);
-    const res = await request(app).post('/api/v1/auth/dev-login').send({ email: `nobody-${college.slice(0, 8)}@it.test` }).expect(403);
+    const res = await request(app)
+      .post('/api/v1/auth/dev-login')
+      .send({ email: `nobody-${college.slice(0, 8)}@it.test` })
+      .expect(403);
     expect(res.body.error.message).toMatch(/not been invited/);
     await request(app).post('/api/v1/auth/dev-login').send({ email: 'someone@gmail.com' }).expect(403);
   });
@@ -98,12 +108,18 @@ describe.skipIf(!up)('sign-in, CSRF and setup (integration)', () => {
 
     // A change without the CSRF header is refused.
     await agent.post('/api/v1/consents').send({ version: CONSENT_VERSION, accept: true }).expect(403);
-    const send = <T extends object>(method: 'post' | 'patch', url: string, body: T) => agent[method](url).set('x-csrf-token', csrf).send(body);
+    const send = <T extends object>(method: 'post' | 'patch', url: string, body: T) =>
+      agent[method](url).set('x-csrf-token', csrf).send(body);
 
     // Steps can't be skipped ahead.
     await send('patch', '/api/v1/setup/progress', { step: 4 }).expect(400);
     await send('post', '/api/v1/consents', { version: CONSENT_VERSION, accept: true }).expect(204);
-    await send('patch', '/api/v1/setup/profile', { name: 'Dr. A', department: 'Contract law', subjects: ['Law of Contract I'], teachingLanguage: 'en' }).expect(204);
+    await send('patch', '/api/v1/setup/profile', {
+      name: 'Dr. A',
+      department: 'Contract law',
+      subjects: ['Law of Contract I'],
+      teachingLanguage: 'en',
+    }).expect(204);
     await send('patch', '/api/v1/setup/progress', { step: 4 }).expect(204);
     await send('post', '/api/v1/setup/finish', {}).expect(400); // style still missing
     await send('patch', '/api/v1/setup/style', {
@@ -117,7 +133,11 @@ describe.skipIf(!up)('sign-in, CSRF and setup (integration)', () => {
     await send('post', '/api/v1/setup/finish', {}).expect(204);
 
     const done = Me.parse((await agent.get('/api/v1/me').expect(200)).body);
-    expect(done).toMatchObject({ setupDone: true, user: { name: 'Dr. A' }, profile: { department: 'Contract law', subjects: ['Law of Contract I'] } });
+    expect(done).toMatchObject({
+      setupDone: true,
+      user: { name: 'Dr. A' },
+      profile: { department: 'Contract law', subjects: ['Law of Contract I'] },
+    });
     expect(done.budget.leftMicroUsd).toBe(12_000_000);
 
     expect((await agent.get('/api/v1/home').expect(200)).body).toEqual({ courses: [] });
@@ -127,11 +147,19 @@ describe.skipIf(!up)('sign-in, CSRF and setup (integration)', () => {
 
   it('keeps teacher B apart from teacher A, and B cannot reuse A’s CSRF token', async () => {
     const a = request.agent(app);
-    const csrfA = cookieValue(await a.post('/api/v1/auth/dev-login').send({ email: emailA }).expect(204), 'nyaai_csrf')!;
+    const csrfA = cookieValue(
+      await a.post('/api/v1/auth/dev-login').send({ email: emailA }).expect(204),
+      'nyaai_csrf',
+    )!;
     const b = request.agent(app);
     await b.post('/api/v1/auth/dev-login').send({ email: emailB }).expect(204);
     expect((await b.get('/api/v1/consents/current').expect(200)).body.accepted).toBe(false);
-    await b.post('/api/v1/consents').set('x-csrf-token', csrfA).set('cookie', `nyaai_csrf=${encodeURIComponent(csrfA)}`).send({ version: CONSENT_VERSION, accept: true }).expect(403);
+    await b
+      .post('/api/v1/consents')
+      .set('x-csrf-token', csrfA)
+      .set('cookie', `nyaai_csrf=${encodeURIComponent(csrfA)}`)
+      .send({ version: CONSENT_VERSION, accept: true })
+      .expect(403);
   });
 
   it('has no dev login outside development', async () => {
@@ -146,6 +174,9 @@ describe.skipIf(!up)('sign-in, CSRF and setup (integration)', () => {
     });
     const prod = createApp({ config, logger: pino({ level: 'silent' }), pool, redis });
     await request(prod).post('/api/v1/auth/dev-login').send({ email: emailA }).expect(404);
-    expect((await request(prod).get('/api/v1/auth/options').expect(200)).body).toEqual({ google: true, devLogin: false });
+    expect((await request(prod).get('/api/v1/auth/options').expect(200)).body).toEqual({
+      google: true,
+      devLogin: false,
+    });
   });
 });
