@@ -1,16 +1,16 @@
 /** Builds the outside-service clients from config, so the API, worker and CLIs wire them the same way. */
-import { createFakeGateway } from './llm-gateway/fake.ts';
-import { createFakeVoyage } from './voyage/fake.ts';
-import type { Config } from '../config.ts';
-import { createGateway, type Gateway } from './llm-gateway/index.ts';
-import { createKanoon, type Kanoon } from './kanoon/index.ts';
-import { createIndiaCode, type IndiaCode } from './india-code/index.ts';
-import { createEscr, type Escr } from './escr/index.ts';
-import { createWebSearch, type WebSearch } from './web-search/index.ts';
-import { createStorage, type Storage } from './storage/index.ts';
-import type { UsageSink } from './usage.ts';
-import { createVoyage, type Voyage } from './voyage/index.ts';
-import { voyagePrice } from './pricing/index.ts';
+import { createFakeGateway } from '../llm-gateway/fake.ts';
+import { createFakeVoyage } from '../voyage/fake.ts';
+import type { Config } from '../../config.ts';
+import { createGateway, type Gateway } from '../llm-gateway/index.ts';
+import { createKanoon, type Kanoon } from '../kanoon/index.ts';
+import { createIndiaCode, type IndiaCode } from '../india-code/index.ts';
+import { createEscr, type Escr } from '../escr/index.ts';
+import { createWebSearch, type WebSearch } from '../web-search/index.ts';
+import { createStorage, type Storage } from '../storage/index.ts';
+import type { UsageSink } from '../usage/index.ts';
+import { createVoyage, type Voyage } from '../voyage/index.ts';
+import { voyagePrice } from '../pricing/index.ts';
 
 export function storageFrom(config: Config): Storage {
   return createStorage({

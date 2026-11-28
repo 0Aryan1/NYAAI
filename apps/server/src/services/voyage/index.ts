@@ -3,7 +3,7 @@
  * Plain REST. Batches stay inside Voyage's per-request limits; 429 and 5xx are retried with backoff.
  * Every call is costed in `usage` (prices per million tokens, from config).
  */
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 import { ExternalServiceError } from '../../errors.ts';
 
 export const EMBED_DIMS = 1024;

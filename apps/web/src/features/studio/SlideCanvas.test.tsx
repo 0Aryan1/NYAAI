@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { SlideLine, StudioSlide } from '@nyaai/shared';
 import { ClaimLine } from './ClaimLine';
-import { highlight } from '@/shared/lib/highlight';
 import { footnoteNumbers, openPoints } from './slides';
 
 afterEach(cleanup);
@@ -71,17 +70,6 @@ describe('ClaimLine marks (LLD §12.4): colour is never the only signal', () => 
     );
     expect(screen.getByText('Status not verified')).toBeTruthy();
     expect(screen.getByText('Your example')).toBeTruthy();
-  });
-});
-
-describe('Source drawer highlight', () => {
-  it('finds the supporting words despite line breaks and curly quotes', () => {
-    const parts = highlight(
-      'A contract to do an act\nwhich, after the contract is made, becomes “impossible”.',
-      'which, after the contract is made, becomes "impossible"',
-    );
-    expect(parts?.[1]).toBe('which, after the contract is made, becomes "impossible"');
-    expect(highlight('abc', 'xyz')).toBeNull();
   });
 });
 

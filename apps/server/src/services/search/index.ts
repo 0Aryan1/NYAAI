@@ -15,7 +15,7 @@ import { z } from 'zod';
 import { PROMPTS } from '@nyaai/prompts';
 import { reciprocalRankFusion, standing, understandQuery, type Standing } from '@nyaai/legal';
 import type { Gateway } from '../llm-gateway/index.ts';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 import { toVector, type Voyage } from '../voyage/index.ts';
 import { skipOptionalStep } from '../../jobs/deadline.ts';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moved, planProgress, togglePrerequisite } from './plan';
+import { moved, planProgress, topicsFrom, togglePrerequisite } from './plan';
 
 describe('course plan changes', () => {
   it('moves a lecture by swapping it with its neighbour', () => {
@@ -24,5 +24,21 @@ describe('course plan changes', () => {
       { id: '3', status: 'planned' },
     ] as const;
     expect(planProgress(units)).toMatchObject({ taught: 1, planned: 2, next: { id: '3' } });
+  });
+});
+
+describe('a pasted syllabus', () => {
+  it('becomes one lecture per line, without numbers or bullets', () => {
+    expect(
+      topicsFrom(
+        '1. Arbitration agreement\n2) Composition of the tribunal\n\n- Interim measures\nUnit 4: Setting aside an award\nL05 Enforcement\n• x',
+      ),
+    ).toEqual([
+      'Arbitration agreement',
+      'Composition of the tribunal',
+      'Interim measures',
+      'Setting aside an award',
+      'Enforcement',
+    ]);
   });
 });

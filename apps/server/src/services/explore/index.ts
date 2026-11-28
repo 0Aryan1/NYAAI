@@ -19,7 +19,7 @@ import { checkSourcesFor } from '../build/part.ts';
 import type { Gateway } from '../llm-gateway/index.ts';
 import { searchWithLookup, type TenantRunner } from '../lookup/index.ts';
 import type { SearchDeps } from '../search/index.ts';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 
 export async function listConcepts(c: pg.PoolClient, q: string | null): Promise<ConceptList['concepts']> {
   const r = await c.query<{

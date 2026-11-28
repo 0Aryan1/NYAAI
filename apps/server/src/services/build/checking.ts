@@ -17,7 +17,7 @@ import {
 import { PROMPTS, fence } from '@nyaai/prompts';
 import { SecondVerdicts, SupportVerdicts } from '@nyaai/shared';
 import type { Gateway } from '../llm-gateway/index.ts';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 
 export interface CheckedClaim {
   id: string;

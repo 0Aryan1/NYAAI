@@ -23,7 +23,7 @@ import { forgetTeacher } from '../../src/services/account/index.ts';
 import { ingestUpload } from '../../src/services/ingest/note.ts';
 import { recordGap } from '../../src/services/lookup/index.ts';
 import { createStorage } from '../../src/services/storage/index.ts';
-import { usageSink } from '../../src/services/usage.ts';
+import { usageSink } from '../../src/services/usage/index.ts';
 import { EMBED_DIMS, type Voyage } from '../../src/services/voyage/index.ts';
 import { csrfFrom } from '../helpers.ts';
 

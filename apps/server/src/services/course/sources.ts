@@ -13,7 +13,7 @@ import { withTenant, type TenantIdentity } from '@nyaai/db';
 import type { UnitSources } from '@nyaai/shared';
 import { searchWithLookup, type GapLookup } from '../lookup/index.ts';
 import type { SearchDeps } from '../search/index.ts';
-import { usageSink, type UsageSink } from '../usage.ts';
+import { usageSink, type UsageSink } from '../usage/index.ts';
 import type { Voyage } from '../voyage/index.ts';
 
 export interface CourseSourcesDeps {

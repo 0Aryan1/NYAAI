@@ -6,7 +6,7 @@ import type pg from 'pg';
 import { decide } from '@nyaai/checker-rules';
 import { checkClaims } from '../build/checking.ts';
 import type { Gateway } from '../llm-gateway/index.ts';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 import { CHANGED, mappings, sourcesFor, type CitationRow } from './index.ts';
 
 /**

@@ -15,7 +15,8 @@ import {
   usePrepareLecture,
   type PrepareForm,
 } from './prepare';
-import { NotesPicker, useNotes, waitingNotes } from '@/features/notes/notes-ui';
+import { NotesPicker } from '@/features/notes/NotesPicker';
+import { useNotes, waitingNotes } from '@/features/notes/useNotes';
 import { LoadError, Skeleton } from '@/shared/ui/states';
 import { lectureNo } from '@/shared/lib/labels';
 import { PageHeader } from '@/shared/ui/page';

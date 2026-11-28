@@ -5,7 +5,7 @@
  */
 import { ownerDatabaseUrl, createPool, withTenant } from '@nyaai/db';
 import { loadConfig } from '../src/config.ts';
-import { storageFrom } from '../src/services/factory.ts';
+import { storageFrom } from '../src/services/factory/index.ts';
 import { forgetTeacher } from '../src/services/account/index.ts';
 
 const DEV_COLLEGE = '00000000-0000-4000-8000-000000000002';

@@ -4,7 +4,7 @@
  * a planted instruction in a document can't send anything out (LLD §17.6 rule 2).
  */
 import type { KanoonDoc } from '@nyaai/legal';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 import { stripTags } from '@nyaai/legal';
 import { ExternalServiceError } from '../../errors.ts';
 

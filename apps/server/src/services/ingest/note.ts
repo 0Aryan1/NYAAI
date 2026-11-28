@@ -16,7 +16,7 @@ import { withTenant, type TenantIdentity } from '@nyaai/db';
 import { pdfBlocks, splitNotes, textBlocks, type NoteBlock } from '@nyaai/legal';
 import { NOTE_MIME_TYPES, type NoteKind } from '@nyaai/shared';
 import type { Storage } from '../storage/index.ts';
-import { usageSink, type UsageSink } from '../usage.ts';
+import { usageSink, type UsageSink } from '../usage/index.ts';
 import { toVector, type Voyage } from '../voyage/index.ts';
 import { NoTextLayerError, pdfLines } from './extract.ts';
 import { sha256 } from '../../lib/hash.ts';

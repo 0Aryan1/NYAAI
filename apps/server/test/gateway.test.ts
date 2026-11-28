@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { PROMPTS } from '@nyaai/prompts';
 import { costMicroUsd, createGateway, GatewayError } from '../src/services/llm-gateway/index.ts';
-import type { UsageRow } from '../src/services/usage.ts';
+import type { UsageRow } from '../src/services/usage/index.ts';
 
 const Schema = z.object({ role: z.enum(['facts', 'holding', 'unknown']) });
 const usageBlock = {

@@ -7,7 +7,7 @@ import { LoginPage } from '@/features/auth/LoginPage';
 import { SetupWizard } from '@/features/setup/SetupWizard';
 import { AppShell } from './AppShell';
 import { AppLoading, RouteError } from './RouteError';
-import { queryClient } from './queryClient';
+import { queryClient } from './query-client';
 
 const stepPath = (index1: number) => `/setup/${SETUP_STEPS[Math.max(0, Math.min(SETUP_STEPS.length, index1) - 1)]}`;
 
@@ -133,11 +133,11 @@ export const router = createBrowserRouter([
           { path: 'notes', lazy: async () => ({ Component: (await import('@/features/notes/NotesPage')).NotesPage }) },
           {
             path: 'courses',
-            lazy: async () => ({ Component: (await import('@/features/courses/CourseList')).CourseListPage }),
+            lazy: async () => ({ Component: (await import('@/features/courses/CourseListPage')).CourseListPage }),
           },
           {
             path: 'courses/:id',
-            lazy: async () => ({ Component: (await import('@/features/courses/CoursePlan')).CoursePlanPage }),
+            lazy: async () => ({ Component: (await import('@/features/courses/CoursePlanPage')).CoursePlanPage }),
           },
           {
             path: 'lectures/:id',

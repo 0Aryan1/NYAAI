@@ -34,7 +34,7 @@ import { checkLines } from '../explore/index.ts';
 import type { Gateway } from '../llm-gateway/index.ts';
 import { searchWithLookup, type GapLookup } from '../lookup/index.ts';
 import type { RetrievedSource, SearchDeps } from '../search/index.ts';
-import { usageSink, type UsageSink } from '../usage.ts';
+import { usageSink, type UsageSink } from '../usage/index.ts';
 import type { Voyage } from '../voyage/index.ts';
 import { isExhausted, monthlyBudget } from '../budget/index.ts';
 import { pageOf, pageSql, type Page } from '../../lib/page.ts';

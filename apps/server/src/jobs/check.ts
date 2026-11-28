@@ -5,7 +5,7 @@ import type { Logger } from '../logger.ts';
 import { CHANGED, refreshCounts } from '../services/edit/index.ts';
 import { checkEditedLines } from '../services/edit/check-lines.ts';
 import type { Gateway } from '../services/llm-gateway/index.ts';
-import { usageSink } from '../services/usage.ts';
+import { usageSink } from '../services/usage/index.ts';
 import type { CheckJobData } from './queues.ts';
 
 /** The `check` queue: C9/C10 on lines she changed (LLD §8.6). Acts as the teacher (RLS); costs tagged to the lecture. */

@@ -16,7 +16,7 @@ import {
 import type { Gateway } from '../llm-gateway/index.ts';
 import type { TenantRunner } from '../lookup/index.ts';
 import { loadPieces, sourceDetails, type RetrievedSource } from '../search/index.ts';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 import { checkClaims, sourcesBlock, type CheckedClaim } from './checking.ts';
 import { skipOptionalStep } from '../../jobs/deadline.ts';
 

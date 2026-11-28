@@ -17,7 +17,7 @@ import type { IngestStage } from '@nyaai/shared';
 import type { Gateway } from '../llm-gateway/index.ts';
 import type { Voyage } from '../voyage/index.ts';
 import { toVector } from '../voyage/index.ts';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 
 const OFFICIAL = new Set(['india_code', 'egazette', 'court_site', 'admin']);
 const LABEL_BATCH_CHARS = 24_000;

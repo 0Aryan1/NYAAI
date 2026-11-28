@@ -12,7 +12,7 @@ import { AppError } from '../errors.ts';
 import { requireConsent } from '../middleware/consent.ts';
 import type { Gateway } from '../services/llm-gateway/index.ts';
 import { answerQuestion, listConcepts, topicMap } from '../services/explore/index.ts';
-import { usageSink, type UsageSink } from '../services/usage.ts';
+import { usageSink, type UsageSink } from '../services/usage/index.ts';
 import type { Voyage } from '../services/voyage/index.ts';
 import { assertWithinBudget } from '../services/budget/index.ts';
 import { conceptName } from '../services/topics/index.ts';

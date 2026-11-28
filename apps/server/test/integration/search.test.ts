@@ -15,7 +15,7 @@ import { withTenant } from '@nyaai/db';
 import { createApp } from '../../src/app.ts';
 import { parseConfig } from '../../src/config.ts';
 import { search } from '../../src/services/search/index.ts';
-import { noUsage } from '../../src/services/usage.ts';
+import { noUsage } from '../../src/services/usage/index.ts';
 import { toVector, type Voyage } from '../../src/services/voyage/index.ts';
 import { csrfFrom, fakeVector, fakeVoyage } from '../helpers.ts';
 

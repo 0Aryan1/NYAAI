@@ -10,9 +10,9 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { createPool, withTenant } from '@nyaai/db';
 import { loadConfig } from '../src/config.ts';
-import { gatewayFrom, voyageFrom } from '../src/services/factory.ts';
+import { gatewayFrom, voyageFrom } from '../src/services/factory/index.ts';
 import { search, type SearchResult } from '../src/services/search/index.ts';
-import { usageSink } from '../src/services/usage.ts';
+import { usageSink } from '../src/services/usage/index.ts';
 
 interface Expect {
   act?: string;

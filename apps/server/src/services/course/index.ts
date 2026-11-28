@@ -16,7 +16,7 @@ import {
 import { PROMPTS, fence } from '@nyaai/prompts';
 import { LearnSummary } from '@nyaai/shared';
 import type { Gateway } from '../llm-gateway/index.ts';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 import { lineText } from '../slides/doc.ts';
 
 interface UnitRow {

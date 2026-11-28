@@ -39,7 +39,7 @@ import {
   type SearchRequest,
   type StatuteUnit,
 } from '../search/index.ts';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 import { partQuery, sourceLabel } from './part.ts';
 import { pool } from './pool.ts';
 import { STOP_WORDS } from '@nyaai/legal';

@@ -1,55 +1,12 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileUp } from 'lucide-react';
 import type { SyllabusPreview } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { DOCUMENT_ACCEPT } from '@/shared/lib/files';
-import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
-import { PageHeader } from '@/shared/ui/page';
 import { topicsFrom } from './plan';
 import { errorText } from '@/shared/lib/errors';
-
-/** Courses (COURSE-1, COURSE-2): her courses, and a new one from her syllabus file, a pasted list of topics, or empty. */
-export function CourseListPage() {
-  const navigate = useNavigate();
-  const list = useQuery({ queryKey: queryKeys.courses, queryFn: api.courses });
-
-  return (
-    <div className="mx-auto max-w-3xl">
-      <PageHeader className="mb-6" title="Courses" />
-      {list.data?.courses.length ? (
-        <ul className="mb-10 divide-y divide-border rounded-card border border-border bg-surface">
-          {list.data.courses.map((c) => (
-            <li key={c.id}>
-              <Link to={`/courses/${c.id}`} className="flex items-center justify-between px-4 py-3 hover:bg-bg">
-                <span className="font-medium">{c.name}</span>
-                <span className="text-sm text-muted">
-                  {c.semester ? `${c.semester} · ` : ''}
-                  {c.taught} of {c.lectures} taught
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : list.isLoading ? (
-        <ListSkeleton rows={2} label="Loading your courses" className="mb-10" />
-      ) : list.isError ? (
-        <LoadError what="Your courses" onRetry={() => void list.refetch()} className="mb-10" />
-      ) : (
-        <div className="mb-10">
-          <EmptyState title="No courses yet">
-            Lectures in a course open with a recap of the last class and end with a link to the next. Make your first
-            course below.
-          </EmptyState>
-        </div>
-      )}
-
-      <NewCourseForm onCreated={(id) => void navigate(`/courses/${id}`)} />
-    </div>
-  );
-}
 
 /** A new course: from her syllabus file, a pasted list of topics, or empty. Also the last step of Setup. */
 export function NewCourseForm({

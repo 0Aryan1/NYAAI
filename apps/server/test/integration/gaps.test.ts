@@ -21,7 +21,7 @@ import { createGapLookup, recordGap, searchWithLookup, type LookupDeps } from '.
 import { AlreadyHeldError, ingestKanoonJudgment } from '../../src/services/ingest/kanoon.ts';
 import { keepReplacedCopy } from '../../src/services/ingest/judgment-pdf.ts';
 import { createStorage } from '../../src/services/storage/index.ts';
-import { noUsage } from '../../src/services/usage.ts';
+import { noUsage } from '../../src/services/usage/index.ts';
 
 import type { WebSearch } from '../../src/services/web-search/index.ts';
 import { csrfFrom, fakeVoyage } from '../helpers.ts';

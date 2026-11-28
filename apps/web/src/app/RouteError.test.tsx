@@ -45,7 +45,7 @@ describe('route errors', () => {
 
 describe('retries', () => {
   it('asks again only when it may help: no connection or a server fault', async () => {
-    const { worthRetrying } = await import('./queryClient');
+    const { worthRetrying } = await import('./query-client');
     expect(worthRetrying(new ApiRequestError(0, null))).toBe(true);
     expect(worthRetrying(new ApiRequestError(503, null))).toBe(true);
     expect(worthRetrying(new ApiRequestError(404, null))).toBe(false);

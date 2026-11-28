@@ -42,6 +42,7 @@ The non-negotiables for NYAAI. Full detail lives in `docs/specs/`. When document
 - Money is an integer `cost_micro_usd`, never a float.
 - **UI text never uses AI terms** (prompt, model, tokens, hallucination). See the microcopy rules in LLD §12.8.
 - Home chips start empty and the app never selects the course (HOME-4, HOME-5, D8).
+- File names, folders and where code goes (screens, logic modules, hooks, services, tests): [conventions.md](conventions.md).
 
 ## 5. Decisions (one line each; reasons are in HLD §13 and LLD §17.7)
 

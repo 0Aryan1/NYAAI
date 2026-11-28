@@ -4,7 +4,7 @@ import { withTenant } from '@nyaai/db';
 import type { Logger } from '../logger.ts';
 import { summariseTaught } from '../services/course/index.ts';
 import { withSignal, type Gateway } from '../services/llm-gateway/index.ts';
-import { usageSink } from '../services/usage.ts';
+import { usageSink } from '../services/usage/index.ts';
 import type { LearnJobData } from './queues.ts';
 import { withDeadline } from './deadline.ts';
 import { startJobLog } from './log.ts';

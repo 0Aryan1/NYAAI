@@ -13,7 +13,7 @@ import type pg from 'pg';
 import type { Gateway } from '../llm-gateway/index.ts';
 import type { Kanoon } from '../kanoon/index.ts';
 import type { Storage } from '../storage/index.ts';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 import { finishSource, type FinishDeps, type FinishResult } from './finish.ts';
 import { sha256 } from '../../lib/hash.ts';
 

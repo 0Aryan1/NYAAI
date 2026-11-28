@@ -13,12 +13,12 @@ import {
 } from '@nyaai/shared';
 import { AppError } from '../errors.ts';
 import { requireRole } from '../middleware/auth.ts';
-import { channelFor, eventsSince } from '../services/events.ts';
+import { channelFor, eventsSince } from '../services/events/index.ts';
 import type { Gateway } from '../services/llm-gateway/index.ts';
 import { search } from '../services/search/index.ts';
 import { resolveConcept } from '../services/topics/index.ts';
 import { suggest } from '../services/suggest/index.ts';
-import { usageSink, type UsageSink } from '../services/usage.ts';
+import { usageSink, type UsageSink } from '../services/usage/index.ts';
 import type { Voyage } from '../services/voyage/index.ts';
 
 export interface SearchApiDeps {

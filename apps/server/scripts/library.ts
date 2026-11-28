@@ -52,7 +52,7 @@ import {
 import type { Kanoon } from '../src/services/kanoon/index.ts';
 import { createPool, withTenant } from '@nyaai/db';
 import { loadConfig } from '../src/config.ts';
-import { usageSink } from '../src/services/usage.ts';
+import { usageSink } from '../src/services/usage/index.ts';
 import {
   escrFrom,
   gatewayFrom,
@@ -61,7 +61,7 @@ import {
   storageFrom,
   voyageFrom,
   webSearchFrom,
-} from '../src/services/factory.ts';
+} from '../src/services/factory/index.ts';
 import type { Escr } from '../src/services/escr/index.ts';
 import { pdfIsScanned, pdfLines } from '../src/services/ingest/extract.ts';
 import { loadJudgmentPdf, type JudgmentPdfResult } from '../src/services/ingest/judgment-pdf.ts';

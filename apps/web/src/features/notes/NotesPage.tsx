@@ -8,7 +8,9 @@ import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
 import { PageHeader } from '@/shared/ui/page';
 import { formatDate } from '@/shared/lib/format';
 import { ErrorText } from '@/shared/ui/error-text';
-import { NoteStatus, UploadNoteButton, useNotes } from './notes-ui';
+import { NoteStatus } from './NoteStatus';
+import { UploadNoteButton } from './UploadNoteButton';
+import { useNotes } from './useNotes';
 
 /**
  * My notes (BRD DATA-5): her own documents, private to her. A lecture uses only the ones she ticks when she prepares

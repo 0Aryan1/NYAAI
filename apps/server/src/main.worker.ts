@@ -8,8 +8,15 @@ import { TIMEZONE } from './lib/time.ts';
 import { opsProcessor } from './jobs/ops.ts';
 import { researchProcessor } from './jobs/research.ts';
 import { ingestProcessor } from './jobs/ingest.ts';
-import { gatewayFrom, indiaCodeFrom, kanoonFrom, storageFrom, voyageFrom, webSearchFrom } from './services/factory.ts';
-import { usageSink } from './services/usage.ts';
+import {
+  gatewayFrom,
+  indiaCodeFrom,
+  kanoonFrom,
+  storageFrom,
+  voyageFrom,
+  webSearchFrom,
+} from './services/factory/index.ts';
+import { usageSink } from './services/usage/index.ts';
 import { buildProcessor } from './jobs/build.ts';
 import { learnProcessor } from './jobs/learn.ts';
 import { checkProcessor } from './jobs/check.ts';

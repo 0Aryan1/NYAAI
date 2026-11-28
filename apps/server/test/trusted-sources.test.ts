@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { createIndiaCode } from '../src/services/india-code/index.ts';
 import { createWebSearch } from '../src/services/web-search/index.ts';
-import type { UsageRow } from '../src/services/usage.ts';
+import type { UsageRow } from '../src/services/usage/index.ts';
 
 const json = (body: unknown, init: ResponseInit = {}) =>
   new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' }, ...init });

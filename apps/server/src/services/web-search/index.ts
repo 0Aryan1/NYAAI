@@ -8,7 +8,7 @@
  * page must open (HTTP 2xx after redirects, still on the allowlist). Snippets are not kept.
  */
 import { onAllowlist } from '@nyaai/legal';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 
 export interface WebLead {
   title: string;

@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { NewCourseForm } from '@/features/courses/CourseList';
+import { NewCourseForm } from '@/features/courses/NewCourseForm';
 import { SETUP_STEPS, STYLE_QUESTIONS, type Me, type SetupStepName, type StyleRequest } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { useQueryClient } from '@tanstack/react-query';

@@ -14,7 +14,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import type { z } from 'zod';
 import type { PromptDefinition, Tier } from '@nyaai/prompts';
-import type { UsageSink } from '../usage.ts';
+import type { UsageSink } from '../usage/index.ts';
 import { anthropicPrice } from '../pricing/index.ts';
 import { ExternalServiceError } from '../../errors.ts';
 

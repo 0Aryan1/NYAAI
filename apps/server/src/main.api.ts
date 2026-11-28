@@ -12,7 +12,7 @@ import type {
   OpsJobData,
   ResearchJobData,
 } from './jobs/queues.ts';
-import { gatewayFrom, storageFrom, voyageFrom } from './services/factory.ts';
+import { gatewayFrom, storageFrom, voyageFrom } from './services/factory/index.ts';
 
 const config = { ...loadConfig(), APP_ROLE: 'api' as const };
 const logger = createLogger(config);
