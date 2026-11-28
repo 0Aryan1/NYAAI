@@ -21,6 +21,7 @@ import { AppError } from '../errors.ts';
 import { requireConsent } from '../middleware/consent.ts';
 import { RESEARCH_JOB_OPTIONS, type ResearchJobData } from '../jobs/queues.ts';
 import { briefFileName, planBrief, renderDocx, renderPdf } from '../services/export/brief.ts';
+import { todayInIndia } from '../lib/time.ts';
 
 const Id = z.uuid();
 
@@ -104,7 +105,7 @@ export function researchRouter(queue: Queue<ResearchJobData> | undefined) {
     const run = await req.db!((c) => loadRun(c, id));
     if (!run) throw new AppError('NOT_FOUND', 'We could not find that research.');
     if (run.status !== 'ready' || !run.brief) throw new AppError('VALIDATION_FAILED', 'The brief is not ready yet.');
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    const today = todayInIndia();
     const plan = planBrief(run, today);
     const file = format === 'docx' ? await renderDocx(plan) : await renderPdf(plan);
     await req.db!((c) =>

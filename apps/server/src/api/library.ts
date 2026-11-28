@@ -28,8 +28,6 @@ import { INGEST_JOB_OPTIONS, type IngestJobData } from '../jobs/queues.ts';
 import type { Storage } from '../services/storage/index.ts';
 import type { JudgmentPdfResult } from '../services/ingest/judgment-pdf.ts';
 
-const MAX_UPLOAD = 50 * 1024 * 1024;
-
 interface GapRow {
   id: string;
   question: string;
@@ -74,7 +72,8 @@ const toGap = (r: GapRow): LibraryGap =>
 
 const Id = z.uuid();
 
-export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, storage?: Storage) {
+export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, storage?: Storage, maxUploadMb = 50) {
+  const MAX_UPLOAD = maxUploadMb * 1024 * 1024;
   const r = express.Router();
   r.use('/library', requireRole('library_editor', 'admin'));
 

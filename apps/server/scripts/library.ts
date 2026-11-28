@@ -218,7 +218,7 @@ try {
       ...deps,
       storage: storageFrom(config),
       kanoon: config.INDIAN_KANOON_TOKEN ? kanoonFrom(config, usage) : null,
-      indiaCode: indiaCodeFrom(),
+      indiaCode: indiaCodeFrom(config),
       web: webSearchFrom(config, usage),
       cacheDays: config.KANOON_CACHE_DAYS,
     });
@@ -364,7 +364,7 @@ try {
     }
     console.log(`${changed} of ${rows.length + pdfs.length} judgments re-split.`);
   } else if (command === 'official') {
-    const escr = escrFrom(storageFrom(config));
+    const escr = escrFrom(storageFrom(config), config);
     const rows = (
       await library.query<{ id: string; title: string; year: number | null; decided: string | null }>(
         `select id, title, extract(year from decided_on)::int as year, to_char(decided_on, 'YYYY-MM-DD') as decided from sources
@@ -537,7 +537,7 @@ try {
     let failures = 0;
 
     if (values.only !== 'cases') {
-      const indiaCode = indiaCodeFrom();
+      const indiaCode = indiaCodeFrom(config);
       const have = (
         await library.query<{ act_name: string | null; act_year: number | null }>(
           "select distinct act_name, act_year from sources where type = 'act' and status <> 'retired'",
@@ -579,7 +579,7 @@ try {
 
     if (values.only !== 'acts') {
       const kanoon = kanoonFrom(config, usage);
-      const escr = escrFrom(storage);
+      const escr = escrFrom(storage, config);
       const have = (
         await library.query<{ title: string }>(
           "select title from sources where type = 'judgment' and status <> 'retired'",

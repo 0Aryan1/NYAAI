@@ -3,7 +3,8 @@ import { createPool } from '@nyaai/db';
 import { loadConfig, missingProviderKeys } from './config.ts';
 import { createLogger } from './logger.ts';
 import { createRedis } from './redis.ts';
-import { TIMEZONE, ingestBackoff } from './jobs/queues.ts';
+import { ingestBackoff } from './jobs/queues.ts';
+import { TIMEZONE } from './lib/time.ts';
 import { opsProcessor } from './jobs/ops.ts';
 import { researchProcessor } from './jobs/research.ts';
 import { ingestProcessor } from './jobs/ingest.ts';
@@ -27,7 +28,7 @@ if (!config.DATABASE_URL_LIBRARY) {
   process.exit(1);
 }
 
-const library = createPool(config.DATABASE_URL_LIBRARY, 4);
+const library = createPool(config.DATABASE_URL_LIBRARY, config.DB_POOL_LIBRARY);
 const storage = storageFrom(config);
 const libraryUsage = usageSink(library, { collegeId: 'global', ownerId: null });
 if (!config.VOYAGE_API_KEY && !config.E2E_FAKE_AI) {
@@ -39,7 +40,7 @@ if (!config.DATABASE_URL_WORKER) {
   logger.fatal('DATABASE_URL_WORKER is required by the worker (jobs acting for a teacher).');
   process.exit(1);
 }
-const worker = createPool(config.DATABASE_URL_WORKER, 8);
+const worker = createPool(config.DATABASE_URL_WORKER, config.DB_POOL_WORKER);
 const gateway = gatewayFrom(config);
 const lookup = createGapLookup({
   library,
@@ -50,10 +51,10 @@ const lookup = createGapLookup({
   embedModel: config.VOYAGE_EMBED_MODEL,
   // E2E: no outside lookups (Kanoon, India Code, web): the journeys run on the library as it is.
   kanoon: config.INDIAN_KANOON_TOKEN && !config.E2E_FAKE_AI ? kanoonFrom(config, libraryUsage) : null,
-  indiaCode: config.E2E_FAKE_AI ? null : indiaCodeFrom(),
+  indiaCode: config.E2E_FAKE_AI ? null : indiaCodeFrom(config),
   web: config.E2E_FAKE_AI ? null : webSearchFrom(config, libraryUsage),
   cacheDays: config.KANOON_CACHE_DAYS,
-  budgetMs: 120_000, // inside a lecture build: at most 2 minutes of lookups per part
+  budgetMs: config.LOOKUP_BUDGET_MS, // inside a lecture build: at most this long looking up sources per part
 });
 
 const opsQueue = new Queue('ops', { connection, prefix: config.QUEUE_PREFIX });
@@ -75,8 +76,8 @@ const workers = [
           {
             connection: createRedis(config.REDIS_URL),
             prefix: config.QUEUE_PREFIX,
-            concurrency: 3,
-            lockDuration: 120_000,
+            concurrency: config.CONCURRENCY_BUILD,
+            lockDuration: config.JOB_LOCK_MS,
           },
         ),
         new Worker(
@@ -93,19 +94,19 @@ const workers = [
           {
             connection: createRedis(config.REDIS_URL),
             prefix: config.QUEUE_PREFIX,
-            concurrency: 2,
-            lockDuration: 120_000,
+            concurrency: config.CONCURRENCY_RESEARCH,
+            lockDuration: config.JOB_LOCK_MS,
           },
         ),
         new Worker('learn', learnProcessor({ worker, gateway, logger }), {
           connection: createRedis(config.REDIS_URL),
           prefix: config.QUEUE_PREFIX,
-          concurrency: 2,
+          concurrency: config.CONCURRENCY_LEARN,
         }),
         new Worker('check', checkProcessor({ worker, gateway, logger }), {
           connection: createRedis(config.REDIS_URL),
           prefix: config.QUEUE_PREFIX,
-          concurrency: 8,
+          concurrency: config.CONCURRENCY_CHECK,
         }),
       ]
     : []),
@@ -124,7 +125,7 @@ const workers = [
       voyage: voyageFrom(config, libraryUsage),
       gateway: gatewayFrom(config),
       kanoon: config.INDIAN_KANOON_TOKEN && !config.E2E_FAKE_AI ? kanoonFrom(config, libraryUsage) : null,
-      indiaCode: config.E2E_FAKE_AI ? null : indiaCodeFrom(),
+      indiaCode: config.E2E_FAKE_AI ? null : indiaCodeFrom(config),
       web: config.E2E_FAKE_AI ? null : webSearchFrom(config, libraryUsage),
       usage: libraryUsage,
       embedModel: config.VOYAGE_EMBED_MODEL,
@@ -136,7 +137,7 @@ const workers = [
     {
       connection: createRedis(config.REDIS_URL),
       prefix: config.QUEUE_PREFIX,
-      concurrency: 4,
+      concurrency: config.CONCURRENCY_INGEST,
       settings: { backoffStrategy: (attemptsMade: number) => ingestBackoff(attemptsMade) },
     },
   ),

@@ -54,15 +54,47 @@ const Schema = z
     GOOGLE_SKIP_HD_CHECK: bool,
     /** Browser journeys (E2E) only: a scripted fake Claude and Voyage, no outside lookups. Never in production. */
     E2E_FAKE_AI: bool,
-    /** BullMQ key prefix: the E2E run uses its own, so a developer's worker never takes its jobs. */
     /** Requests per minute per teacher (LLD §17.4: 60). Raised only for the browser journeys, which click faster than people. */
     RATE_LIMIT_PER_MIN: z.coerce.number().int().min(10).max(10_000).default(60),
     /** Sign-in attempts per minute per IP (LLD §17.4: 5). Raised only for the browser journeys. */
     SIGNIN_LIMIT_PER_MIN: z.coerce.number().int().min(1).max(10_000).default(5),
+    /** BullMQ key prefix: the E2E run uses its own, so a developer's worker never takes its jobs. */
     QUEUE_PREFIX: z
       .string()
       .regex(/^[a-z0-9_-]{1,20}$/)
       .default('bull'),
+
+    /** Request bodies: JSON, and the judgment PDFs the library editor uploads (her notes have their own limit). */
+    JSON_BODY_LIMIT: z
+      .string()
+      .regex(/^\d+(kb|mb)$/)
+      .default('1mb'),
+    JUDGMENT_UPLOAD_MAX_MB: z.coerce.number().int().min(1).max(200).default(50),
+
+    /** Database pool sizes per process. */
+    DB_POOL_API: z.coerce.number().int().min(1).max(100).default(10),
+    DB_POOL_WORKER: z.coerce.number().int().min(1).max(100).default(8),
+    DB_POOL_LIBRARY: z.coerce.number().int().min(1).max(100).default(4),
+
+    /** Worker: jobs run at once per queue, and how long a job may hold its lock before BullMQ thinks it stalled. */
+    CONCURRENCY_BUILD: z.coerce.number().int().min(1).max(50).default(3),
+    CONCURRENCY_RESEARCH: z.coerce.number().int().min(1).max(50).default(2),
+    CONCURRENCY_LEARN: z.coerce.number().int().min(1).max(50).default(2),
+    CONCURRENCY_CHECK: z.coerce.number().int().min(1).max(50).default(8),
+    CONCURRENCY_INGEST: z.coerce.number().int().min(1).max(50).default(4),
+    JOB_LOCK_MS: z.coerce.number().int().min(10_000).default(120_000),
+    /** Inside a lecture build or research run: the most time spent looking up missing sources, per part. */
+    LOOKUP_BUDGET_MS: z.coerce.number().int().min(5_000).default(120_000),
+
+    /** Outside calls: the longest one AI request or one storage request may take. */
+    ANTHROPIC_TIMEOUT_MS: z.coerce.number().int().min(10_000).default(300_000),
+    S3_TIMEOUT_MS: z.coerce.number().int().min(1_000).default(60_000),
+    /** Provider addresses: empty means the provider's public address (set only for a proxy or a test double). */
+    KANOON_BASE_URL: optional,
+    VOYAGE_BASE_URL: optional,
+    PERPLEXITY_BASE_URL: optional,
+    INDIA_CODE_BASE_URL: optional,
+    ESCR_BASE_URL: optional,
 
     SESSION_SECRET: z.string().min(32, 'must be at least 32 characters'),
     CSRF_SECRET: z.string().min(32, 'must be at least 32 characters'),
@@ -70,26 +102,26 @@ const Schema = z
     ANTHROPIC_API_KEY: optional,
     MODEL_WRITER: z.string().default('claude-sonnet-5-5'),
     MODEL_CHECKER: z.string().default('claude-haiku-5-5'),
-    MODEL_SECOND_CHECK: z.string().default('claude-sonnet-5-5'),
     VOYAGE_API_KEY: optional,
     VOYAGE_EMBED_MODEL: z.string().default('voyage-law-2'),
     VOYAGE_RERANK_MODEL: z.string().default('rerank-2.5'),
     RERANK_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
     /** Largest Voyage embedding request in tokens; set ~8000 while the account is on reduced (no-card) limits. */
     VOYAGE_MAX_BATCH_TOKENS: z.coerce.number().int().positive().default(60_000),
-    COHERE_API_KEY: optional,
     INDIAN_KANOON_TOKEN: optional,
     KANOON_CACHE_DAYS: z.coerce.number().int().positive().default(30),
     PERPLEXITY_API_KEY: optional,
     WEB_ALLOWLIST: csv,
 
+    /** Reserved, not wired yet (week 2+): read so that a value set now is checked, unused until then. */
+    COHERE_API_KEY: optional,
     LANGFUSE_HOST: optional,
     LANGFUSE_PUBLIC_KEY: optional,
     LANGFUSE_SECRET_KEY: optional,
     SENTRY_DSN: optional,
 
+    /** Week-2 features that ship dark; the web app reads the list from GET /me. */
     FEATURE_FLAGS: csv,
-    DEFAULT_MONTHLY_BUDGET_MICRO_USD: z.coerce.number().int().nonnegative().default(12_000_000),
   })
   .superRefine((env, ctx) => {
     if (env.DEV_LOGIN && env.NODE_ENV !== 'development') {
@@ -124,6 +156,9 @@ const Schema = z
 
 export type Config = z.infer<typeof Schema>;
 
+/** Every variable the server reads (the docs test checks each one is in .env.example). */
+export const CONFIG_KEYS = Object.keys(Schema.shape) as (keyof Config)[];
+
 export class ConfigError extends Error {
   constructor(public readonly problems: string[]) {
     super(`Invalid configuration:\n  - ${problems.join('\n  - ')}`);
@@ -143,10 +178,6 @@ export function parseConfig(env: Record<string, string | undefined>): Config {
 /** Provider keys that are missing (for the development start-up warning). */
 export function missingProviderKeys(config: Config): string[] {
   return PROVIDER_KEYS.filter((k) => !config[k]);
-}
-
-export function isFeatureOn(config: Config, flag: string): boolean {
-  return config.FEATURE_FLAGS.includes(flag);
 }
 
 /** Loads the repo-root .env (if present) and parses process.env, exiting with a clear message on failure. */

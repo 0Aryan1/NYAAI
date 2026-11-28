@@ -1,11 +1,10 @@
 import type { MappingRelation } from '@nyaai/shared';
 import type { JobsOptions } from 'bullmq';
 
-/** Queue names from LLD §5. Job payloads carry ids only, never private text (HLD D4). */
-export const QUEUES = ['ingest', 'build', 'check', 'export', 'research', 'nightly', 'status', 'learn', 'ops'] as const;
-export type QueueName = (typeof QUEUES)[number];
-
-export const TIMEZONE = 'Asia/Kolkata';
+/**
+ * Job payloads and options for the queues the worker runs (ingest, build, research, learn, check, ops; LLD §5).
+ * Payloads carry ids only, never private text (HLD D4).
+ */
 
 /**
  * ingest.source: one shared-library source (by id); ingest.kanoon: one Indian Kanoon judgment (by tid);

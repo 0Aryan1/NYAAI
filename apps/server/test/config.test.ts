@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ConfigError, missingProviderKeys, parseConfig } from '../src/config.ts';
+import { ConfigError, CONFIG_KEYS, missingProviderKeys, parseConfig } from '../src/config.ts';
 
 const base = {
   NODE_ENV: 'development',
@@ -17,7 +18,8 @@ describe('config', () => {
     const c = parseConfig(base);
     expect(c.API_PORT).toBe(4000);
     expect(c.MODEL_CHECKER).toBe('claude-haiku-5-5');
-    expect(c.DEFAULT_MONTHLY_BUDGET_MICRO_USD).toBe(12_000_000);
+    expect(c.CONCURRENCY_BUILD).toBe(3);
+    expect(c.JUDGMENT_UPLOAD_MAX_MB).toBe(50);
     expect(missingProviderKeys(c)).toEqual(['ANTHROPIC_API_KEY', 'VOYAGE_API_KEY', 'INDIAN_KANOON_TOKEN']);
   });
 
@@ -51,5 +53,11 @@ describe('config', () => {
 
   it('splits comma lists', () => {
     expect(parseConfig({ ...base, FEATURE_FLAGS: 'coach, web_search' }).FEATURE_FLAGS).toEqual(['coach', 'web_search']);
+  });
+
+  it('every variable it reads is documented in .env.example', () => {
+    const example = readFileSync(new URL('../../../.env.example', import.meta.url), 'utf8');
+    const documented = new Set([...example.matchAll(/^([A-Z][A-Z0-9_]+)=/gm)].map((m) => m[1]));
+    expect(CONFIG_KEYS.filter((k) => !documented.has(k))).toEqual([]);
   });
 });

@@ -8,18 +8,15 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import pg from 'pg';
+import { ownerDatabaseUrl } from '../src/owner-url.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(here, '../migrations');
+let url: string;
 try {
-  process.loadEnvFile(path.resolve(here, '../../../.env'));
-} catch {
-  /* env may come from the shell instead */
-}
-
-const url = process.env.DATABASE_URL_MIGRATE;
-if (!url) {
-  console.error('DATABASE_URL_MIGRATE is not set; it must point at the nyaai_owner role.');
+  url = ownerDatabaseUrl(); // also loads the repo-root .env
+} catch (err) {
+  console.error((err as Error).message);
   process.exit(1);
 }
 

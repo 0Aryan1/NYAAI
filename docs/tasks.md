@@ -198,7 +198,7 @@ See [BRD §12](specs/BRD.md). Copy items here as they become actionable.
 ## Clean-up pass (2026-11-28; targeted, 8 batches, tests and journeys green after each)
 
 - [x] Batch 0: tooling (React hook rules, e2e typecheck, Prettier check in lint and CI, one-time reformat)
-- [ ] Batch 1: config out of code (.env.example complete, tunables and provider URLs in config.ts, one pricing table, timezone constant, dead config removed)
+- [x] Batch 1: config out of code (.env.example complete and guarded by a test, tunables and provider URLs in config.ts, one pricing table, timezone constant and IST helper, owner-URL loader, dead config removed)
 - [ ] Batch 2: server layering (routes → services), one budget / counts / consent / hash / doc helpers, explicit /library editor group, no hand-kept signed-in list, response schemas, pagination, docs/api.md, dead code, shared test helpers
 - [ ] Batch 3: server error handling (job timeouts that stop, no rows stuck after a failed queue, job failure records, outside-service errors → 503, logged fallbacks, SSE fixes)
 - [ ] Batch 4: web (API client split per domain, query keys and polling rules, logic into hooks and pure modules, reusable ConfirmInline / Dialog / RadioCards / PageHeader / ErrorText / HighlightedPassage / CaseStatusPill / FlaggedLine, format and files helpers, dead code)

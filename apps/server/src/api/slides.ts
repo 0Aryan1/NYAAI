@@ -27,6 +27,7 @@ import {
 } from '../services/edit/index.ts';
 import { loadStudioSlides } from '../services/studio/index.ts';
 import { exportPptx } from '../services/export/index.ts';
+import { todayInIndia } from '../lib/time.ts';
 
 const Id = z.uuid();
 
@@ -125,7 +126,7 @@ export function slidesRouter(checkQueue?: Queue<CheckJobData>) {
   r.post('/lectures/:id/download', async (req, res) => {
     const id = Id.parse(req.params.id);
     const body = DownloadRequest.parse(req.body);
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    const today = todayInIndia();
     const out = await req.db!((c) => exportPptx(c, req.identity!, id, { ...body, today }));
     if ('coverageChanged' in out) {
       // Thrown after the commit, so the removed lines stay removed (each slide's Undo brings one back).

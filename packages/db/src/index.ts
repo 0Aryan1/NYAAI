@@ -38,3 +38,5 @@ export async function withTenant<T>(
     client.release();
   }
 }
+
+export { ownerDatabaseUrl } from './owner-url.ts';

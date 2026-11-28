@@ -3,21 +3,18 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import pg from 'pg';
+import { ownerDatabaseUrl } from '../src/owner-url.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+let url: string;
 try {
-  process.loadEnvFile(path.resolve(here, '../../../.env'));
-} catch {
-  /* env may come from the shell instead */
-}
-
-if ((process.env.NODE_ENV ?? 'development') !== 'development') {
-  console.error('Refusing to seed: NODE_ENV is not development.');
+  url = ownerDatabaseUrl(); // also loads the repo-root .env
+} catch (err) {
+  console.error((err as Error).message);
   process.exit(1);
 }
-const url = process.env.DATABASE_URL_MIGRATE;
-if (!url) {
-  console.error('DATABASE_URL_MIGRATE is not set.');
+if ((process.env.NODE_ENV ?? 'development') !== 'development') {
+  console.error('Refusing to seed: NODE_ENV is not development.');
   process.exit(1);
 }
 

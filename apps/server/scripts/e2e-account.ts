@@ -3,7 +3,7 @@
  *   tsx scripts/e2e-account.ts create <email>   invite her to the dev college (she signs in and sets up in J3)
  *   tsx scripts/e2e-account.ts remove <email>   delete everything about her, as "Delete my data" does, then her row
  */
-import { createPool, withTenant } from '@nyaai/db';
+import { ownerDatabaseUrl, createPool, withTenant } from '@nyaai/db';
 import { loadConfig } from '../src/config.ts';
 import { storageFrom } from '../src/services/factory.ts';
 import { forgetTeacher } from '../src/services/account/index.ts';
@@ -13,9 +13,8 @@ const [command, email] = process.argv.slice(2);
 if (!email || !/^e2e-[a-z0-9-]+@/.test(email)) throw new Error('usage: create|remove e2e-…@<domain>');
 const config = loadConfig();
 if (config.NODE_ENV !== 'development') throw new Error('the e2e account script runs only in development');
-if (!process.env.DATABASE_URL_MIGRATE || !config.DATABASE_URL_WORKER)
-  throw new Error('DATABASE_URL_MIGRATE and DATABASE_URL_WORKER are needed');
-const owner = createPool(process.env.DATABASE_URL_MIGRATE, 1);
+if (!config.DATABASE_URL_WORKER) throw new Error('DATABASE_URL_WORKER is needed');
+const owner = createPool(ownerDatabaseUrl(), 1);
 const worker = createPool(config.DATABASE_URL_WORKER, 2);
 
 try {

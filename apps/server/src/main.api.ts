@@ -16,7 +16,7 @@ import { gatewayFrom, storageFrom, voyageFrom } from './services/factory.ts';
 
 const config = { ...loadConfig(), APP_ROLE: 'api' as const };
 const logger = createLogger(config);
-const pool = createPool(config.DATABASE_URL);
+const pool = createPool(config.DATABASE_URL, config.DB_POOL_API);
 const redis = createRedis(config.REDIS_URL);
 const ingest = new Queue<IngestJobData>('ingest', {
   connection: createRedis(config.REDIS_URL),

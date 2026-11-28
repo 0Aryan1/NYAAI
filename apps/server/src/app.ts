@@ -111,7 +111,7 @@ export function createApp({ config, logger, pool, redis, queues, search, storage
   );
   app.use(cors({ origin: config.WEB_ORIGIN, credentials: true }));
   app.use(cookieParser());
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: config.JSON_BODY_LIMIT }));
 
   const google =
     config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
@@ -138,7 +138,7 @@ export function createApp({ config, logger, pool, redis, queues, search, storage
     accountRouter(queues?.ops, storage),
     setupRouter(),
     homeRouter(),
-    libraryRouter(queues?.ingest, storage),
+    libraryRouter(queues?.ingest, storage, config.JUDGMENT_UPLOAD_MAX_MB),
     notesRouter(queues?.ingest, storage),
     lecturesRouter(queues?.build, queues?.learn),
     reviewRouter(),

@@ -30,6 +30,7 @@ import { loadPieces, sourceDetails } from '../search/index.ts';
 import type { UsageSink } from '../usage.ts';
 import type { LineNode } from '../studio/index.ts';
 import { canAddFor, rerunCoverage } from '../coverage/index.ts';
+import { TIMEZONE } from '../../lib/time.ts';
 
 export const CHANGED = 'Changed by you: being checked against the source';
 export const NOT_FOUND = 'Not found in the library, please verify';
@@ -379,8 +380,8 @@ async function flagDependents(c: pg.PoolClient, lectureId: string): Promise<void
        join course_units ub on ub.course_id = ua.course_id
       where a.id = $1 and a.status = 'taught' and ua.status = 'taught' and ua.taught_on is not null
         and ub.position > ua.position and ub.lecture_id = b.id
-        and b.status in ('ready', 'taught') and (b.ready_at at time zone 'Asia/Kolkata')::date >= ua.taught_on`, // taught_on is a date in India
-    [lectureId],
+        and b.status in ('ready', 'taught') and (b.ready_at at time zone $2)::date >= ua.taught_on`, // taught_on is a date in India
+    [lectureId, TIMEZONE],
   );
 }
 

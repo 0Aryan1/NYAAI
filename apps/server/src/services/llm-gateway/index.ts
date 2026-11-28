@@ -15,13 +15,8 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import type { z } from 'zod';
 import type { PromptDefinition, Tier } from '@nyaai/prompts';
 import type { UsageSink } from '../usage.ts';
+import { anthropicPrice } from '../pricing/index.ts';
 
-/** US$ per million tokens (first-party API rates). Cache write = 1.25× input, cache read = 0.1× input. */
-const PRICES: Record<string, { in: number; out: number }> = {
-  'claude-haiku-5-5': { in: 0.1, out: 0.5 },
-  'claude-sonnet-5-5': { in: 2, out: 10 },
-  'claude-opus-5-5': { in: 4, out: 20 },
-};
 /**
  * Prefixes shorter than this are sent without a cache breakpoint. Sonnet 5.5 and Haiku 5.5 cache prefixes of 512
  * tokens or more; ~2,400 characters keeps a margin, so a marker is never a write that cannot be read.
@@ -68,6 +63,8 @@ export interface GatewayConfig {
   apiKey?: string;
   lightModel: string;
   heavyModel: string;
+  /** The longest one request may take (ms); the SDK default is 10 minutes. */
+  timeoutMs?: number;
   /** Injected in tests. */
   client?: Pick<Anthropic, 'messages'>;
   sleep?: (ms: number) => Promise<void>;
@@ -87,13 +84,15 @@ export function costMicroUsd(
     cache_read_input_tokens?: number | null;
   },
 ): number {
-  const p = PRICES[model] ?? PRICES['claude-opus-5-5']!;
+  const p = anthropicPrice(model);
   const input = u.input_tokens + 1.25 * (u.cache_creation_input_tokens ?? 0) + 0.1 * (u.cache_read_input_tokens ?? 0);
   return Math.ceil(input * p.in + u.output_tokens * p.out); // $/M tokens = µ$/token
 }
 
 export function createGateway(cfg: GatewayConfig): Gateway {
-  const client = cfg.client ?? new Anthropic({ apiKey: cfg.apiKey, maxRetries: 2 });
+  const client =
+    cfg.client ??
+    new Anthropic({ apiKey: cfg.apiKey, maxRetries: 2, ...(cfg.timeoutMs ? { timeout: cfg.timeoutMs } : {}) });
   const sleep = cfg.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const modelFor = (tier: Tier) => (tier === 'heavy' ? cfg.heavyModel : cfg.lightModel);
 

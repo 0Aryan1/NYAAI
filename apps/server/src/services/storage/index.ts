@@ -17,6 +17,8 @@ export interface StorageConfig {
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
+  /** The longest one request may take (ms). */
+  timeoutMs?: number;
 }
 
 export interface Storage {
@@ -34,6 +36,9 @@ export function createStorage(cfg: StorageConfig): Storage {
     region: cfg.region,
     ...(cfg.endpoint ? { endpoint: cfg.endpoint, forcePathStyle: true } : {}),
     credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
+    ...(cfg.timeoutMs
+      ? { requestHandler: { requestTimeout: cfg.timeoutMs, connectionTimeout: Math.min(cfg.timeoutMs, 10_000) } }
+      : {}),
   });
   return {
     async put(key, body, contentType) {
