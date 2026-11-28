@@ -5,6 +5,7 @@
  */
 import type { KanoonDoc } from '@nyaai/legal';
 import type { UsageSink } from '../usage.ts';
+import { stripTags } from '@nyaai/legal';
 
 export interface KanoonConfig {
   token: string;
@@ -37,8 +38,6 @@ export class KanoonError extends Error {
     this.name = 'KanoonError';
   }
 }
-
-const stripTags = (s: string) => s.replace(/<[^>]+>/g, '');
 
 export function createKanoon(cfg: KanoonConfig, usage: UsageSink): Kanoon {
   const base = cfg.baseUrl ?? 'https://api.indiankanoon.org';

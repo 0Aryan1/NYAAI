@@ -9,6 +9,7 @@
  * every row about her in one transaction (migration 0015), then her files leave storage. Backups clear within 7 days.
  */
 import type pg from 'pg';
+import { AppError } from '../../errors.ts';
 import JSZip from 'jszip';
 import { withTenant, type TenantIdentity } from '@nyaai/db';
 import type { Storage } from '../storage/index.ts';
@@ -151,4 +152,11 @@ export async function forgetTeacher(
     c.query('update deletion_log set counts = $2, finished_at = now() where id = $1', [logId, { ...counts, files }]),
   );
   return { logId, counts, files };
+}
+
+/** "Delete my data" asks her to type her own email: a slip of the mouse never deletes anything. */
+export async function assertOwnEmail(c: pg.PoolClient, typed: string): Promise<void> {
+  const email = (await c.query<{ email: string }>('select email from users where id = app_user()')).rows[0]?.email;
+  if (!email || email.toLowerCase() !== typed.toLowerCase())
+    throw new AppError('VALIDATION_FAILED', 'Type your own email address exactly to confirm.');
 }

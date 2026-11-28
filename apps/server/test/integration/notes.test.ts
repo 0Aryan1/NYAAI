@@ -6,7 +6,7 @@
  *  - a newer version replaces the old one for lectures prepared later; a removed note is gone at once;
  *  - Prepare waits for a note still being read; another teacher never sees her notes.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -25,7 +25,8 @@ import { attachedNotes, ingestUpload } from '../../src/services/ingest/note.ts';
 import type { Gateway, GatewayRequest } from '../../src/services/llm-gateway/index.ts';
 import { search, type SearchDeps } from '../../src/services/search/index.ts';
 import { createStorage } from '../../src/services/storage/index.ts';
-import { EMBED_DIMS, type Voyage } from '../../src/services/voyage/index.ts';
+
+import { csrfFrom, fakeVoyage } from '../helpers.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -34,25 +35,6 @@ try {
   /* CI passes env directly */
 }
 
-const words = (t: string) => t.toLowerCase().match(/[a-z]{3,}/g) ?? [];
-function fakeVector(text: string): number[] {
-  const v = new Array<number>(EMBED_DIMS).fill(0);
-  for (const w of words(text)) v[createHash('md5').update(w).digest().readUInt16BE(0) % EMBED_DIMS]! += 1;
-  const n = Math.hypot(...v) || 1;
-  return v.map((x) => x / n);
-}
-const fakeVoyage: Voyage = {
-  embed: async (texts) => texts.map(fakeVector),
-  rerank: async (query, docs) => {
-    const q = new Set(words(query.split('Question:').pop() ?? query));
-    return docs
-      .map((d, index) => ({
-        index,
-        score: q.size ? [...q].filter((x) => new Set(words(d)).has(x)).length / q.size : 0,
-      }))
-      .sort((a, b) => b.score - a.score);
-  },
-};
 const noGaps: Gateway = {
   async run<Sc extends z.ZodType>(req: GatewayRequest<Sc>) {
     if (req.prompt.id !== 'research.gaps') throw new Error(`unexpected prompt ${req.prompt.id}`);
@@ -145,13 +127,7 @@ describe.skipIf(!up)("a teacher's own notes (integration)", () => {
   const signIn = async (email: string, ip: string) => {
     const agent = request.agent(http());
     const login = await agent.post('/api/v1/auth/dev-login').set('x-forwarded-for', ip).send({ email }).expect(204);
-    const csrf = decodeURIComponent(
-      ([] as string[])
-        .concat(login.headers['set-cookie'] ?? [])
-        .find((c) => c.startsWith('nyaai_csrf='))!
-        .split(';')[0]!
-        .slice(11),
-    );
+    const csrf = csrfFrom(login);
     return { agent, csrf };
   };
   const upload = async (s: Awaited<ReturnType<typeof signIn>>, title: string, body: string, replaces?: string) =>

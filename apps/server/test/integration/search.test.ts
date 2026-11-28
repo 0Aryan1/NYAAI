@@ -3,7 +3,7 @@
  * rerank), so filters, fusion, parent expansion and outcomes are tested without network calls.
  * Creates its own shared source (in the GLOBAL college) and its own college, and removes both afterwards.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -16,7 +16,8 @@ import { createApp } from '../../src/app.ts';
 import { parseConfig } from '../../src/config.ts';
 import { search } from '../../src/services/search/index.ts';
 import { noUsage } from '../../src/services/usage.ts';
-import { EMBED_DIMS, toVector, type Voyage } from '../../src/services/voyage/index.ts';
+import { toVector, type Voyage } from '../../src/services/voyage/index.ts';
+import { csrfFrom, fakeVector, fakeVoyage } from '../helpers.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -25,26 +26,6 @@ try {
   /* CI passes env directly */
 }
 
-const words = (t: string) => t.toLowerCase().match(/[a-z]{3,}/g) ?? [];
-function fakeVector(text: string): number[] {
-  const v = new Array<number>(EMBED_DIMS).fill(0);
-  for (const w of words(text)) v[createHash('md5').update(w).digest().readUInt16BE(0) % EMBED_DIMS]! += 1;
-  const n = Math.hypot(...v) || 1;
-  return v.map((x) => x / n);
-}
-const fakeVoyage: Voyage = {
-  embed: async (texts) => texts.map(fakeVector),
-  rerank: async (query, docs) => {
-    const q = new Set(words(query.split('Question:').pop() ?? query));
-    return docs
-      .map((d, index) => {
-        const w = new Set(words(d));
-        const hit = [...q].filter((x) => w.has(x)).length;
-        return { index, score: q.size ? hit / q.size : 0 };
-      })
-      .sort((a, b) => b.score - a.score);
-  },
-};
 const downVoyage: Voyage = { embed: fakeVoyage.embed, rerank: async () => Promise.reject(new Error('down')) };
 
 async function stackUp(): Promise<boolean> {
@@ -298,13 +279,7 @@ describe.skipIf(!up)('search service (integration)', () => {
       .set('x-forwarded-for', `10.${tag.charCodeAt(0)}.0.1`)
       .send({ email: `s-${tag}@st.test` })
       .expect(204);
-    const csrf = decodeURIComponent(
-      ([] as string[])
-        .concat(login.headers['set-cookie'] ?? [])
-        .find((c) => c.startsWith('nyaai_csrf='))!
-        .split(';')[0]!
-        .slice(11),
-    );
+    const csrf = csrfFrom(login);
 
     const sug = await agent.get('/api/v1/suggest?q=zebra gr').expect(200);
     expect(sug.body.suggestions[0]).toMatchObject({ kind: 'concept', label: 'Zebra grazing' });

@@ -14,7 +14,7 @@
 import { escrDate, type EscrRecord } from '@nyaai/legal';
 import type { Storage } from '../storage/index.ts';
 
-export const ESCR_MIRROR = 'https://indian-supreme-court-judgments.s3.amazonaws.com';
+const ESCR_MIRROR = 'https://indian-supreme-court-judgments.s3.amazonaws.com';
 const REFRESH_MS = 7 * 24 * 3600 * 1000;
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
 

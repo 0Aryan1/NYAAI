@@ -4,7 +4,7 @@
  */
 import type pg from 'pg';
 import type { ResolveChoice } from '@nyaai/shared';
-import { AppError } from '../errors.ts';
+import { AppError } from '../../errors.ts';
 
 export async function resolveConcept(c: pg.PoolClient, topic: string, choice?: string): Promise<string | null> {
   const all = (
@@ -34,4 +34,12 @@ export async function resolveConcept(c: pg.PoolClient, topic: string, choice?: s
     });
   }
   return matches[0]?.id ?? null;
+}
+
+/** A topic's name from the expert's list, or null. */
+export async function conceptName(c: pg.PoolClient, conceptId: string): Promise<string | null> {
+  return (
+    (await c.query<{ name: string }>('select name from legal_concepts where id = $1', [conceptId])).rows[0]?.name ??
+    null
+  );
 }

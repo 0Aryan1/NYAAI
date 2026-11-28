@@ -10,6 +10,8 @@
     "typecheck": "tsc -p .",
     "test": "vitest run --passWithNoTests"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@nyaai/shared": "workspace:*"
+  },
   "devDependencies": {}
 }

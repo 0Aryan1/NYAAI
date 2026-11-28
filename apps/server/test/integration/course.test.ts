@@ -8,7 +8,7 @@
  *  - lecture 2 reads the course memory: the planner and the recap's writer get it;
  *  - series checks are suggestions; undoing "taught" clears the memory.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -25,7 +25,8 @@ import { parseConfig } from '../../src/config.ts';
 import { buildLecture } from '../../src/services/build/index.ts';
 import { summariseTaught } from '../../src/services/course/index.ts';
 import type { Gateway, GatewayRequest } from '../../src/services/llm-gateway/index.ts';
-import { EMBED_DIMS, toVector, type Voyage } from '../../src/services/voyage/index.ts';
+import { toVector } from '../../src/services/voyage/index.ts';
+import { csrfFrom, fakeVector, fakeVoyage } from '../helpers.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -33,26 +34,6 @@ try {
 } catch {
   /* CI passes env directly */
 }
-
-const words = (t: string) => t.toLowerCase().match(/[a-z]{3,}/g) ?? [];
-function fakeVector(text: string): number[] {
-  const v = new Array<number>(EMBED_DIMS).fill(0);
-  for (const w of words(text)) v[createHash('md5').update(w).digest().readUInt16BE(0) % EMBED_DIMS]! += 1;
-  const n = Math.hypot(...v) || 1;
-  return v.map((x) => x / n);
-}
-const fakeVoyage: Voyage = {
-  embed: async (texts) => texts.map(fakeVector),
-  rerank: async (query, docs) => {
-    const q = new Set(words(query.split('Question:').pop() ?? query));
-    return docs
-      .map((d, index) => ({
-        index,
-        score: q.size ? [...q].filter((x) => new Set(words(d)).has(x)).length / q.size : 0,
-      }))
-      .sort((a, b) => b.score - a.score);
-  },
-};
 
 async function stackUp(): Promise<boolean> {
   if (!process.env.DATABASE_URL_MIGRATE || !process.env.DATABASE_URL_WORKER || !process.env.REDIS_URL) return false;
@@ -321,13 +302,7 @@ describe.skipIf(!up)('course series (integration, fake Claude)', () => {
       .set('x-forwarded-for', `10.92.${tag.charCodeAt(0)}.1`)
       .send({ email: `c-${tag}@ct.test` })
       .expect(204);
-    csrf = decodeURIComponent(
-      ([] as string[])
-        .concat(login.headers['set-cookie'] ?? [])
-        .find((c) => c.startsWith('nyaai_csrf='))!
-        .split(';')[0]!
-        .slice(11),
-    );
+    csrf = csrfFrom(login);
 
     const created = (
       await agent

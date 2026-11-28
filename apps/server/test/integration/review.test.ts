@@ -12,6 +12,7 @@ import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.ts';
 import { parseConfig } from '../../src/config.ts';
+import { csrfFrom } from '../helpers.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -124,13 +125,7 @@ describe.skipIf(!up)('library editor review (integration)', () => {
     const login = await agent.post('/api/v1/auth/dev-login').set('x-forwarded-for', ip).send({ email }).expect(204);
     return {
       agent,
-      csrf: decodeURIComponent(
-        ([] as string[])
-          .concat(login.headers['set-cookie'] ?? [])
-          .find((c) => c.startsWith('nyaai_csrf='))!
-          .split(';')[0]!
-          .slice(11),
-      ),
+      csrf: csrfFrom(login),
     };
   };
 

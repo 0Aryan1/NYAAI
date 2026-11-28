@@ -102,4 +102,10 @@ export const PROCESSORS = [
 ] as const;
 
 export const ConsentRequest = z.object({ version: z.literal(CONSENT_VERSION), accept: z.literal(true) });
+
+/** GET /consents/current: the services her work is sent to, and whether she has agreed to this version. */
+export const Processor = z.object({ name: z.string(), purpose: z.string(), dataSent: z.string(), region: z.string() });
+export type Processor = z.infer<typeof Processor>;
+export const ConsentStatus = z.object({ version: z.string(), processors: z.array(Processor), accepted: z.boolean() });
+export type ConsentStatus = z.infer<typeof ConsentStatus>;
 export type ConsentRequest = z.infer<typeof ConsentRequest>;

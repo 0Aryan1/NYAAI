@@ -25,7 +25,7 @@ const csv = z
   );
 
 /** Provider keys: required in production, warned about in development, ignored in tests. */
-export const PROVIDER_KEYS = ['ANTHROPIC_API_KEY', 'VOYAGE_API_KEY', 'INDIAN_KANOON_TOKEN'] as const;
+const PROVIDER_KEYS = ['ANTHROPIC_API_KEY', 'VOYAGE_API_KEY', 'INDIAN_KANOON_TOKEN'] as const;
 
 const Schema = z
   .object({

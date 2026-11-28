@@ -14,6 +14,8 @@ import type { Gateway } from '../services/llm-gateway/index.ts';
 import { answerQuestion, listConcepts, topicMap } from '../services/explore/index.ts';
 import { usageSink, type UsageSink } from '../services/usage.ts';
 import type { Voyage } from '../services/voyage/index.ts';
+import { assertWithinBudget } from '../services/budget/index.ts';
+import { conceptName } from '../services/topics/index.ts';
 
 export interface ExploreApiDeps {
   voyage: ((usage: UsageSink) => Voyage) | null;
@@ -42,23 +44,11 @@ export function exploreRouter(deps: ExploreApiDeps) {
     const body = ExploreAsk.parse(req.body);
     const who = req.identity!;
     // Her monthly budget, as for a lecture (LLD §5.1): refused before any AI call.
-    const { left, concept } = await req.db!(async (c) => {
-      const b = (
-        await c.query<{ budget: string; spent: string | null }>(
-          `select p.monthly_budget_micro_usd::text budget,
-                  (select sum(cost_micro_usd)::text from usage u where u.owner_id = p.owner_id
-                     and u.created_at >= date_trunc('month', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata') spent
-             from teacher_profiles p where p.owner_id = app_user()`,
-        )
-      ).rows[0];
-      const concept = body.conceptId
-        ? ((await c.query<{ name: string }>('select name from legal_concepts where id = $1', [body.conceptId])).rows[0]
-            ?.name ?? null)
-        : null;
-      return { left: b ? Number(b.budget) - Number(b.spent ?? 0) : 1, concept };
+    const { concept } = await req.db!(async (c) => {
+      await assertWithinBudget(c, who.userId);
+      const concept = body.conceptId ? await conceptName(c, body.conceptId) : null;
+      return { concept };
     });
-    if (left <= 0)
-      throw new AppError('BUDGET_EXHAUSTED', 'Your monthly limit is reached; your administrator can raise it.');
     const gateway = deps.gateway;
     const voyage = deps.voyage;
     const answer = await answerQuestion(body.question, concept, {

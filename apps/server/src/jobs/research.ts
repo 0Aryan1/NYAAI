@@ -10,18 +10,14 @@ import {
 } from '../services/research/index.ts';
 import { errorCode } from './build.ts';
 import { RESEARCH_TIMEOUT_MS } from './queues.ts';
+import { startJobLog } from './log.ts';
 
 /** The `research` queue: one quick run per job, resumable (sub-questions kept), logged to jobs_log. */
 export function researchProcessor(deps: ResearchDeps & { logger: Logger; logPool: pg.Pool }) {
   return async (job: Job<ResearchJob>) => {
     if (job.name !== 'research.run') throw new Error(`unknown research job ${job.name}`);
     const data = job.data;
-    const logId = (
-      await deps.logPool.query<{ id: string }>(
-        `insert into jobs_log (owner_id, queue, job_id, kind, state, attempts, started_at) values ($1, 'research', $2, $3, 'active', $4, now()) returning id`,
-        [data.ownerId, String(job.id), job.name, job.attemptsMade + 1],
-      )
-    ).rows[0]!.id;
+    const log = await startJobLog(deps.logPool, 'research', job, data.ownerId);
     let timer: NodeJS.Timeout | undefined;
     try {
       const r = await Promise.race([
@@ -30,7 +26,7 @@ export function researchProcessor(deps: ResearchDeps & { logger: Logger; logPool
           timer = setTimeout(() => reject(new Error('the research took longer than 4 minutes')), RESEARCH_TIMEOUT_MS);
         }),
       ]);
-      await deps.logPool.query("update jobs_log set state = 'completed', finished_at = now() where id = $1", [logId]);
+      await log.completed();
       deps.logger.info({ runId: data.runId, ...r }, 'research ready');
       return r;
     } catch (err) {
@@ -40,10 +36,7 @@ export function researchProcessor(deps: ResearchDeps & { logger: Logger; logPool
           : /longer than 4 minutes/.test(String(err))
             ? 'RESEARCH_TIMEOUT'
             : errorCode(err);
-      await deps.logPool.query(
-        "update jobs_log set state = 'failed', error_code = $2, finished_at = now() where id = $1",
-        [logId, code],
-      );
+      await log.failed(code);
       const final = err instanceof ResearchError || job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
       if (final) await markResearchFailed(data, deps.worker, code);
       if (err instanceof ResearchError) throw new UnrecoverableError(err.message);

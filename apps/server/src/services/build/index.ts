@@ -27,6 +27,7 @@ import { pool } from './pool.ts';
 import { onlyAttached, researchLecture, type LectureResearch } from './research.ts';
 import { attachedNotes as notesFor } from '../ingest/note.ts';
 import { finaliseLecture, savePart, type FinalCounts } from './save.ts';
+import { isExhausted, monthlyBudget } from '../budget/index.ts';
 
 export interface BuildDeps {
   /** nyaai_worker pool; every query runs under the teacher's identity. */
@@ -79,8 +80,6 @@ interface LectureRow {
   style: Record<string, string>;
   writing_guide: string | null;
   teaching_language: string;
-  budget: string;
-  spent: string | null;
 }
 
 const STYLE_WORDS: Record<string, Record<string, string>> = {
@@ -142,8 +141,7 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
       await c.query<LectureRow>(
         `select l.topic, l.length_min, l.level, l.style_key, l.course_id, l.unit_id, l.plan, l.parts_done, l.research,
                 i.must_include_text, i.anything_special, i.note_upload_ids, i.filters, i.ambiguity_choice as concept_id,
-                p.style, p.writing_guide, p.teaching_language, p.monthly_budget_micro_usd::text as budget,
-                (select sum(cost_micro_usd)::text from usage u where u.owner_id = l.owner_id and u.created_at >= date_trunc('month', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata') as spent
+                p.style, p.writing_guide, p.teaching_language
            from lectures l join lecture_inputs i on i.lecture_id = l.id join teacher_profiles p on p.owner_id = l.owner_id
           where l.id = $1`,
         [job.lectureId],
@@ -151,7 +149,7 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
     ).rows[0];
     if (!r) throw new BuildError('NOT_FOUND', 'lecture not found');
     // Budget gate (LLD §5.1): refused before any AI call; a build already past planning finishes.
-    if (!r.plan && Number(r.spent ?? 0) >= Number(r.budget))
+    if (!r.plan && isExhausted(await monthlyBudget(c, job.ownerId)))
       throw new BuildError('BUDGET_EXHAUSTED', 'monthly limit reached');
     await c.query("update lectures set status = 'building', error_code = null where id = $1", [job.lectureId]);
     return r;
@@ -346,7 +344,7 @@ function courseTaskLine(ctx: CourseContext): string {
 }
 
 /** The whole lecture as each part's writer sees it (FLOW): titles, minutes, kinds and questions. */
-export function outlineText(parts: LecturePlan['parts']): string {
+function outlineText(parts: LecturePlan['parts']): string {
   return parts
     .map((p, i) => `Part ${i + 1}: ${p.title} (${p.minutes} min, ${p.kind}). Answers: ${p.questions.join(' ')}`)
     .join('\n');

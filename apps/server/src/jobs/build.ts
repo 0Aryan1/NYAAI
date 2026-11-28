@@ -4,6 +4,7 @@ import type { Logger } from '../logger.ts';
 import { BuildError, buildLecture, markFailed, type BuildDeps } from '../services/build/index.ts';
 import { GatewayError } from '../services/llm-gateway/index.ts';
 import { BUILD_TIMEOUT_MS, type BuildJobData } from './queues.ts';
+import { startJobLog } from './log.ts';
 
 /** Plain error codes the Build screen turns into words (no AI terms, LLD §12.8). */
 export function errorCode(err: unknown): string {
@@ -20,12 +21,7 @@ export function buildProcessor(deps: BuildDeps & { logger: Logger; logPool: pg.P
   return async (job: Job<BuildJobData>) => {
     if (job.name !== 'build.lecture') throw new Error(`unknown build job ${job.name}`);
     const data = job.data;
-    const logId = (
-      await deps.logPool.query<{ id: string }>(
-        `insert into jobs_log (owner_id, queue, job_id, kind, state, attempts, started_at) values ($1, 'build', $2, $3, 'active', $4, now()) returning id`,
-        [data.ownerId, String(job.id), job.name, job.attemptsMade + 1],
-      )
-    ).rows[0]!.id;
+    const log = await startJobLog(deps.logPool, 'build', job, data.ownerId);
     let timer: NodeJS.Timeout | undefined;
     try {
       const counts = await Promise.race([
@@ -34,15 +30,12 @@ export function buildProcessor(deps: BuildDeps & { logger: Logger; logPool: pg.P
           timer = setTimeout(() => reject(new Error('the build took longer than 8 minutes')), BUILD_TIMEOUT_MS);
         }),
       ]);
-      await deps.logPool.query("update jobs_log set state = 'completed', finished_at = now() where id = $1", [logId]);
+      await log.completed();
       deps.logger.info({ lectureId: data.lectureId, counts }, 'lecture built');
       return counts;
     } catch (err) {
       const code = errorCode(err);
-      await deps.logPool.query(
-        "update jobs_log set state = 'failed', error_code = $2, finished_at = now() where id = $1",
-        [logId, code],
-      );
+      await log.failed(code);
       // Budget and missing lectures never get better with a retry; anything else retries, then fails for good.
       const final = err instanceof BuildError || job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
       if (final) await markFailed(data, deps, code);

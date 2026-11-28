@@ -19,7 +19,7 @@ import { requireConsent } from '../middleware/consent.ts';
 import { CHECK_JOB_OPTIONS, type CheckJobData } from '../jobs/queues.ts';
 import {
   addExample,
-  loadSlide,
+  slideVersions,
   refreshCounts,
   restoreSlide,
   saveSlideEdit,
@@ -91,20 +91,7 @@ export function slidesRouter(checkQueue?: Queue<CheckJobData>) {
 
   r.get('/slides/:id/versions', async (req, res) => {
     const id = Id.parse(req.params.id);
-    const rows = await req.db!(async (c) => {
-      await loadSlide(c, id);
-      return (
-        await c.query<{ version: number; reason: string; created_at: Date }>(
-          'select version, reason, created_at from slide_versions where slide_id = $1 order by version desc',
-          [id],
-        )
-      ).rows;
-    });
-    res.json(
-      SlideVersions.parse({
-        versions: rows.map((v) => ({ version: v.version, reason: v.reason, createdAt: v.created_at.toISOString() })),
-      }),
-    );
+    res.json(SlideVersions.parse({ versions: await req.db!((c) => slideVersions(c, id)) }));
   });
 
   r.post('/slides/:id/restore', requireConsent, async (req, res) => {

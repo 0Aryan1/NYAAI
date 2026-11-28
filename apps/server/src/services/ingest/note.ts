@@ -10,7 +10,6 @@
  *
  * Runs as nyaai_worker inside her own transactions; the job carries ids only.
  */
-import { createHash } from 'node:crypto';
 import JSZip from 'jszip';
 import type pg from 'pg';
 import { withTenant, type TenantIdentity } from '@nyaai/db';
@@ -20,6 +19,7 @@ import type { Storage } from '../storage/index.ts';
 import { usageSink, type UsageSink } from '../usage.ts';
 import { toVector, type Voyage } from '../voyage/index.ts';
 import { NoTextLayerError, pdfLines } from './extract.ts';
+import { sha256 } from '../../lib/hash.ts';
 
 /** A reason she can act on, shown on her notes list. */
 export class NoteReadError extends Error {
@@ -29,7 +29,6 @@ export class NoteReadError extends Error {
   }
 }
 
-const sha256 = (b: Uint8Array | string) => createHash('sha256').update(b).digest('hex');
 const XML_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 const unxml = (s: string) =>
   s.replace(/&(amp|lt|gt|quot|apos);|&#(\d+);|&#x([0-9a-f]+);/gi, (_, n, d, h) =>

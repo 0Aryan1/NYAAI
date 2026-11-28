@@ -17,7 +17,8 @@ export function decodeEntities(s: string): string {
   });
 }
 
-const stripTags = (s: string) => decodeEntities(s.replace(/<[^>]+>/g, ''));
+/** HTML to plain text: tags dropped, entities (&amp;, &#8217;) decoded. */
+export const stripTags = (s: string) => decodeEntities(s.replace(/<[^>]+>/g, ''));
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
 
 const MONTHS: Record<string, string> = {

@@ -4,7 +4,7 @@ import type { Logger } from '../logger.ts';
 import { forgetTeacher, type ForgetResult } from '../services/account/index.ts';
 import type { Storage } from '../services/storage/index.ts';
 import type { OpsJobData } from './queues.ts';
-import { reflagMappingLines, type MappingReflag } from '../services/mappings.ts';
+import { reflagMappingLines, type MappingReflag } from '../services/mappings/index.ts';
 
 export type OpsJobName = 'ops.ping' | 'ops.usage_rollup' | 'ops.delete_user_data' | 'ops.mapping_changed';
 

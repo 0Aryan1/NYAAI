@@ -7,7 +7,7 @@
  */
 
 /** Claude: input and output per million tokens. Cache write = 1.25× input, cache read = 0.1× input (gateway). */
-export const ANTHROPIC_PRICES: Record<string, { in: number; out: number }> = {
+const ANTHROPIC_PRICES: Record<string, { in: number; out: number }> = {
   'claude-haiku-5-5': { in: 0.1, out: 0.5 },
   'claude-sonnet-5-5': { in: 2, out: 10 },
   'claude-opus-5-5': { in: 4, out: 20 },
@@ -15,7 +15,7 @@ export const ANTHROPIC_PRICES: Record<string, { in: number; out: number }> = {
 const ANTHROPIC_FALLBACK = 'claude-opus-5-5';
 
 /** Voyage: embeddings and reranking, per million tokens. */
-export const VOYAGE_PRICES: Record<string, number> = {
+const VOYAGE_PRICES: Record<string, number> = {
   'voyage-law-2': 0.12,
   'rerank-2.5': 0.05,
   'rerank-2.5-lite': 0.02,

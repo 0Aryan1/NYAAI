@@ -23,6 +23,17 @@ export const LibrarySearchRequest = z.object({
   asOn: z.iso.date().optional(),
   noRerank: z.boolean().optional(),
 });
+/**
+ * Its answer: the outcome and the sources found, as search returns them. A tool for checking retrieval by hand, so the
+ * main fields are pinned and the rest of each source and of the trace (scores, filters) is passed through.
+ */
+export const LibrarySearchResponse = z.object({
+  outcome: z.enum(['ok', 'thin', 'not_found']),
+  sources: z.array(
+    z.looseObject({ tag: z.string(), chunkId: z.string(), sourceId: z.string(), header: z.string(), text: z.string() }),
+  ),
+  trace: z.record(z.string(), z.unknown()),
+});
 
 /** Live events (LLD §4.4), one stream per tab. */
 export const LiveEvent = z.discriminatedUnion('type', [

@@ -42,6 +42,7 @@ import {
 import type { UsageSink } from '../usage.ts';
 import { partQuery, sourceLabel } from './part.ts';
 import { pool } from './pool.ts';
+import { STOP_WORDS } from '@nyaai/legal';
 
 /** Sources per part: S1…S8, as the writer prompt expects. */
 export const MAX_SOURCES = 8;
@@ -258,7 +259,7 @@ const isStatute = (s: RetrievedSource) => s.meta.sourceType === 'act' || s.meta.
 const unitNo = (s: RetrievedSource) => s.meta.section ?? s.meta.article ?? null;
 
 /** Two notes are the same when they are the same section, or overlapping paragraphs of the same judgment. */
-export function sameNote(a: RetrievedSource, b: RetrievedSource): boolean {
+function sameNote(a: RetrievedSource, b: RetrievedSource): boolean {
   if (a.sourceId !== b.sourceId) return false;
   if (isStatute(a) && isStatute(b) && unitNo(a) && unitNo(a) === unitNo(b)) return true;
   return a.chunkId === b.chunkId || a.coveredChunkIds.some((id) => b.coveredChunkIds.includes(id));
@@ -316,37 +317,7 @@ function hasUnit(part: PartNotes, u: StatuteUnit): boolean {
   );
 }
 
-const STOP = new Set([
-  'that',
-  'with',
-  'this',
-  'which',
-  'shall',
-  'from',
-  'have',
-  'under',
-  'such',
-  'where',
-  'their',
-  'there',
-  'what',
-  'when',
-  'does',
-  'been',
-  'being',
-  'into',
-  'upon',
-  'other',
-  'than',
-  'only',
-  'also',
-  'were',
-  'will',
-  'would',
-  'section',
-  'said',
-  'made',
-]);
+const STOP = STOP_WORDS;
 const words = (t: string) => new Set((t.toLowerCase().match(/[a-z]{4,}/g) ?? []).filter((w) => !STOP.has(w)));
 
 /** How many distinctive words a text shares with a part's title and questions. */

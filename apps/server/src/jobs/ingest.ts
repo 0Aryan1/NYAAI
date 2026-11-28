@@ -18,6 +18,7 @@ import { createGapLookup } from '../services/lookup/index.ts';
 import { ingestUpload } from '../services/ingest/note.ts';
 import { findCourseSources } from '../services/course/sources.ts';
 import { INGEST_TIMEOUT_MS, type IngestJobData } from './queues.ts';
+import { startJobLog } from './log.ts';
 
 export interface IngestProcessorDeps {
   library: pg.Pool;
@@ -67,13 +68,7 @@ export function ingestProcessor(deps: IngestProcessorDeps) {
       collegeId,
       courseId,
     } = job.data;
-    const logId = (
-      await library.query<{ id: string }>(
-        `insert into jobs_log (owner_id, queue, job_id, kind, state, attempts, started_at)
-         values ($1, 'ingest', $2, $3, 'active', $4, now()) returning id`,
-        [requestedBy ?? null, String(job.id), job.name, job.attemptsMade + 1],
-      )
-    ).rows[0]!.id;
+    const log = await startJobLog(library, 'ingest', job, requestedBy ?? null);
     const progress = async (stage: string) => {
       if (requestedBy) await publishEvent(deps.publisher, requestedBy, { type: 'ingest.progress', sourceId, stage });
     };
@@ -187,14 +182,11 @@ export function ingestProcessor(deps: IngestProcessorDeps) {
           timer = setTimeout(() => reject(new Error('ingestion took longer than 10 minutes')), INGEST_TIMEOUT_MS);
         }),
       ]);
-      await library.query("update jobs_log set state = 'completed', finished_at = now() where id = $1", [logId]);
+      await log.completed();
       logger.info({ job: job.name, sourceId, tid, result }, 'ingestion finished');
       return result;
     } catch (err) {
-      await library.query("update jobs_log set state = 'failed', error_code = $2, finished_at = now() where id = $1", [
-        logId,
-        (err as Error).name,
-      ]);
+      await log.failed((err as Error).name);
       await progress('failed');
       throw err;
     } finally {

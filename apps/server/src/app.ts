@@ -25,7 +25,7 @@ import { mappingsRouter } from './api/mappings.ts';
 import { researchRouter } from './api/research.ts';
 import { searchRouter, type SearchApiDeps } from './api/search.ts';
 import { errorHandler, notFound } from './middleware/error.ts';
-import { requireAuth } from './middleware/auth.ts';
+import { requireAuth, requireRole } from './middleware/auth.ts';
 import { requireCsrf } from './auth/csrf.ts';
 import { teacherLimit } from './middleware/rate-limit.ts';
 import { GoogleSignIn } from './auth/google.ts';
@@ -44,26 +44,6 @@ import { lecturesRouter } from './api/lectures.ts';
 import { reviewRouter } from './api/review.ts';
 
 const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/;
-
-/** Path prefixes that need a signed-in teacher (everything except health and sign-in). */
-const SIGNED_IN = [
-  '/research',
-  '/explore',
-  '/me',
-  '/setup',
-  '/consents',
-  '/home',
-  '/library',
-  '/suggest',
-  '/topics',
-  '/events',
-  '/lectures',
-  '/citations',
-  '/coverage',
-  '/courses',
-  '/slides',
-  '/notes',
-];
 
 export interface AppDeps {
   config: Config;
@@ -127,12 +107,18 @@ export function createApp({ config, logger, pool, redis, queues, search, storage
   const v1 = express.Router();
   v1.use(healthRouter({ pool, redis }));
   v1.use(authRouter({ config, pool, redis, google }));
+  // Public prefixes end here: an unknown sign-in or health path is "not found", not "sign in first".
+  v1.use(['/auth', '/health'], notFound);
+  // Everything after this line needs a signed-in user (public routes are only health and sign-in, above): a new
+  // router is protected without being listed anywhere. Changes need the CSRF token; each user has a rate limit.
   v1.use(
-    SIGNED_IN,
     requireAuth({ pool, sessionSecret: config.SESSION_SECRET, production }),
     teacherLimit(redis, config.RATE_LIMIT_PER_MIN),
     requireCsrf(config.CSRF_SECRET),
   );
+  // The shared library is the library team's: editors (and admins); teachers never reach /library. Routers below
+  // narrow it further where only an editor may act (review, topics, mappings, reports).
+  v1.use('/library', requireRole('library_editor', 'admin'));
   v1.use(
     meRouter(config),
     accountRouter(queues?.ops, storage),

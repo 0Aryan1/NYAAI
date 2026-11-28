@@ -16,12 +16,17 @@ import type pg from 'pg';
 import { withTenant, type TenantIdentity } from '@nyaai/db';
 import { PROMPTS } from '@nyaai/prompts';
 import {
+  ResearchBrief,
   ResearchPlanReply,
   ResearchWriteReply,
   type EvidenceRow,
-  type ResearchBrief,
+  type ResearchList,
+  type StartResearch,
+  ResearchRunView,
   type ResearchScope,
 } from '@nyaai/shared';
+import { AppError } from '../../errors.ts';
+import { assertWithinBudget } from '../budget/index.ts';
 import { sourcesBlock } from '../build/checking.ts';
 import { checkSourcesFor } from '../build/part.ts';
 import { pool } from '../build/pool.ts';
@@ -31,6 +36,8 @@ import { searchWithLookup, type GapLookup } from '../lookup/index.ts';
 import type { RetrievedSource, SearchDeps } from '../search/index.ts';
 import { usageSink, type UsageSink } from '../usage.ts';
 import type { Voyage } from '../voyage/index.ts';
+import { isExhausted, monthlyBudget } from '../budget/index.ts';
+import { pageOf, pageSql, type Page } from '../../lib/page.ts';
 
 export const MAX_EVIDENCE = 8;
 const PER_SUB_QUESTION = 4;
@@ -128,20 +135,16 @@ export async function runResearch(
 
   const run = await tenant(async (c) => {
     const r = (
-      await c.query<{ question: string; scope: ResearchScope; status: string; budget: string; spent: string | null }>(
-        `select r.question, r.scope, r.status, p.monthly_budget_micro_usd::text budget,
-                (select sum(cost_micro_usd)::text from usage u where u.owner_id = r.owner_id
-                   and u.created_at >= date_trunc('month', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata') spent
-           from research_runs r join teacher_profiles p on p.owner_id = r.owner_id where r.id = $1`,
+      await c.query<{ question: string; scope: ResearchScope; status: string }>(
+        'select question, scope, status from research_runs where id = $1',
         [job.runId],
       )
     ).rows[0];
     if (!r) throw new ResearchError('NOT_FOUND', 'research run not found');
-    return r;
+    return { ...r, exhausted: isExhausted(await monthlyBudget(c, job.ownerId)) };
   });
   if (run.status === 'ready') return { yellow: 0, grey: 0, evidence: 0 };
-  if (Number(run.spent ?? 0) >= Number(run.budget))
-    throw new ResearchError('BUDGET_EXHAUSTED', 'monthly limit reached');
+  if (run.exhausted) throw new ResearchError('BUDGET_EXHAUSTED', 'monthly limit reached');
   const scope = run.scope;
 
   // 1. Plan (kept across retries).
@@ -334,4 +337,90 @@ export async function markResearchFailed(job: ResearchJob, worker: pg.Pool, code
   await withTenant(worker, { userId: job.ownerId, collegeId: job.collegeId, role: 'teacher' }, (c) =>
     c.query("update research_runs set status = 'failed', error_code = $2 where id = $1", [job.runId, code]),
   );
+}
+
+/** The run as "My research" shows it (RLS: her own runs only). */
+export async function loadRun(c: pg.PoolClient, id: string): Promise<ResearchRunView | null> {
+  const run = (
+    await c.query<{
+      id: string;
+      question: string;
+      scope: ResearchScope;
+      status: ResearchRunView['status'];
+      brief: unknown;
+      yellow_open: number;
+      grey_open: number;
+      error_code: string | null;
+      created_at: Date;
+      finished_at: Date | null;
+    }>(
+      'select id, question, scope, status, brief, yellow_open, grey_open, error_code, created_at, finished_at from research_runs where id = $1',
+      [id],
+    )
+  ).rows[0];
+  if (!run) return null;
+  const subs = (
+    await c.query<{ position: number; text: string; status: string }>(
+      'select position, text, status from research_questions where run_id = $1 order by position',
+      [id],
+    )
+  ).rows;
+  return ResearchRunView.parse({
+    id: run.id,
+    question: run.question,
+    scope: run.scope,
+    status: run.status,
+    subQuestions: subs,
+    brief: run.brief ? ResearchBrief.parse(run.brief) : null,
+    counts: { yellow: run.yellow_open, grey: run.grey_open },
+    errorCode: run.error_code,
+    createdAt: run.created_at.toISOString(),
+    finishedAt: run.finished_at?.toISOString() ?? null,
+  });
+}
+
+/** A new quick run, "planning" until the worker takes it. Her budget is checked first; the years must be in order. */
+export async function startRun(
+  c: pg.PoolClient,
+  who: { userId: string; collegeId: string },
+  body: StartResearch,
+): Promise<string> {
+  if (body.scope.fromYear && body.scope.toYear && body.scope.fromYear > body.scope.toYear)
+    throw new AppError('VALIDATION_FAILED', 'The first year comes after the last year.');
+  await assertWithinBudget(c, who.userId);
+  return (
+    await c.query<{ id: string }>(
+      "insert into research_runs (college_id, owner_id, question, scope, mode, status) values ($1, $2, $3, $4, 'quick', 'planning') returning id",
+      [who.collegeId, who.userId, body.question, body.scope],
+    )
+  ).rows[0]!.id;
+}
+
+/** "My research": her runs, newest first. */
+export async function listRuns(c: pg.PoolClient, page: Page): Promise<ResearchList> {
+  const tail = pageSql(page, 1);
+  const rows = (
+    await c.query<{
+      id: string;
+      question: string;
+      status: ResearchRunView['status'];
+      created_at: Date;
+      yellow_open: number;
+    }>(
+      `select id, question, status, created_at, yellow_open from research_runs where owner_id = app_user()
+        order by created_at desc, id${tail.sql}`,
+      tail.params,
+    )
+  ).rows;
+  const { rows: shown, nextCursor } = pageOf(rows, page);
+  return {
+    nextCursor,
+    runs: shown.map((x) => ({
+      id: x.id,
+      question: x.question,
+      status: x.status,
+      createdAt: x.created_at.toISOString(),
+      yellow: x.yellow_open,
+    })),
+  };
 }

@@ -56,6 +56,7 @@ export const UpdateCourse = z.object({
   semester: z.string().trim().max(40).nullable().optional(),
   classCount: z.number().int().min(1).max(80).nullable().optional(),
 });
+export type UpdateCourse = z.infer<typeof UpdateCourse>;
 
 /**
  * PATCH /courses/:id/units (COURSE-3): add, rename, delete, reorder, prerequisites, skip. Applied in one transaction,
@@ -90,6 +91,8 @@ export const SeriesCheck = z.object({
   message: z.string(),
 });
 export type SeriesCheck = z.infer<typeof SeriesCheck>;
+/** GET /courses/:id/series-checks (COURSE-6): suggestions only. */
+export const SeriesChecks = z.object({ checks: z.array(SeriesCheck) });
 
 export const CourseUnitView = z.object({
   id: z.uuid(),
@@ -146,3 +149,6 @@ export type CourseList = z.infer<typeof CourseList>;
 /** POST /lectures/:id/taught (COURSE-7). */
 export const MarkTaught = z.object({ taughtOn: z.iso.date() });
 export const MarkTaughtResponse = z.object({ unitId: z.uuid().nullable(), memoryJob: z.string().nullable() });
+
+/** A lecture's number as the course plan shows it: L01, L12. */
+export const lectureNo = (position: number): string => `L${String(position).padStart(2, '0')}`;

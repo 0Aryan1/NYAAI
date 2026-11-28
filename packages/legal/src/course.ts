@@ -7,6 +7,7 @@
  * Course memory is context for continuity, never a source of law: a recap line that states law still needs a
  * source and passes the checks like any other line.
  */
+import { lectureNo } from '@nyaai/shared';
 
 export interface CourseCase {
   sourceId: string;
@@ -116,7 +117,7 @@ export function courseContext(units: CourseUnit[], unitId: string | null): Cours
   };
 }
 
-export const lectureNo = (position: number) => `L${String(position).padStart(2, '0')}`;
+export { lectureNo };
 
 /** True when the lecture has something to recap. */
 export const hasMemory = (ctx: CourseContext) => ctx.earlier.length > 0 || ctx.terms.length > 0 || ctx.cases.length > 0;
@@ -230,7 +231,8 @@ export function seriesChecks(units: SeriesUnit[], classCount: number | null = nu
  * the slides").
  * ------------------------------------------------------------------------------------------------------------- */
 
-const STOP = new Set([
+/** Common English and drafting words left out when comparing a text's content words (course memory, part fit). */
+export const STOP_WORDS: ReadonlySet<string> = new Set([
   'the',
   'and',
   'for',
@@ -246,7 +248,26 @@ const STOP = new Set([
   'over',
   'their',
   'there',
+  'shall',
+  'have',
+  'such',
+  'what',
+  'does',
+  'been',
+  'being',
+  'upon',
+  'other',
+  'than',
+  'only',
+  'also',
+  'were',
+  'will',
+  'would',
+  'section',
+  'said',
+  'made',
 ]);
+const STOP = STOP_WORDS;
 const contentWords = (t: string) =>
   (t.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => w.length > 2 && !STOP.has(w));
 

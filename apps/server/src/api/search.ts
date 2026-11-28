@@ -4,13 +4,20 @@
  */
 import express from 'express';
 import type { Redis } from 'ioredis';
-import { LibrarySearchRequest, ResolveRequest, ResolveResponse, SuggestResponse, type Suggestion } from '@nyaai/shared';
+import {
+  LibrarySearchRequest,
+  LibrarySearchResponse,
+  ResolveRequest,
+  ResolveResponse,
+  SuggestResponse,
+} from '@nyaai/shared';
 import { AppError } from '../errors.ts';
 import { requireRole } from '../middleware/auth.ts';
 import { channelFor, eventsSince } from '../services/events.ts';
 import type { Gateway } from '../services/llm-gateway/index.ts';
 import { search } from '../services/search/index.ts';
-import { resolveConcept } from '../services/topics.ts';
+import { resolveConcept } from '../services/topics/index.ts';
+import { suggest } from '../services/suggest/index.ts';
 import { usageSink, type UsageSink } from '../services/usage.ts';
 import type { Voyage } from '../services/voyage/index.ts';
 
@@ -31,54 +38,7 @@ export function searchRouter(deps: SearchApiDeps) {
     const q = String(req.query.q ?? '').trim();
     if (q.length < 2) return void res.json(SuggestResponse.parse({ suggestions: [] }));
     const started = Date.now();
-    const rows = await req.db!(async (c) => {
-      const like = `${q.replace(/[%_\\]/g, '\\$&')}%`;
-      const concepts = await c.query<{ name: string; subject: string }>(
-        `select name, subject from legal_concepts
-          where name ilike $1 or name % $2 or exists (select 1 from unnest(aliases) a where a ilike $1 or a % $2)
-          order by greatest(similarity(name, $2), (select max(similarity(a, $2)) from unnest(aliases) a)) desc nulls last limit 4`,
-        [like, q],
-      );
-      const sections = await c.query<{
-        header: string;
-        act_name: string | null;
-        section: string | null;
-        article: string | null;
-      }>(
-        `select header, act_name, section, article from chunks
-          where visibility = 'shared' and parent_id is null and source_type in ('act', 'constitution') and status in ('live', 'provisional')
-            and law_status is distinct from 'repealed'
-            and (header ilike '%' || $1 || '%' or section = upper($1) or article = upper($1))
-          order by (section = upper($1) or article = upper($1)) desc, similarity(header, $1) desc limit 4`,
-        [q],
-      );
-      const cases = await c.query<{ title: string; court: string | null; decided_on: Date | null }>(
-        `select title, court, decided_on from sources
-          where type = 'judgment' and status in ('live', 'provisional') and (title ilike '%' || $1 || '%' or title % $1)
-          order by similarity(title, $1) desc limit 3`,
-        [q],
-      );
-      const units = await c.query<{ title: string; course: string }>(
-        `select u.title, co.name as course from course_units u join courses co on co.id = u.course_id
-          where u.title ilike '%' || $1 || '%' order by u.position limit 3`,
-        [q],
-      );
-      return { concepts: concepts.rows, sections: sections.rows, cases: cases.rows, units: units.rows };
-    });
-    const suggestions: Suggestion[] = [
-      ...rows.concepts.map((x) => ({ kind: 'concept' as const, label: x.name, detail: x.subject, value: x.name })),
-      ...rows.sections.map((x) => {
-        const short = x.header.split(' › ').pop() ?? x.header;
-        return { kind: 'section' as const, label: short, detail: x.act_name ?? null, value: short };
-      }),
-      ...rows.cases.map((x) => ({
-        kind: 'case' as const,
-        label: x.title,
-        detail: [x.court, x.decided_on?.getFullYear()].filter(Boolean).join(', ') || null,
-        value: x.title,
-      })),
-      ...rows.units.map((x) => ({ kind: 'unit' as const, label: x.title, detail: x.course, value: x.title })),
-    ].slice(0, 8);
+    const suggestions = await req.db!((c) => suggest(c, q));
     res.setHeader('Server-Timing', `db;dur=${Date.now() - started}`);
     res.json(SuggestResponse.parse({ suggestions }));
   });
@@ -131,7 +91,7 @@ export function searchRouter(deps: SearchApiDeps) {
         },
       );
     });
-    res.json(result);
+    res.json(LibrarySearchResponse.parse(result));
   });
 
   return r;

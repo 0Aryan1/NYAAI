@@ -10,7 +10,6 @@
  *   (`source_copies`) with how far the two agree, and its citations are added (`kept_existing`).
  * Without `replace`: a new source. A scanned copy stays provisional, marked `scanned`, for the editor to check.
  */
-import { createHash } from 'node:crypto';
 import {
   identifyCourt,
   matchChunks,
@@ -24,6 +23,7 @@ import type pg from 'pg';
 import type { Storage } from '../storage/index.ts';
 import { pdfLines } from './extract.ts';
 import { finishSource, type FinishDeps, type FinishResult } from './finish.ts';
+import { sha256 } from '../../lib/hash.ts';
 
 export interface JudgmentPdfDeps extends FinishDeps {
   storage: Storage;
@@ -56,9 +56,7 @@ export type JudgmentPdfResult =
   | { kind: 'duplicate'; sourceId: string };
 
 /** Share of the text in use that the new copy must contain to be the same judgment. */
-export const SAME_JUDGMENT = 0.6;
-
-const sha256 = (b: Uint8Array | string) => createHash('sha256').update(b).digest('hex');
+const SAME_JUDGMENT = 0.6;
 
 interface OldChunk {
   id: string;

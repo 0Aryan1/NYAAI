@@ -71,7 +71,7 @@ interface ChunkRow {
 }
 
 /** Required labels per chunk (LLD §6.6). Returns what is missing. */
-export function missingLabels(
+function missingLabels(
   c: Pick<ChunkRow, 'source_type' | 'kind' | 'act_name' | 'section' | 'article' | 'court' | 'decided_on' | 'para_no'>,
 ): string[] {
   const missing: string[] = [];

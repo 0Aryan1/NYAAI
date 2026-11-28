@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { NextCursor } from './responses.ts';
 
 /** POST /library/sources (library editor or admin): load an official statute into the shared library. */
 export const CreateSourceRequest = z.object({
@@ -67,13 +68,16 @@ export type LibraryGap = z.infer<typeof LibraryGap>;
 export const LibraryGapQuery = z.object({
   state: z.union([GapState, z.literal('waiting'), z.literal('all')]).default('waiting'),
 });
-export const LibraryGapList = z.object({ gaps: z.array(LibraryGap) });
+export type LibraryGapQuery = z.infer<typeof LibraryGapQuery>;
+export const LibraryGapList = z.object({ gaps: z.array(LibraryGap), nextCursor: NextCursor });
+export type LibraryGapList = z.infer<typeof LibraryGapList>;
 
 /** PATCH /library/gaps/:id: the editor closes a gap (source loaded by hand, or not something we will hold) or reopens it. */
 export const UpdateGapRequest = z.object({
   state: z.enum(['open', 'resolved', 'wont_fill']),
   note: z.string().trim().max(1000).optional(),
 });
+export type UpdateGapRequest = z.infer<typeof UpdateGapRequest>;
 
 /** POST /library/gaps/:id/lookup: run the trusted-source lookup again now. */
 export const GapLookupResponse = z.object({ jobId: z.string() });
@@ -143,6 +147,7 @@ export const ReviewJudgmentList = z.object({
       maybeSame: z.boolean(),
     }),
   ),
+  nextCursor: NextCursor,
 });
 export type ReviewJudgmentList = z.infer<typeof ReviewJudgmentList>;
 
@@ -216,7 +221,9 @@ export const UploadJudgmentQuery = z
     replaces: z.uuid().optional(),
   })
   .refine((q) => q.replaces || q.decidedOn, { message: 'Give the date of the judgment.', path: ['decidedOn'] });
+/** As the web app sends it (strings in a query); `ParsedUploadJudgmentQuery` is the same after parsing. */
 export type UploadJudgmentQuery = z.input<typeof UploadJudgmentQuery>;
+export type ParsedUploadJudgmentQuery = z.output<typeof UploadJudgmentQuery>;
 export const UploadJudgmentResponse = z.object({ jobId: z.string(), sourceId: z.uuid() });
 export type UploadJudgmentResponse = z.infer<typeof UploadJudgmentResponse>;
 
@@ -270,6 +277,7 @@ export const LineReport = z.object({
 });
 export type LineReport = z.infer<typeof LineReport>;
 export const LectureReports = z.object({ reports: z.array(LineReport) });
+export type LectureReports = z.infer<typeof LectureReports>;
 
 /** GET /library/reports: the editor's queue of wrong-fact reports (copies only; never the teacher's lecture). */
 export const QueueReport = z.object({
@@ -289,7 +297,7 @@ export const QueueReport = z.object({
   dueAt: z.string().nullable(),
 });
 export type QueueReport = z.infer<typeof QueueReport>;
-export const ReportQueue = z.object({ reports: z.array(QueueReport), open: z.number().int() });
+export const ReportQueue = z.object({ reports: z.array(QueueReport), open: z.number().int(), nextCursor: NextCursor });
 export type ReportQueue = z.infer<typeof ReportQueue>;
 
 /** POST /library/reports/:id/resolve */

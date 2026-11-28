@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { NextCursor } from './responses.ts';
 import { CaseStatus } from './library.ts';
 import { Claim } from './lecture.ts';
 
@@ -120,6 +121,7 @@ export const ResearchList = z.object({
       yellow: z.number().int(),
     }),
   ),
+  nextCursor: NextCursor,
 });
 export type ResearchList = z.infer<typeof ResearchList>;
 

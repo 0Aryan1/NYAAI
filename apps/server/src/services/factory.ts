@@ -76,7 +76,7 @@ export function webSearchFrom(config: Config, usage: UsageSink): WebSearch | nul
 }
 
 /** Official Indian government and court domains (HLD 5.2: gov.in, nic.in, court websites). */
-export const DEFAULT_WEB_ALLOWLIST = ['gov.in', 'nic.in'];
+const DEFAULT_WEB_ALLOWLIST = ['gov.in', 'nic.in'];
 
 export function kanoonFrom(config: Config, usage: UsageSink): Kanoon {
   if (!config.INDIAN_KANOON_TOKEN) throw new Error('INDIAN_KANOON_TOKEN is not set; live judgment lookup needs it.');

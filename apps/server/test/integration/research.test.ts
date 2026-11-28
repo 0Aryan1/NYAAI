@@ -4,7 +4,7 @@
  * table (relation, status no more than confirmed, the years she chose), a brief written from the evidence only with
  * every line checked (a planted wrong quote is caught), saved under "My research", and private to her.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -21,7 +21,8 @@ import type { Gateway, GatewayRequest } from '../../src/services/llm-gateway/ind
 import { runResearch } from '../../src/services/research/index.ts';
 import JSZip from 'jszip';
 import { extractText } from 'unpdf';
-import { EMBED_DIMS, toVector, type Voyage } from '../../src/services/voyage/index.ts';
+import { toVector } from '../../src/services/voyage/index.ts';
+import { csrfFrom, fakeVector, fakeVoyage } from '../helpers.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -29,26 +30,6 @@ try {
 } catch {
   /* CI passes env directly */
 }
-
-const words = (t: string) => t.toLowerCase().match(/[a-z]{3,}/g) ?? [];
-function fakeVector(text: string): number[] {
-  const v = new Array<number>(EMBED_DIMS).fill(0);
-  for (const w of words(text)) v[createHash('md5').update(w).digest().readUInt16BE(0) % EMBED_DIMS]! += 1;
-  const n = Math.hypot(...v) || 1;
-  return v.map((x) => x / n);
-}
-const fakeVoyage: Voyage = {
-  embed: async (texts) => texts.map(fakeVector),
-  rerank: async (query, docs) => {
-    const q = new Set(words(query.split('Question:').pop() ?? query));
-    return docs
-      .map((d, index) => ({
-        index,
-        score: q.size ? [...q].filter((x) => new Set(words(d)).has(x)).length / q.size : 0,
-      }))
-      .sort((a, b) => b.score - a.score);
-  },
-};
 
 async function stackUp(): Promise<boolean> {
   if (!process.env.DATABASE_URL_MIGRATE || !process.env.DATABASE_URL_WORKER || !process.env.REDIS_URL) return false;
@@ -238,13 +219,7 @@ describe.skipIf(!up)('quick Research (integration)', () => {
       .expect(204);
     return {
       agent,
-      csrf: decodeURIComponent(
-        ([] as string[])
-          .concat(login.headers['set-cookie'] ?? [])
-          .find((c) => c.startsWith('nyaai_csrf='))!
-          .split(';')[0]!
-          .slice(11),
-      ),
+      csrf: csrfFrom(login),
     };
   };
   let runId = '';
@@ -400,6 +375,13 @@ describe.skipIf(!up)('quick Research (integration)', () => {
       evidence: [],
       notFound: [`Quokka ${w} moonbeam zephyrs xylophonic?`],
     });
+    // "My research" is paged: her three runs, two to a page, newest first.
+    const p1 = (await t.agent.get('/api/v1/research?limit=2').expect(200)).body;
+    expect(p1.runs).toHaveLength(2);
+    expect(p1.nextCursor).toEqual(expect.any(String));
+    const p2 = (await t.agent.get(`/api/v1/research?limit=2&cursor=${p1.nextCursor}`).expect(200)).body;
+    expect(p2).toMatchObject({ runs: [expect.objectContaining({ id: runId })], nextCursor: null });
+    await t.agent.get('/api/v1/research?cursor=forged').expect(400);
     // The library team has the question.
     expect(
       (await owner.query('select count(*)::int n from library_gaps where question ilike $1', [`%${w} moonbeam%`]))

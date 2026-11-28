@@ -10,3 +10,4 @@ export * from './course.ts';
 export * from './notes.ts';
 export * from './explore.ts';
 export * from './research.ts';
+export * from './responses.ts';

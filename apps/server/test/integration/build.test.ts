@@ -11,7 +11,7 @@
  *  - the section's Explanation, never cited → a coverage note; the teacher can leave it out.
  * Then the Prepare, slides, source and coverage endpoints over HTTP.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -25,10 +25,11 @@ import type { PromptId } from '@nyaai/prompts';
 import { createApp } from '../../src/app.ts';
 import { parseConfig } from '../../src/config.ts';
 import { buildLecture } from '../../src/services/build/index.ts';
-import { checkEditedLines } from '../../src/services/edit/index.ts';
+import { checkEditedLines } from '../../src/services/edit/check-lines.ts';
 import { withTenant } from '@nyaai/db';
 import type { Gateway, GatewayRequest } from '../../src/services/llm-gateway/index.ts';
-import { EMBED_DIMS, toVector, type Voyage } from '../../src/services/voyage/index.ts';
+import { toVector } from '../../src/services/voyage/index.ts';
+import { csrfFrom, fakeVector, fakeVoyage } from '../helpers.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -36,26 +37,6 @@ try {
 } catch {
   /* CI passes env directly */
 }
-
-const words = (t: string) => t.toLowerCase().match(/[a-z]{3,}/g) ?? [];
-function fakeVector(text: string): number[] {
-  const v = new Array<number>(EMBED_DIMS).fill(0);
-  for (const w of words(text)) v[createHash('md5').update(w).digest().readUInt16BE(0) % EMBED_DIMS]! += 1;
-  const n = Math.hypot(...v) || 1;
-  return v.map((x) => x / n);
-}
-const fakeVoyage: Voyage = {
-  embed: async (texts) => texts.map(fakeVector),
-  rerank: async (query, docs) => {
-    const q = new Set(words(query.split('Question:').pop() ?? query));
-    return docs
-      .map((d, index) => ({
-        index,
-        score: q.size ? [...q].filter((x) => new Set(words(d)).has(x)).length / q.size : 0,
-      }))
-      .sort((a, b) => b.score - a.score);
-  },
-};
 
 async function stackUp(): Promise<boolean> {
   if (!process.env.DATABASE_URL_MIGRATE || !process.env.DATABASE_URL_WORKER || !process.env.REDIS_URL) return false;
@@ -374,13 +355,7 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
       .set('x-forwarded-for', `10.91.${tag.charCodeAt(0)}.1`)
       .send({ email: `b-${tag}@bt.test` })
       .expect(204);
-    csrf = decodeURIComponent(
-      ([] as string[])
-        .concat(login.headers['set-cookie'] ?? [])
-        .find((c) => c.startsWith('nyaai_csrf='))!
-        .split(';')[0]!
-        .slice(11),
-    );
+    csrf = csrfFrom(login);
     await agent
       .post('/api/v1/lectures')
       .set('x-csrf-token', csrf)
@@ -579,13 +554,7 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
       .set('x-forwarded-for', `10.93.${tag.charCodeAt(0)}.1`)
       .send({ email: `b-${tag}@bt.test` })
       .expect(204);
-    const tok = decodeURIComponent(
-      ([] as string[])
-        .concat(login.headers['set-cookie'] ?? [])
-        .find((c) => c.startsWith('nyaai_csrf='))!
-        .split(';')[0]!
-        .slice(11),
-    );
+    const tok = csrfFrom(login);
     type Line = {
       lineKey: string;
       text: string;
@@ -747,13 +716,7 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
       .set('x-forwarded-for', `10.94.${tag.charCodeAt(0)}.1`)
       .send({ email: `b-${tag}@bt.test` })
       .expect(204);
-    const tok = decodeURIComponent(
-      ([] as string[])
-        .concat(login.headers['set-cookie'] ?? [])
-        .find((c) => c.startsWith('nyaai_csrf='))!
-        .split(';')[0]!
-        .slice(11),
-    );
+    const tok = csrfFrom(login);
     const yellow = async () => (await dl.get(`/api/v1/lectures/${lectureId}`).expect(200)).body.counts.yellow as number;
     expect(await yellow()).toBeGreaterThan(0);
     await dl
@@ -795,13 +758,7 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
       .set('x-forwarded-for', `10.96.${tag.charCodeAt(0)}.1`)
       .send({ email: `b-${tag}@bt.test` })
       .expect(204);
-    const tok = decodeURIComponent(
-      ([] as string[])
-        .concat(login.headers['set-cookie'] ?? [])
-        .find((c) => c.startsWith('nyaai_csrf='))!
-        .split(';')[0]!
-        .slice(11),
-    );
+    const tok = csrfFrom(login);
     // She takes back her "leave out" (as if never ticked): the Explanation is missing again, 0 of 1 covered.
     await owner.query(
       "update coverage_items set state = 'missing', ticked_by = null, ticked_at = null where lecture_id = $1 and item_kind = 'explanation'",
@@ -897,13 +854,7 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
         .expect(204);
       return {
         agent,
-        csrf: decodeURIComponent(
-          ([] as string[])
-            .concat(login.headers['set-cookie'] ?? [])
-            .find((c) => c.startsWith('nyaai_csrf='))!
-            .split(';')[0]!
-            .slice(11),
-        ),
+        csrf: csrfFrom(login),
       };
     };
     const t = await signIn(`b-${tag}@bt.test`, 1);

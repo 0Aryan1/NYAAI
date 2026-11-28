@@ -7,9 +7,10 @@
 import { createHash } from 'node:crypto';
 import { EMBED_DIMS, type Voyage } from './index.ts';
 
-const words = (t: string) => t.toLowerCase().match(/[a-z]{3,}/g) ?? [];
+export const words = (t: string) => t.toLowerCase().match(/[a-z]{3,}/g) ?? [];
 
-function vector(text: string): number[] {
+/** A bag of words hashed into the embedding's dimensions: texts sharing words point the same way. */
+export function bagOfWordsVector(text: string): number[] {
   const v = new Array<number>(EMBED_DIMS).fill(0);
   for (const w of words(text)) v[createHash('md5').update(w).digest().readUInt16BE(0) % EMBED_DIMS]! += 1;
   const n = Math.hypot(...v) || 1;
@@ -18,7 +19,7 @@ function vector(text: string): number[] {
 
 export function createFakeVoyage(): Voyage {
   return {
-    embed: async (texts) => texts.map(vector),
+    embed: async (texts) => texts.map(bagOfWordsVector),
     rerank: async (query, docs) => {
       const q = new Set(words(query.split('Question:').pop() ?? query));
       return docs

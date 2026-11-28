@@ -6,6 +6,7 @@
  *  - a pack may also name the topics outright, for a note that says neither (a person wrote it; it wins).
  * Links made here are suggestions: unconfirmed until the law expert confirms each one (HLD D28).
  */
+import { actKey } from './gaps.ts';
 export interface ConceptForLinking {
   id: string;
   name: string;
@@ -49,14 +50,6 @@ export function refsIn(text: string): { kind: 'section' | 'article'; number: str
 export function numbersIn(text: string): string[] {
   return [...new Set(refsIn(text).map((r) => r.number))];
 }
-
-const actKey = (a: string) =>
-  a
-    .toLowerCase()
-    .replace(/^the\s+/, '')
-    .replace(/,?\s*\d{4}$/, '')
-    .replace(/\s+/g, ' ')
-    .trim();
 
 function phraseIn(text: string, phrase: string): boolean {
   const p = phrase.trim();

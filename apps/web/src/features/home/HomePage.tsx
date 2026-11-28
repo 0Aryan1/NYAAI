@@ -10,6 +10,7 @@ import { AmbiguityDialog } from './AmbiguityDialog';
 import { TopicBox } from './TopicBox';
 import { NotesPicker, useNotes, waitingNotes } from '@/features/notes/notes-ui';
 import { LoadError, Skeleton } from '@/shared/ui/states';
+import { lectureNo } from '@/shared/lib/labels';
 
 export const ONE_OFF = 'one_off';
 
@@ -94,7 +95,7 @@ export function HomePage() {
         c.id === fromPlan.course && fromPlan.unit
           ? `for: ${params.get('topic') ?? 'the lecture you chose'}`
           : c.nextUnit
-            ? `next: L${String(c.nextUnit.position).padStart(2, '0')} ${c.nextUnit.title}`
+            ? `next: ${lectureNo(c.nextUnit.position)} ${c.nextUnit.title}`
             : undefined,
     })),
     { value: ONE_OFF, label: 'No course, one-off' },

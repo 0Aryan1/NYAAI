@@ -17,6 +17,7 @@ import { PROMPTS, fence } from '@nyaai/prompts';
 import { LearnSummary } from '@nyaai/shared';
 import type { Gateway } from '../llm-gateway/index.ts';
 import type { UsageSink } from '../usage.ts';
+import { lineText } from '../slides/doc.ts';
 
 interface UnitRow {
   id: string;
@@ -56,7 +57,7 @@ export async function loadUnits(
  * The judgments each lecture teaches from: cited on a line that was not removed, outside its recap and bridge (a
  * recap naming last week's case is not a repeat).
  */
-export async function lectureCases(c: pg.PoolClient, lectureIds: string[]): Promise<Map<string, CourseCase[]>> {
+async function lectureCases(c: pg.PoolClient, lectureIds: string[]): Promise<Map<string, CourseCase[]>> {
   const out = new Map<string, CourseCase[]>();
   if (!lectureIds.length) return out;
   const rows = (
@@ -92,7 +93,7 @@ export async function seriesUnits(
 }
 
 /** Slide text of a lecture as students saw it: titles and lines, in order (speaker notes are hers, not the class's). */
-export async function slideText(c: pg.PoolClient, lectureId: string): Promise<string> {
+async function slideText(c: pg.PoolClient, lectureId: string): Promise<string> {
   const rows = (
     await c.query<{ title: string; body: { content?: { content?: { text?: string }[] }[] } }>(
       'select title, body from slides where lecture_id = $1 order by position',
@@ -100,12 +101,7 @@ export async function slideText(c: pg.PoolClient, lectureId: string): Promise<st
     )
   ).rows;
   return rows
-    .map((s) =>
-      [
-        `# ${s.title}`,
-        ...(s.body.content ?? []).map((n) => `- ${(n.content ?? []).map((t) => t.text ?? '').join('')}`),
-      ].join('\n'),
-    )
+    .map((s) => [`# ${s.title}`, ...(s.body.content ?? []).map((n) => `- ${lineText(n)}`)].join('\n'))
     .join('\n\n');
 }
 

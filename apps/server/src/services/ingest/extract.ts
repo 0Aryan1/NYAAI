@@ -10,7 +10,7 @@ import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 import type { Page, PdfLine, PdfLines } from '@nyaai/legal';
 
-export const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_BYTES = 50 * 1024 * 1024;
 
 export interface Fetched {
   bytes: Uint8Array;

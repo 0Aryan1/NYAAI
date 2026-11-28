@@ -4,7 +4,7 @@
  * claim checked: a planted wrong quote is caught, a question the library cannot answer says so and reaches the
  * library team, and nothing runs without consent.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -18,7 +18,8 @@ import { createApp } from '../../src/app.ts';
 import { parseConfig } from '../../src/config.ts';
 import { createFakeGateway } from '../../src/services/llm-gateway/fake.ts';
 import type { Gateway, GatewayRequest } from '../../src/services/llm-gateway/index.ts';
-import { EMBED_DIMS, toVector, type Voyage } from '../../src/services/voyage/index.ts';
+import { toVector } from '../../src/services/voyage/index.ts';
+import { csrfFrom, fakeVector, fakeVoyage } from '../helpers.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -26,26 +27,6 @@ try {
 } catch {
   /* CI passes env directly */
 }
-
-const words = (t: string) => t.toLowerCase().match(/[a-z]{3,}/g) ?? [];
-function fakeVector(text: string): number[] {
-  const v = new Array<number>(EMBED_DIMS).fill(0);
-  for (const w of words(text)) v[createHash('md5').update(w).digest().readUInt16BE(0) % EMBED_DIMS]! += 1;
-  const n = Math.hypot(...v) || 1;
-  return v.map((x) => x / n);
-}
-const fakeVoyage: Voyage = {
-  embed: async (texts) => texts.map(fakeVector),
-  rerank: async (query, docs) => {
-    const q = new Set(words(query.split('Question:').pop() ?? query));
-    return docs
-      .map((d, index) => ({
-        index,
-        score: q.size ? [...q].filter((x) => new Set(words(d)).has(x)).length / q.size : 0,
-      }))
-      .sort((a, b) => b.score - a.score);
-  },
-};
 
 async function stackUp(): Promise<boolean> {
   if (!process.env.DATABASE_URL_MIGRATE || !process.env.REDIS_URL) return false;
@@ -224,13 +205,7 @@ describe.skipIf(!up)('Explore (integration)', () => {
       .set('x-forwarded-for', `10.89.${tag.charCodeAt(0)}.1`)
       .send({ email: `t-${tag}@ex.test` })
       .expect(204);
-    csrf = decodeURIComponent(
-      ([] as string[])
-        .concat(login.headers['set-cookie'] ?? [])
-        .find((c) => c.startsWith('nyaai_csrf='))!
-        .split(';')[0]!
-        .slice(11),
-    );
+    csrf = csrfFrom(login);
     await agent
       .post('/api/v1/courses')
       .set('x-csrf-token', csrf)
@@ -350,13 +325,7 @@ describe.skipIf(!up)('Explore (integration)', () => {
       .set('x-forwarded-for', `10.89.${tag.charCodeAt(0)}.2`)
       .send({ email })
       .expect(204);
-    const tok = decodeURIComponent(
-      ([] as string[])
-        .concat(login.headers['set-cookie'] ?? [])
-        .find((c) => c.startsWith('nyaai_csrf='))!
-        .split(';')[0]!
-        .slice(11),
-    );
+    const tok = csrfFrom(login);
 
     const toConfirm = (await ed.get('/api/v1/library/topics').expect(200)).body;
     const mine = toConfirm.topics.find((t: { conceptId: string }) => t.conceptId === concept);

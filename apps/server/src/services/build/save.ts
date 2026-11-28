@@ -14,21 +14,15 @@ import {
 import { mustCoverParts } from '@nyaai/legal';
 import { statuteUnits } from '../search/index.ts';
 import type { BuiltLine, PartOutput } from './part.ts';
+import { lineCounts } from '../counts/index.ts';
+import { slideDoc } from '../slides/doc.ts';
 
 export interface Owner {
   ownerId: string;
   collegeId: string;
 }
 
-/** Tiptap-shaped document: one `claimLine` node per line, carrying its stable key (LLD §11.4). */
-const doc = (lines: BuiltLine[]) => ({
-  type: 'doc',
-  content: lines.map((l) => ({
-    type: 'claimLine',
-    attrs: { lineKey: l.lineKey, kind: l.kind, yourExample: l.yourExample },
-    content: [{ type: 'text', text: l.text }],
-  })),
-});
+const doc = (lines: BuiltLine[]) => slideDoc(lines);
 
 const SLIDE_STRIDE = 100; // positions: part 0 → 0…99, part 1 → 100…
 
@@ -233,14 +227,7 @@ export async function finaliseLecture(
   }
 
   // Counts: yellow and grey per line (a line with any open claim is one yellow point), coverage per section group.
-  const lines = (
-    await c.query<{ slide_id: string; line_key: string; statuses: string[]; flags: (string | null)[] }>(
-      'select slide_id, line_key, array_agg(check_status::text) statuses, array_agg(flag_kind::text) flags from citations where lecture_id = $1 group by slide_id, line_key',
-      [lectureId],
-    )
-  ).rows;
-  const yellow = lines.filter((l) => l.statuses.includes('open')).length;
-  const grey = lines.filter((l) => !l.statuses.includes('open') && l.flags.includes('grey')).length;
+  const { yellow, grey } = await lineCounts(c, lectureId);
   const coverage = openGroups(kept);
   const score = coverageScore(states);
   const cost = Number(

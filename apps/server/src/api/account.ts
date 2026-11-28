@@ -6,12 +6,12 @@
  */
 import express from 'express';
 import type { Queue } from 'bullmq';
-import { DeleteMyData } from '@nyaai/shared';
+import { DeleteMyData, JobAccepted } from '@nyaai/shared';
 import { AppError } from '../errors.ts';
 import { CSRF_COOKIE } from '../auth/csrf.ts';
 import { SESSION_COOKIE } from '../auth/session.ts';
 import type { OpsJobData } from '../jobs/queues.ts';
-import { exportTeacherData } from '../services/account/index.ts';
+import { assertOwnEmail, exportTeacherData } from '../services/account/index.ts';
 import type { Storage } from '../services/storage/index.ts';
 
 export function accountRouter(opsQueue: Queue<OpsJobData> | undefined, storage: Storage | undefined) {
@@ -32,12 +32,7 @@ export function accountRouter(opsQueue: Queue<OpsJobData> | undefined, storage: 
       throw new AppError('SERVICE_UNAVAILABLE', 'Deleting your data is not available right now. Try again later.');
     const body = DeleteMyData.parse(req.body);
     const who = req.identity!;
-    const email = await req.db!(
-      async (c) => (await c.query<{ email: string }>('select email from users where id = app_user()')).rows[0]?.email,
-    );
-    if (!email || email.toLowerCase() !== body.confirmEmail.toLowerCase()) {
-      throw new AppError('VALIDATION_FAILED', 'Type your own email address exactly to confirm.');
-    }
+    await req.db!((c) => assertOwnEmail(c, body.confirmEmail));
     const job = await opsQueue.add(
       'ops.delete_user_data',
       { userId: who.userId, collegeId: who.collegeId },
@@ -51,7 +46,7 @@ export function accountRouter(opsQueue: Queue<OpsJobData> | undefined, storage: 
     );
     res.clearCookie(SESSION_COOKIE, { path: '/' });
     res.clearCookie(CSRF_COOKIE, { path: '/' });
-    res.status(202).json({ jobId: job.id });
+    res.status(202).json(JobAccepted.parse({ jobId: job.id }));
   });
 
   return r;

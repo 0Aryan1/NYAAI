@@ -25,6 +25,7 @@ import { recordGap } from '../../src/services/lookup/index.ts';
 import { createStorage } from '../../src/services/storage/index.ts';
 import { usageSink } from '../../src/services/usage.ts';
 import { EMBED_DIMS, type Voyage } from '../../src/services/voyage/index.ts';
+import { csrfFrom } from '../helpers.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -121,13 +122,7 @@ describe.skipIf(!up)('export and delete my data (integration)', () => {
   const signIn = async (email: string, ip: string) => {
     const agent = request.agent(http());
     const login = await agent.post('/api/v1/auth/dev-login').set('x-forwarded-for', ip).send({ email }).expect(204);
-    const csrf = decodeURIComponent(
-      ([] as string[])
-        .concat(login.headers['set-cookie'] ?? [])
-        .find((c) => c.startsWith('nyaai_csrf='))!
-        .split(';')[0]!
-        .slice(11),
-    );
+    const csrf = csrfFrom(login);
     return { agent, csrf };
   };
 

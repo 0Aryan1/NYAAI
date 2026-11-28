@@ -3,7 +3,7 @@
  * services: a fake Voyage (bag-of-words), a fake India Code, a fake Indian Kanoon that serves one synthetic judgment,
  * and a fake web search. Creates its own college and users, and removes everything it created afterwards.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -22,8 +22,9 @@ import { AlreadyHeldError, ingestKanoonJudgment } from '../../src/services/inges
 import { keepReplacedCopy } from '../../src/services/ingest/judgment-pdf.ts';
 import { createStorage } from '../../src/services/storage/index.ts';
 import { noUsage } from '../../src/services/usage.ts';
-import { EMBED_DIMS, type Voyage } from '../../src/services/voyage/index.ts';
+
 import type { WebSearch } from '../../src/services/web-search/index.ts';
+import { csrfFrom, fakeVoyage } from '../helpers.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -31,26 +32,6 @@ try {
 } catch {
   /* CI passes env directly */
 }
-
-const words = (t: string) => t.toLowerCase().match(/[a-z]{3,}/g) ?? [];
-function fakeVector(text: string): number[] {
-  const v = new Array<number>(EMBED_DIMS).fill(0);
-  for (const w of words(text)) v[createHash('md5').update(w).digest().readUInt16BE(0) % EMBED_DIMS]! += 1;
-  const n = Math.hypot(...v) || 1;
-  return v.map((x) => x / n);
-}
-const fakeVoyage: Voyage = {
-  embed: async (texts) => texts.map(fakeVector),
-  rerank: async (query, docs) => {
-    const q = new Set(words(query.split('Question:').pop() ?? query));
-    return docs
-      .map((d, index) => {
-        const w = new Set(words(d));
-        return { index, score: q.size ? [...q].filter((x) => w.has(x)).length / q.size : 0 };
-      })
-      .sort((a, b) => b.score - a.score);
-  },
-};
 
 async function stackUp(): Promise<boolean> {
   if (
@@ -340,13 +321,7 @@ describe.skipIf(!up)('library gaps and trusted-source lookup (integration)', () 
     const signIn = async (email: string, ip: string) => {
       const agent = request.agent(http);
       const login = await agent.post('/api/v1/auth/dev-login').set('x-forwarded-for', ip).send({ email }).expect(204);
-      const csrf = decodeURIComponent(
-        ([] as string[])
-          .concat(login.headers['set-cookie'] ?? [])
-          .find((c) => c.startsWith('nyaai_csrf='))!
-          .split(';')[0]!
-          .slice(11),
-      );
+      const csrf = csrfFrom(login);
       return { agent, csrf };
     };
     const ed = await signIn(`ed-${tag}@gt.test`, `10.77.${tag.charCodeAt(0)}.1`);
@@ -449,13 +424,7 @@ describe.skipIf(!up)('library gaps and trusted-source lookup (integration)', () 
       .set('x-forwarded-for', `10.79.${tag.charCodeAt(0)}.1`)
       .send({ email: `ed-${tag}@gt.test` })
       .expect(204);
-    const csrf = decodeURIComponent(
-      ([] as string[])
-        .concat(login.headers['set-cookie'] ?? [])
-        .find((x) => x.startsWith('nyaai_csrf='))!
-        .split(';')[0]!
-        .slice(11),
-    );
+    const csrf = csrfFrom(login);
     const list = await agent.get('/api/v1/library/judgments').expect(200);
     expect(list.body.judgments.find((x: { id: string }) => x.id === second)).toMatchObject({ maybeSame: true });
     const detail = await agent.get(`/api/v1/library/judgments/${second}`).expect(200);

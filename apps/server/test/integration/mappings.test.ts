@@ -15,8 +15,9 @@ import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.ts';
 import { opsProcessor } from '../../src/jobs/ops.ts';
-import { MAPPING_REASONS } from '../../src/services/mappings.ts';
+import { MAPPING_REASONS } from '../../src/services/mappings/index.ts';
 import { parseConfig } from '../../src/config.ts';
+import { csrfFrom } from '../helpers.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -91,13 +92,7 @@ describe.skipIf(!up)('law mapping rows (integration)', () => {
       .expect(204);
     return {
       agent,
-      csrf: decodeURIComponent(
-        ([] as string[])
-          .concat(login.headers['set-cookie'] ?? [])
-          .find((x) => x.startsWith('nyaai_csrf='))!
-          .split(';')[0]!
-          .slice(11),
-      ),
+      csrf: csrfFrom(login),
     };
   };
 
@@ -231,10 +226,14 @@ describe.skipIf(!up)('law mapping rows (integration)', () => {
     expect(none).toMatchObject({ pair: 'CrPC → BNSS', newSections: [] });
   });
 
-  it('a teacher cannot read or change the table', async () => {
+  it('a teacher cannot read or change the table, or reach any /library route', async () => {
     const { agent, csrf } = await signIn(`t-${tag}@mt.test`, 3);
     await agent.get('/api/v1/library/mappings').expect(403);
     await agent.post('/api/v1/library/mappings').set('x-csrf-token', csrf).send({}).expect(403);
+    // Every /library route is the library team's (one gate in app.ts, not each router's own).
+    await agent.get('/api/v1/library/gaps').expect(403);
+    await agent.get('/api/v1/library/judgments').expect(403);
+    await agent.post('/api/v1/library/search').set('x-csrf-token', csrf).send({ query: 'arbitration' }).expect(403);
   });
 
   it('changing, un-signing or removing a signed row turns the lines that relied on it yellow, in the background', async () => {

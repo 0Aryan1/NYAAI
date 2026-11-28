@@ -7,8 +7,8 @@ import type { CookieOptions } from 'express';
 import type { TenantIdentity } from '@nyaai/db';
 
 export const SESSION_COOKIE = 'nyaai_session';
-export const SESSION_TTL_S = 12 * 60 * 60;
-export const STATUS_RECHECK_S = 5 * 60;
+const SESSION_TTL_S = 12 * 60 * 60;
+const STATUS_RECHECK_S = 5 * 60;
 
 export interface Session extends TenantIdentity {
   /** Unix seconds: issued at. */

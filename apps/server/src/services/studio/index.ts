@@ -4,11 +4,9 @@
  */
 import type pg from 'pg';
 import type { SlideLine, StudioSlide } from '@nyaai/shared';
+import { lineText, type LineNode } from '../slides/doc.ts';
+export type { LineNode } from '../slides/doc.ts';
 
-export interface LineNode {
-  attrs?: { lineKey?: string; kind?: SlideLine['kind']; yourExample?: boolean; edited?: boolean };
-  content?: { text?: string }[];
-}
 export interface CitationRow {
   id: string;
   slide_id: string;
@@ -28,8 +26,8 @@ export interface CitationRow {
  * Case status is read live (C8): a case the expert has since confirmed is no longer grey, and one confirmed overruled
  * or reversed turns the line yellow, in lectures built before her finding too.
  */
-export function lineFrom(node: LineNode, cits: CitationRow[]): SlideLine {
-  const text = (node.content ?? []).map((t) => t.text ?? '').join('');
+function lineFrom(node: LineNode, cits: CitationRow[]): SlideLine {
+  const text = lineText(node);
   const adverse = cits.find((c) => c.case_status === 'overruled' || c.case_status === 'reversed');
   const open =
     cits.find((c) => c.check_status === 'open') ??

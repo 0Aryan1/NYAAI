@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { NextCursor } from './responses.ts';
 
 /** What a teacher may upload as her own notes, by media type. */
 export const NOTE_MIME_TYPES = {
@@ -27,7 +28,7 @@ export const TeacherNote = z.object({
   replaces: z.object({ id: z.uuid(), title: z.string() }).nullable(),
 });
 export type TeacherNote = z.infer<typeof TeacherNote>;
-export const TeacherNoteList = z.object({ notes: z.array(TeacherNote) });
+export const TeacherNoteList = z.object({ notes: z.array(TeacherNote), nextCursor: NextCursor });
 export type TeacherNoteList = z.infer<typeof TeacherNoteList>;
 
 /** POST /notes?title=…&fileName=…[&replaces=…] with the file as the body (its media type in Content-Type). */

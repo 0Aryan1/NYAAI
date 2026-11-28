@@ -25,7 +25,7 @@ interface FoundUser {
 type SignInResult = { ok: true; who: TenantIdentity } | { ok: false; reason: 'not_invited' | 'removed' };
 
 /** Existing user, or an open invite turned into a user on first sign-in. */
-export async function findOrAcceptUser(
+async function findOrAcceptUser(
   pool: pg.Pool,
   email: string,
   name: string,

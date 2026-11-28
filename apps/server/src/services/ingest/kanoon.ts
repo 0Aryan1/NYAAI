@@ -5,7 +5,7 @@
  * One case, one source: a Kanoon document whose link the library holds under another source (an official copy that
  * replaced it) is not loaded again (AlreadyHeldError).
  */
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { casePartyWords, identifyCourt, kanoonToJudgment, splitJudgment, type HeldCase } from '@nyaai/legal';
 import { PROMPTS, fence } from '@nyaai/prompts';
@@ -15,6 +15,7 @@ import type { Kanoon } from '../kanoon/index.ts';
 import type { Storage } from '../storage/index.ts';
 import type { UsageSink } from '../usage.ts';
 import { finishSource, type FinishDeps, type FinishResult } from './finish.ts';
+import { sha256 } from '../../lib/hash.ts';
 
 export interface KanoonIngestDeps extends FinishDeps {
   kanoon: Kanoon;
@@ -28,8 +29,6 @@ export interface KanoonIngestResult extends FinishResult {
   paragraphs: number;
   opinions: string[];
 }
-
-const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
 export const kanoonUrl = (tid: number | string) => `https://indiankanoon.org/doc/${tid}/`;
 

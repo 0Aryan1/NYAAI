@@ -115,7 +115,7 @@ export const RESEARCH_JOB_OPTIONS: JobsOptions = {
 export const RESEARCH_TIMEOUT_MS = 4 * 60 * 1000;
 
 /** LLD §5: 3 retries with backoff 30 s → 2 min → 8 min; 10-minute timeout is enforced in the processor. */
-export const INGEST_BACKOFF_MS = [30_000, 120_000, 480_000] as const;
+const INGEST_BACKOFF_MS = [30_000, 120_000, 480_000] as const;
 export const INGEST_JOB_OPTIONS: JobsOptions = {
   attempts: 1 + INGEST_BACKOFF_MS.length,
   backoff: { type: 'custom' },

@@ -40,9 +40,18 @@ describe('API skeleton', () => {
   });
 
   it('returns unknown routes in the standard error shape with the request id as traceId', async () => {
-    const res = await request(app(true, true)).get('/api/v1/nope').set('x-request-id', 'trace-12345678').expect(404);
+    const res = await request(app(true, true))
+      .get('/api/v1/auth/nope')
+      .set('x-request-id', 'trace-12345678')
+      .expect(404);
     const body = ApiError.parse(res.body);
     expect(body.error).toMatchObject({ code: 'NOT_FOUND', traceId: 'trace-12345678' });
+  });
+
+  it('everything but health and sign-in needs a signed-in user, listed or not', async () => {
+    const res = await request(app(true, true)).get('/api/v1/nope').expect(401);
+    expect(ApiError.parse(res.body).error.code).toBe('NOT_SIGNED_IN');
+    await request(app(true, true)).get('/api/v1/library/search').expect(401);
   });
 
   it('sets security headers', async () => {

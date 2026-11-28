@@ -8,7 +8,7 @@ import type { RequestHandler, Response } from 'express';
 import { AppError } from '../errors.ts';
 
 export const CSRF_COOKIE = 'nyaai_csrf';
-export const CSRF_HEADER = 'x-csrf-token';
+const CSRF_HEADER = 'x-csrf-token';
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 const sign = (token: string, userId: string, secret: string) =>

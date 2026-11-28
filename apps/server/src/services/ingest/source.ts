@@ -3,12 +3,12 @@
  * Runs as nyaai_library, which may write shared rows only. Idempotent: a re-run replaces the source's chunks.
  * Stages 5–7 (labels, Voyage embeddings, quality gate → live) are Day 2, so chunks stay `processing`.
  */
-import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import { cleanPages, missingSections, splitStatute, type StatuteChunk } from '@nyaai/legal';
 import type { IngestStage } from '@nyaai/shared';
 import type { Storage } from '../storage/index.ts';
 import { extractPages, fetchOriginal } from './extract.ts';
+import { sha256 } from '../../lib/hash.ts';
 
 export interface IngestDeps {
   library: pg.Pool;
@@ -42,8 +42,6 @@ interface SourceRow {
   act_name: string | null;
   act_year: number | null;
 }
-
-const sha256 = (data: Uint8Array | string) => createHash('sha256').update(data).digest('hex');
 
 export async function ingestSource(sourceId: string, deps: IngestDeps): Promise<IngestResult> {
   const { library, storage } = deps;
