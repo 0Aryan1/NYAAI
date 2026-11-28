@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { Download, ShieldOff, Trash2 } from 'lucide-react';
 import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { PageHeader } from '@/shared/ui/page';
+import { ErrorText } from '@/shared/ui/error-text';
+import { LoadError } from '@/shared/ui/states';
 import { errorText } from '@/shared/lib/errors';
 
 /**
@@ -19,17 +21,11 @@ export function AccountDataPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const matches = !!email && typed.trim().toLowerCase() === email.toLowerCase();
-  const [withdrawing, setWithdrawing] = useState(false);
 
-  async function withdraw() {
-    setWithdrawing(true);
-    try {
-      await api.withdrawConsent();
-      await qc.invalidateQueries({ queryKey: queryKeys.me });
-    } finally {
-      setWithdrawing(false);
-    }
-  }
+  const withdraw = useMutation({
+    mutationFn: api.withdrawConsent,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.me }),
+  });
 
   async function deleteAll() {
     setBusy(true);
@@ -46,6 +42,7 @@ export function AccountDataPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
+      {me.isError && <LoadError what="Your account" onRetry={() => void me.refetch()} />}
       <PageHeader
         title="Your data"
         description="Everything NYAAI keeps about you is yours: you can take a copy at any time, or delete it all."
@@ -95,10 +92,11 @@ export function AccountDataPage() {
               You can withdraw this at any time. Your data is kept, but nothing new is sent: preparing lectures, reading
               your notes and checking edits pause until you agree again.
             </p>
-            <Button className="mt-4" disabled={withdrawing || !me.data} onClick={() => void withdraw()}>
+            <Button className="mt-4" disabled={withdraw.isPending || !me.data} onClick={() => withdraw.mutate()}>
               <ShieldOff className="size-4" aria-hidden />
-              {withdrawing ? 'Withdrawing…' : 'Withdraw my consent'}
+              {withdraw.isPending ? 'Withdrawing…' : 'Withdraw my consent'}
             </Button>
+            <ErrorText className="mt-2" error={withdraw.error} fallback="Your consent was not withdrawn. Try again." />
           </>
         )}
       </section>

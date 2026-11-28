@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSignOut } from '@/shared/hooks/useSignOut';
 import { Button } from '@/shared/ui/button';
 import { ChipGroup } from '@/shared/ui/chip-group';
+import { ListSkeleton, LoadError } from '@/shared/ui/states';
 import { errorText } from '@/shared/lib/errors';
 
 const TITLES: Record<SetupStepName, string> = {
@@ -153,10 +154,12 @@ function ConsentStep({ onNext }: { onNext: (save: () => Promise<void>) => Promis
       title="Before we start: where your data goes"
       intro="NYAAI uses these services to prepare your lectures. Nothing you upload is shared with other teachers unless you ask."
       onSubmit={() => onNext(api.acceptConsent)}
-      canNext={agree || consent.data?.accepted === true}
+      canNext={(agree && consent.isSuccess) || consent.data?.accepted === true}
       nextLabel="I agree, continue"
     >
-      <ul className="divide-y divide-border rounded-card border border-border">
+      {consent.isLoading && <ListSkeleton rows={4} label="Loading the list of services" />}
+      {consent.isError && <LoadError what="The list of services" onRetry={() => void consent.refetch()} />}
+      <ul className="divide-y divide-border rounded-card border border-border empty:hidden">
         {consent.data?.processors.map((p) => (
           <li key={p.name} className="p-4 text-sm">
             <p className="font-medium">{p.name}</p>
@@ -170,7 +173,7 @@ function ConsentStep({ onNext }: { onNext: (save: () => Promise<void>) => Promis
           </li>
         ))}
       </ul>
-      {!consent.data?.accepted && (
+      {consent.isSuccess && !consent.data.accepted && (
         <label className="flex items-start gap-3 text-sm">
           <input
             type="checkbox"
@@ -396,6 +399,7 @@ function CoursesStep({ onNext, back }: { onNext: () => Promise<void>; back?: () 
           Add the courses you teach this semester. Upload your syllabus and NYAAI lists its lectures for you to check; a
           lecture in a course opens with a recap of the last class. You can also do this later on the Courses screen.
         </p>
+        {list.isError && <LoadError what="Your courses" onRetry={() => void list.refetch()} className="mt-4" />}
         {courses.length > 0 && (
           <ul
             aria-label="Your courses"

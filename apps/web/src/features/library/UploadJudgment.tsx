@@ -2,7 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileUp } from 'lucide-react';
 import type { ReviewJudgmentList, UploadJudgmentStatus } from '@nyaai/shared';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { api, queryKeys } from '@/shared/api/client';
+import { ErrorText } from '@/shared/ui/error-text';
+import { errorText } from '@/shared/lib/errors';
 import { Button } from '@/shared/ui/button';
 
 type Outcome = NonNullable<UploadJudgmentStatus['outcome']>;
@@ -65,7 +67,9 @@ export function UploadJudgment({
     queryKey: queryKeys.uploadStatus(jobId ?? ''),
     queryFn: () => api.uploadStatus(jobId!),
     enabled: !!jobId,
-    refetchInterval: (q) => (q.state.data?.state === 'done' || q.state.data?.state === 'failed' ? false : 2000),
+    // Stops when the file is read, or when asking fails (no connection): she checks again by hand, no endless retries.
+    refetchInterval: (q) =>
+      q.state.status === 'error' || q.state.data?.state === 'done' || q.state.data?.state === 'failed' ? false : 2000,
   });
   const done = status.data?.state === 'done' || status.data?.state === 'failed';
   useEffect(() => {
@@ -90,12 +94,7 @@ export function UploadJudgment({
     setJobId(null);
     upload.reset();
   };
-  const error =
-    upload.error instanceof ApiRequestError
-      ? upload.error.message
-      : upload.error
-        ? 'The upload did not go through. Try again.'
-        : null;
+  const error = upload.error ? errorText(upload.error, 'The upload did not go through. Try again.') : null;
 
   return (
     <article className="mx-auto max-w-2xl">
@@ -108,7 +107,19 @@ export function UploadJudgment({
 
       {jobId ? (
         <div className="rounded-card border border-border bg-surface p-4 text-sm" role="status" aria-live="polite">
-          {!done && <p>Reading the PDF… this takes up to a minute.</p>}
+          {!done && !status.isError && <p>Reading the PDF… this takes up to a minute.</p>}
+          {status.isError && (
+            <div className="flex flex-wrap items-center gap-3">
+              <ErrorText
+                error={status.error}
+                fallback="We could not check on the file. It is still being read."
+                className="text-flag-yellow"
+              />
+              <Button size="sm" onClick={() => void status.refetch()}>
+                Check again
+              </Button>
+            </div>
+          )}
           {status.data?.state === 'failed' && <p className="text-flag-yellow">{status.data.message}</p>}
           {status.data?.outcome && <p>{outcomeText(status.data.outcome, !!replaces)}</p>}
           {done && (

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Circle, Loader2 } from 'lucide-react';
 import { api, queryKeys } from '@/shared/api/client';
 import { useEventStream } from '@/shared/hooks/useEventStream';
 import { Button } from '@/shared/ui/button';
 import { cn } from '@/shared/lib/utils';
 import { BUILD_STEPS, FAILURE_TEXT, initialBuild, reduceBuild, type BuildState } from './build-progress';
+import { ErrorText } from '@/shared/ui/error-text';
 import { LoadError } from '@/shared/ui/states';
 
 export function BuildPage() {
@@ -14,7 +15,6 @@ export function BuildPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [state, setState] = useState<BuildState>(initialBuild);
-  const [retrying, setRetrying] = useState(false);
   const lecture = useQuery({
     queryKey: queryKeys.lecture(lectureId),
     queryFn: () => api.lecture(lectureId),
@@ -43,16 +43,13 @@ export function BuildPage() {
     if (state.finished) void navigate(`/lectures/${lectureId}`);
   }, [state.finished, lectureId, navigate]);
 
-  async function retry() {
-    setRetrying(true);
-    try {
-      await api.retryBuild(lectureId);
+  const retry = useMutation({
+    mutationFn: () => api.retryBuild(lectureId),
+    onSuccess: () => {
       setState({ ...initialBuild, outline: !!saved?.plan });
       void qc.invalidateQueries({ queryKey: queryKeys.lecture(lectureId) });
-    } finally {
-      setRetrying(false);
-    }
-  }
+    },
+  });
 
   return (
     <div className="mx-auto max-w-xl">
@@ -106,10 +103,11 @@ export function BuildPage() {
             {FAILURE_TEXT[failed] ?? 'The lecture could not be finished. You can try again; finished parts are kept.'}
           </p>
           {failed !== 'BUDGET_EXHAUSTED' && (
-            <Button variant="secondary" onClick={() => void retry()} disabled={retrying}>
+            <Button variant="secondary" onClick={() => retry.mutate()} disabled={retry.isPending}>
               Try again
             </Button>
           )}
+          <ErrorText error={retry.error} fallback="The lecture could not be restarted. Try again." />
         </div>
       )}
       <div className="mt-8">

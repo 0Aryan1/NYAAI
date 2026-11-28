@@ -26,6 +26,7 @@ import {
   type Filter,
 } from './review';
 import { formatDate } from '@/shared/lib/format';
+import { ErrorText } from '@/shared/ui/error-text';
 import { UploadJudgment } from './UploadJudgment';
 
 /** The three checks that move a judgment to "Done", each with a jump to where it is done. */
@@ -118,6 +119,11 @@ export function LibraryReviewPage() {
       refresh();
     },
   });
+  // Opening another judgment clears the last one's failed save: it was about that judgment, not this one.
+  const select = (id: string | null) => {
+    for (const m of [setRole, checked, approve, sameCase]) m.reset();
+    setSelected(id);
+  };
   const j = detail.data;
   const cites = citationsOf(j?.citation ?? null);
   const counts = reviewCounts(all);
@@ -149,7 +155,7 @@ export function LibraryReviewPage() {
           value={filter}
           onChange={(f) => {
             setFilter(f);
-            setSelected(null);
+            select(null);
           }}
           className="px-2"
           options={[
@@ -181,7 +187,7 @@ export function LibraryReviewPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelected(x.id);
+                  select(x.id);
                   setAdding(false);
                   setAllCitations(false);
                 }}
@@ -221,7 +227,7 @@ export function LibraryReviewPage() {
           <UploadJudgment
             judgments={all}
             onDone={(id) => {
-              setSelected(id);
+              select(id);
               setAdding(false);
               setFilter('all');
             }}
@@ -315,7 +321,7 @@ export function LibraryReviewPage() {
                     type="button"
                     className="font-medium text-accent hover:underline"
                     onClick={() => {
-                      setSelected(j.maybeSameAs!.id);
+                      select(j.maybeSameAs!.id);
                       setFilter('all');
                     }}
                   >
@@ -337,6 +343,10 @@ export function LibraryReviewPage() {
               </section>
             )}
 
+            <ErrorText
+              error={setRole.error ?? checked.error ?? approve.error ?? sameCase.error}
+              fallback="That was not saved. Try again."
+            />
             <Checklist steps={checklistSteps(j)} />
 
             <div id="step-status" className="scroll-mt-6">

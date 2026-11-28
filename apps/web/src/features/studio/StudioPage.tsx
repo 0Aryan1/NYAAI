@@ -30,6 +30,7 @@ import { CHECKING } from './ClaimLine';
 import { useSlideEditor } from './useSlideEditor';
 import { DownloadDialog } from './DownloadDialog';
 import { openPoints } from './slides';
+import { ErrorText } from '@/shared/ui/error-text';
 import { ReportDialog } from './ReportDialog';
 
 type Panel = 'source' | 'coverage';
@@ -158,6 +159,18 @@ export function StudioPage() {
       </header>
 
       {lec.mayNeedUpdate && <MayNeedUpdate lectureId={id} note={lec.mayNeedUpdate} />}
+      {reportsQ.isError && (
+        // Without this she would think the library team had not answered her reports yet.
+        <p
+          role="alert"
+          className="flex shrink-0 items-center gap-3 border-b border-border px-6 py-2 text-sm text-muted"
+        >
+          The answers to your wrong-fact reports could not be loaded.
+          <Button size="sm" variant="ghost" onClick={() => void reportsQ.refetch()}>
+            Try again
+          </Button>
+        </p>
+      )}
 
       <div
         className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-bg px-6 py-2 text-sm"
@@ -453,6 +466,7 @@ function MayNeedUpdate({ lectureId, note }: { lectureId: string; note: NonNullab
       <Button size="sm" variant="ghost" disabled={clear.isPending} onClick={() => clear.mutate()}>
         It’s still right
       </Button>
+      <ErrorText error={clear.error} fallback="Not saved. Try again." className="basis-full" />
     </div>
   );
 }

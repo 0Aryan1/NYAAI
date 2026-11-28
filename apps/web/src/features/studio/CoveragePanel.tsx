@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
-import { errorText } from '@/shared/lib/errors';
+import { ErrorText } from '@/shared/ui/error-text';
+import { LoadError } from '@/shared/ui/states';
 
 /**
  * Coverage panel (LLD §8.5, §12.4): missing provisos, exceptions, explanations, clauses and leading cases grouped per
@@ -34,7 +35,11 @@ export function CoveragePanel({
   const busy = leave.isPending || add.isPending;
   const d = q.data;
   if (!d)
-    return <p className="text-sm text-muted">{q.isError ? 'Coverage could not be loaded.' : 'Loading coverage…'}</p>;
+    return q.isError ? (
+      <LoadError what="Coverage" onRetry={() => void q.refetch()} />
+    ) : (
+      <p className="text-sm text-muted">Loading coverage…</p>
+    );
   const missingGroups = d.groups.filter((g) => g.missing > 0);
 
   return (
@@ -45,7 +50,7 @@ export function CoveragePanel({
             ? 'Nothing in the cited sections needs a separate mention.'
             : `${d.covered} of ${d.counted} provisos, exceptions, explanations, clauses and leading cases of what you teach ${d.counted === 1 ? 'is' : 'are'} covered.`}
         </p>
-        {add.error && <p className="mt-1 text-danger">{errorText(add.error, 'That could not be added. Try again.')}</p>}
+        <ErrorText className="mt-1" error={add.error ?? leave.error} fallback="That was not saved. Try again." />
       </div>
 
       {missingGroups.length > 0 && (

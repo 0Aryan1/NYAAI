@@ -6,7 +6,7 @@ import { BuildPage } from '@/features/build/BuildPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { SetupWizard } from '@/features/setup/SetupWizard';
 import { AppShell } from './AppShell';
-import { RouteError } from './RouteError';
+import { AppLoading, RouteError } from './RouteError';
 import { queryClient } from './queryClient';
 
 const stepPath = (index1: number) => `/setup/${SETUP_STEPS[Math.max(0, Math.min(SETUP_STEPS.length, index1) - 1)]}`;
@@ -60,71 +60,93 @@ async function loginLoader() {
 
 /** Data-mode router (LLD §11.1). Each feature adds its routes, loaders and lazy chunks as it lands. */
 export const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage />, loader: loginLoader, errorElement: <RouteError /> },
-  { path: '/setup/:step', element: <SetupWizard />, loader: setupLoader, errorElement: <RouteError /> },
+  {
+    path: '/login',
+    element: <LoginPage />,
+    loader: loginLoader,
+    errorElement: <RouteError />,
+    hydrateFallbackElement: <AppLoading />,
+  },
+  {
+    path: '/setup/:step',
+    element: <SetupWizard />,
+    loader: setupLoader,
+    errorElement: <RouteError />,
+    hydrateFallbackElement: <AppLoading />,
+  },
   {
     path: '/',
     element: <AppShell />,
     loader: signedInLoader,
+    // The frame's own loader failing (e.g. no connection on first load) has no frame to show in: a whole-page error.
     errorElement: <RouteError />,
+    hydrateFallbackElement: <AppLoading />,
     children: [
-      { index: true, element: <HomePage /> },
-      { path: 'build/:lectureId', element: <BuildPage /> },
-      // The Studio is the heaviest screen: its own chunk, loaded on demand (LLD §11.1).
       {
-        path: 'library/gaps',
-        lazy: async () => ({ Component: (await import('@/features/library/GapsPage')).GapsPage }),
-      },
-      {
-        path: 'library/mappings',
-        lazy: async () => ({ Component: (await import('@/features/library/MappingsPage')).MappingsPage }),
-      },
-      {
-        path: 'library/topics',
-        lazy: async () => ({ Component: (await import('@/features/library/TopicsReviewPage')).TopicsReviewPage }),
-      },
-      {
-        path: 'library/reports',
-        lazy: async () => ({ Component: (await import('@/features/library/ReportsQueuePage')).ReportsQueuePage }),
-      },
-      {
-        path: 'library',
-        lazy: async () => ({ Component: (await import('@/features/library/LibraryReviewPage')).LibraryReviewPage }),
-      },
-      {
-        path: 'account/data',
-        lazy: async () => ({ Component: (await import('@/features/account/AccountDataPage')).AccountDataPage }),
-      },
-      {
-        path: 'research',
-        lazy: async () => ({ Component: (await import('@/features/research/ResearchPage')).ResearchPage }),
-      },
-      {
-        path: 'research/:runId',
-        lazy: async () => ({ Component: (await import('@/features/research/ResearchRunPage')).ResearchRunPage }),
-      },
-      {
-        path: 'explore',
-        lazy: async () => ({ Component: (await import('@/features/explore/ExplorePage')).ExplorePage }),
-      },
-      {
-        path: 'explore/:conceptId',
-        lazy: async () => ({ Component: (await import('@/features/explore/TopicPage')).TopicPage }),
-      },
-      { path: 'notes', lazy: async () => ({ Component: (await import('@/features/notes/NotesPage')).NotesPage }) },
-      {
-        path: 'courses',
-        lazy: async () => ({ Component: (await import('@/features/courses/CourseList')).CourseListPage }),
-      },
-      {
-        path: 'courses/:id',
-        lazy: async () => ({ Component: (await import('@/features/courses/CoursePlan')).CoursePlanPage }),
-      },
-      {
-        path: 'lectures/:id',
-        lazy: async () => ({ Component: (await import('@/features/studio/StudioPage')).StudioPage }),
+        // Every page's error (a crash, a failed load, a screen that could not be fetched) shows inside the frame, so
+        // the menu stays and she can go elsewhere.
+        errorElement: <RouteError />,
+        children: [
+          { index: true, element: <HomePage /> },
+          { path: 'build/:lectureId', element: <BuildPage /> },
+          // The Studio is the heaviest screen: its own chunk, loaded on demand (LLD §11.1).
+          {
+            path: 'library/gaps',
+            lazy: async () => ({ Component: (await import('@/features/library/GapsPage')).GapsPage }),
+          },
+          {
+            path: 'library/mappings',
+            lazy: async () => ({ Component: (await import('@/features/library/MappingsPage')).MappingsPage }),
+          },
+          {
+            path: 'library/topics',
+            lazy: async () => ({ Component: (await import('@/features/library/TopicsReviewPage')).TopicsReviewPage }),
+          },
+          {
+            path: 'library/reports',
+            lazy: async () => ({ Component: (await import('@/features/library/ReportsQueuePage')).ReportsQueuePage }),
+          },
+          {
+            path: 'library',
+            lazy: async () => ({ Component: (await import('@/features/library/LibraryReviewPage')).LibraryReviewPage }),
+          },
+          {
+            path: 'account/data',
+            lazy: async () => ({ Component: (await import('@/features/account/AccountDataPage')).AccountDataPage }),
+          },
+          {
+            path: 'research',
+            lazy: async () => ({ Component: (await import('@/features/research/ResearchPage')).ResearchPage }),
+          },
+          {
+            path: 'research/:runId',
+            lazy: async () => ({ Component: (await import('@/features/research/ResearchRunPage')).ResearchRunPage }),
+          },
+          {
+            path: 'explore',
+            lazy: async () => ({ Component: (await import('@/features/explore/ExplorePage')).ExplorePage }),
+          },
+          {
+            path: 'explore/:conceptId',
+            lazy: async () => ({ Component: (await import('@/features/explore/TopicPage')).TopicPage }),
+          },
+          { path: 'notes', lazy: async () => ({ Component: (await import('@/features/notes/NotesPage')).NotesPage }) },
+          {
+            path: 'courses',
+            lazy: async () => ({ Component: (await import('@/features/courses/CourseList')).CourseListPage }),
+          },
+          {
+            path: 'courses/:id',
+            lazy: async () => ({ Component: (await import('@/features/courses/CoursePlan')).CoursePlanPage }),
+          },
+          {
+            path: 'lectures/:id',
+            lazy: async () => ({ Component: (await import('@/features/studio/StudioPage')).StudioPage }),
+          },
+          // An unknown address, signed in: "Page not found" inside the frame.
+          { path: '*', element: <RouteError notFound /> },
+        ],
       },
     ],
   },
-  { path: '*', element: <RouteError notFound /> },
 ]);

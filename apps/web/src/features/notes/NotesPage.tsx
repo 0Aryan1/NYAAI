@@ -7,6 +7,7 @@ import { ConfirmInline } from '@/shared/ui/confirm-inline';
 import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
 import { PageHeader } from '@/shared/ui/page';
 import { formatDate } from '@/shared/lib/format';
+import { ErrorText } from '@/shared/ui/error-text';
 import { NoteStatus, UploadNoteButton, useNotes } from './notes-ui';
 
 /**
@@ -72,6 +73,9 @@ export function NotesPage() {
                 </Button>
               )}
             </div>
+            {remove.variables === n.id && (
+              <ErrorText className="mt-2" error={remove.error} fallback="The note was not removed. Try again." />
+            )}
           </li>
         ))}
       </ul>
