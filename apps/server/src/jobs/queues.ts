@@ -89,7 +89,6 @@ export const LEARN_JOB_OPTIONS: JobsOptions = {
   removeOnComplete: 500,
   removeOnFail: 500,
 };
-export const LEARN_TIMEOUT_MS = 3 * 60 * 1000;
 
 /** LLD §5: 2 retries; a retry resumes after the plan and finished parts. 8 minutes per lecture. */
 export const BUILD_JOB_OPTIONS: JobsOptions = {
@@ -98,7 +97,6 @@ export const BUILD_JOB_OPTIONS: JobsOptions = {
   removeOnComplete: 500,
   removeOnFail: 500,
 };
-export const BUILD_TIMEOUT_MS = 8 * 60 * 1000;
 
 /** research.run: one quick Research run (ids only). LLD §5: 4 minutes quick; 2 attempts; resumes after the plan. */
 export interface ResearchJobData {
@@ -112,7 +110,6 @@ export const RESEARCH_JOB_OPTIONS: JobsOptions = {
   removeOnComplete: 500,
   removeOnFail: 500,
 };
-export const RESEARCH_TIMEOUT_MS = 4 * 60 * 1000;
 
 /** LLD §5: 3 retries with backoff 30 s → 2 min → 8 min; 10-minute timeout is enforced in the processor. */
 const INGEST_BACKOFF_MS = [30_000, 120_000, 480_000] as const;
@@ -124,4 +121,3 @@ export const INGEST_JOB_OPTIONS: JobsOptions = {
 };
 export const ingestBackoff = (attemptsMade: number) =>
   INGEST_BACKOFF_MS[Math.min(attemptsMade, INGEST_BACKOFF_MS.length) - 1] ?? 480_000;
-export const INGEST_TIMEOUT_MS = 10 * 60 * 1000;

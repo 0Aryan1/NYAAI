@@ -37,7 +37,11 @@ export default tseslint.config(
     rules: { 'react-hooks/rules-of-hooks': 'error', 'react-hooks/exhaustive-deps': 'error' },
   },
   {
-    files: ['apps/server/src/services/llm-gateway/**', 'apps/server/test/gateway.test.ts'],
+    files: [
+      'apps/server/src/services/llm-gateway/**',
+      'apps/server/test/gateway.test.ts',
+      'apps/server/test/deadline.test.ts',
+    ],
     rules: { 'no-restricted-imports': ['error', { patterns: ONE_DOOR.patterns }] },
   },
   {

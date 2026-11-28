@@ -28,6 +28,7 @@ import { onlyAttached, researchLecture, type LectureResearch } from './research.
 import { attachedNotes as notesFor } from '../ingest/note.ts';
 import { finaliseLecture, savePart, type FinalCounts } from './save.ts';
 import { isExhausted, monthlyBudget } from '../budget/index.ts';
+import { checkDeadline } from '../../jobs/deadline.ts';
 
 export interface BuildDeps {
   /** nyaai_worker pool; every query runs under the teacher's identity. */
@@ -39,6 +40,8 @@ export interface BuildDeps {
   minScore: number;
   /** Parts written at the same time (LLD §5: 6 parts per worker across builds). */
   partConcurrency?: number;
+  /** The job's time limit: each stage and each part checks it before starting (finished parts stay saved). */
+  signal?: AbortSignal;
 }
 
 export interface BuildJob {
@@ -191,6 +194,7 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
   const memoryBlock = course ? fence('COURSE MEMORY', courseMemoryText(course), memoryBoundary) : null;
 
   // Plan (kept across retries).
+  checkDeadline(deps.signal);
   await emit({ type: 'build.step', lectureId: job.lectureId, step: 'planning' });
   let plan = row.plan;
   if (!plan) {
@@ -247,6 +251,7 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
     return { voyage: deps.voyageFor(tagged), gateway: deps.gateway, usage: tagged, minScore: deps.minScore };
   };
   // Research (kept across retries): one set of notes for the whole class, gaps filled before anyone writes.
+  checkDeadline(deps.signal);
   await emit({ type: 'build.step', lectureId: job.lectureId, step: 'research' });
   let research = row.research;
   if (!research) {
@@ -282,6 +287,7 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
   const notes = research;
 
   const todo = plan.parts.map((p, i) => ({ p, i })).filter(({ i }) => !row.parts_done.includes(i));
+  checkDeadline(deps.signal);
   await emit({ type: 'build.step', lectureId: job.lectureId, step: 'writing', partsTotal: plan.parts.length });
   const outputs: PartOutput[] = [];
   await pool(todo, deps.partConcurrency ?? 3, async ({ p, i }) => {
@@ -294,7 +300,9 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
         .map((m) => ({ label: m.label, act: m.act!, number: m.number! })),
       elsewhere: notes.elsewhere[String(i)] ?? [],
     };
+    checkDeadline(deps.signal);
     const out = await runPart(i, p, ctx, { tenant, gateway: deps.gateway, usage, traceId }, brief);
+    checkDeadline(deps.signal); // a part finished after the time was up is not saved half-way through the stop
     await tenant(async (c) => {
       await savePart(c, job.lectureId, { ownerId: job.ownerId, collegeId: job.collegeId }, out);
       await c.query(
@@ -315,6 +323,7 @@ export async function buildLecture(job: BuildJob, deps: BuildDeps): Promise<Fina
   });
 
   // Finalise: coverage and counts across all parts.
+  checkDeadline(deps.signal);
   await emit({ type: 'build.step', lectureId: job.lectureId, step: 'checking' });
   const finalPlan = await tenant(
     async (c) =>

@@ -43,6 +43,7 @@ import type { UsageSink } from '../usage.ts';
 import { partQuery, sourceLabel } from './part.ts';
 import { pool } from './pool.ts';
 import { STOP_WORDS } from '@nyaai/legal';
+import { skipOptionalStep } from '../../jobs/deadline.ts';
 
 /** Sources per part: S1…S8, as the writer prompt expects. */
 export const MAX_SOURCES = 8;
@@ -207,8 +208,9 @@ export async function researchLecture(input: ResearchInput, deps: ResearchDeps):
           deps.usage,
         )
       ).data.questions;
-    } catch {
-      break; // the gap check helps; it never blocks the build
+    } catch (err) {
+      skipOptionalStep('The research gap check', err); // it helps; it never blocks the build
+      break;
     }
     const fresh = asked.filter(
       (q) => q.part >= 1 && q.part <= plan.parts.length && !gaps.some((g) => sameQuestion(g.question, q.question)),

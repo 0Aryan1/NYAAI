@@ -26,7 +26,8 @@ async function syllabusBlocks(bytes: Uint8Array, kind: string): Promise<NoteBloc
         throw new NoteReadError(
           'This PDF is a scan with no text in it. Upload a Word copy or a typed PDF, or paste the topics.',
         );
-      throw err;
+      // A damaged or locked PDF: her file, not our fault, and she can still paste the topics.
+      throw new NoteReadError('We could not read this PDF. Upload a Word copy, or paste the topics instead.');
     }
   }
   return syllabusLines(new TextDecoder().decode(bytes));

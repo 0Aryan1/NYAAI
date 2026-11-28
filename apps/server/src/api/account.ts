@@ -13,6 +13,7 @@ import { SESSION_COOKIE } from '../auth/session.ts';
 import type { OpsJobData } from '../jobs/queues.ts';
 import { assertOwnEmail, exportTeacherData } from '../services/account/index.ts';
 import type { Storage } from '../services/storage/index.ts';
+import { enqueueOrUndo } from '../jobs/enqueue.ts';
 
 export function accountRouter(opsQueue: Queue<OpsJobData> | undefined, storage: Storage | undefined) {
   const r = express.Router();
@@ -33,16 +34,22 @@ export function accountRouter(opsQueue: Queue<OpsJobData> | undefined, storage: 
     const body = DeleteMyData.parse(req.body);
     const who = req.identity!;
     await req.db!((c) => assertOwnEmail(c, body.confirmEmail));
-    const job = await opsQueue.add(
-      'ops.delete_user_data',
-      { userId: who.userId, collegeId: who.collegeId },
-      {
-        jobId: `ops.delete_user_data-${who.userId}`,
-        attempts: 5,
-        backoff: { type: 'exponential', delay: 30_000 },
-        removeOnComplete: 100,
-        removeOnFail: 100,
-      },
+    const job = await enqueueOrUndo(
+      () =>
+        opsQueue.add(
+          'ops.delete_user_data',
+          { userId: who.userId, collegeId: who.collegeId },
+          {
+            jobId: `ops.delete_user_data-${who.userId}`,
+            attempts: 5,
+            backoff: { type: 'exponential', delay: 30_000 },
+            removeOnComplete: 100,
+            removeOnFail: 100,
+          },
+        ),
+      async () => {}, // nothing was changed yet: she stays signed in and can try again
+      'Deleting your data is not available right now. Nothing was deleted; try again in a minute.',
+      req.log,
     );
     res.clearCookie(SESSION_COOKIE, { path: '/' });
     res.clearCookie(CSRF_COOKIE, { path: '/' });

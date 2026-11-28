@@ -38,6 +38,7 @@ import { usageSink, type UsageSink } from '../usage.ts';
 import type { Voyage } from '../voyage/index.ts';
 import { isExhausted, monthlyBudget } from '../budget/index.ts';
 import { pageOf, pageSql, type Page } from '../../lib/page.ts';
+import { checkDeadline } from '../../jobs/deadline.ts';
 
 export const MAX_EVIDENCE = 8;
 const PER_SUB_QUESTION = 4;
@@ -66,6 +67,8 @@ export interface ResearchDeps {
   lookup: GapLookup | null;
   minScore: number;
   concurrency?: number;
+  /** The job's time limit: each stage checks it before starting (sub-questions already planned are kept). */
+  signal?: AbortSignal;
 }
 
 const LAW_STATUS: Record<string, string> = {
@@ -148,6 +151,7 @@ export async function runResearch(
   const scope = run.scope;
 
   // 1. Plan (kept across retries).
+  checkDeadline(deps.signal);
   await status('planning');
   let subs = await tenant(
     async (c) =>
@@ -188,6 +192,7 @@ export async function runResearch(
   }
 
   // 2. Gather, a few sub-questions at a time.
+  checkDeadline(deps.signal);
   await status('gathering');
   const searchDeps = (c: pg.PoolClient): SearchDeps => {
     const u = usageSink(c, { collegeId: job.collegeId, ownerId: job.ownerId });
@@ -238,6 +243,7 @@ export async function runResearch(
   const { sources, labels } = await checkSourcesFor(tenant, evidence);
 
   // 4. Write, from the evidence only.
+  checkDeadline(deps.signal);
   await status('writing');
   const boundary = randomBytes(6).toString('hex');
   const task = [
@@ -259,6 +265,7 @@ export async function runResearch(
   ).data;
 
   // 5. Check every line.
+  checkDeadline(deps.signal);
   await status('checking');
   const deps2 = { gateway: deps.gateway, usage };
   const shortAnswer = await checkLines(reply.shortAnswer, sources, labels, deps2);

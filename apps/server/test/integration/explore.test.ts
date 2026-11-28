@@ -18,8 +18,8 @@ import { createApp } from '../../src/app.ts';
 import { parseConfig } from '../../src/config.ts';
 import { createFakeGateway } from '../../src/services/llm-gateway/fake.ts';
 import type { Gateway, GatewayRequest } from '../../src/services/llm-gateway/index.ts';
-import { toVector } from '../../src/services/voyage/index.ts';
 import { csrfFrom, fakeVector, fakeVoyage } from '../helpers.ts';
+import { toVector, VoyageError, type Voyage } from '../../src/services/voyage/index.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 try {
@@ -174,7 +174,7 @@ describe.skipIf(!up)('Explore (integration)', () => {
     await Promise.all([owner.end(), app.end(), redis.quit()]);
   });
 
-  const http = () =>
+  const http = (voyage: () => Voyage = () => fakeVoyage) =>
     createApp({
       config: parseConfig({
         DATABASE_URL: process.env.DATABASE_URL,
@@ -192,7 +192,7 @@ describe.skipIf(!up)('Explore (integration)', () => {
       logger: pino({ level: 'silent' }),
       pool: app,
       redis,
-      search: { voyage: () => fakeVoyage, gateway, minScore: 0.3 },
+      search: { voyage, gateway, minScore: 0.3 },
     });
   let agent: ReturnType<typeof request.agent>;
   let csrf = '';
@@ -293,6 +293,28 @@ describe.skipIf(!up)('Explore (integration)', () => {
       (await owner.query('select count(*)::int n from library_gaps where question ilike $1', [`%${w} quokka%`])).rows[0]
         .n,
     ).toBe(1);
+  });
+
+  it('when the search service is down, she is told to try again (503), not shown a crash', async () => {
+    const down: Voyage = {
+      embed: async () => Promise.reject(new VoyageError('Voyage 503: overloaded', 503)),
+      rerank: async () => Promise.reject(new VoyageError('Voyage 503: overloaded', 503)),
+    };
+    const a = request.agent(http(() => down));
+    const login = await a
+      .post('/api/v1/auth/dev-login')
+      .set('x-forwarded-for', `10.89.${tag.charCodeAt(0)}.7`)
+      .send({ email: `t-${tag}@ex.test` })
+      .expect(204);
+    const r = await a
+      .post('/api/v1/explore/ask')
+      .set('x-csrf-token', csrfFrom(login))
+      .send({ question: `When may a pelican ${w} nest in a harbour?` })
+      .expect(503);
+    expect(r.body.error).toMatchObject({
+      code: 'SERVICE_UNAVAILABLE',
+      message: 'The search service is not available right now. Try again in a little while.',
+    });
   });
 
   it('nothing is sent out without her consent', async () => {

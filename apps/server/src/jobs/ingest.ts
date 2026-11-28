@@ -17,7 +17,10 @@ import type { WebSearch } from '../services/web-search/index.ts';
 import { createGapLookup } from '../services/lookup/index.ts';
 import { ingestUpload } from '../services/ingest/note.ts';
 import { findCourseSources } from '../services/course/sources.ts';
-import { INGEST_TIMEOUT_MS, type IngestJobData } from './queues.ts';
+import type { IngestJobData } from './queues.ts';
+import { JobTimeoutError, withDeadline } from './deadline.ts';
+import { withSignal } from '../services/llm-gateway/index.ts';
+import { withTenant } from '@nyaai/db';
 import { startJobLog } from './log.ts';
 
 export interface IngestProcessorDeps {
@@ -38,6 +41,17 @@ export interface IngestProcessorDeps {
   voyageFor?: (usage: UsageSink) => Voyage;
   /** Relevance floor for searches made for a teacher (the syllabus source check). */
   minScore?: number;
+  /** The job's time limit (ms); lookups inside it stop a little earlier, so their results are saved in time. */
+  timeoutMs: number;
+}
+
+/** A plain code for jobs_log: the time limit, an error that names its own code, or the error's kind. */
+export function ingestErrorCode(err: unknown): string {
+  if (err instanceof JobTimeoutError) return err.code;
+  const code = (err as { code?: unknown })?.code;
+  if (typeof code === 'string' && /^[A-Z_]{3,40}$/.test(code)) return code;
+  const name = (err as Error)?.name;
+  return name && name !== 'Error' ? name : 'INGEST_FAILED';
 }
 
 const JOBS = new Set([
@@ -72,16 +86,16 @@ export function ingestProcessor(deps: IngestProcessorDeps) {
     const progress = async (stage: string) => {
       if (requestedBy) await publishEvent(deps.publisher, requestedBy, { type: 'ingest.progress', sourceId, stage });
     };
-    const finishDeps = {
-      library,
-      voyage: deps.voyage,
-      gateway: deps.gateway,
-      usage: deps.usage,
-      embedModel: deps.embedModel,
-      progress,
-    };
-
-    const work = async () => {
+    const INGEST_TIMEOUT_MS = deps.timeoutMs;
+    const work = async (signal: AbortSignal) => {
+      const finishDeps = {
+        library,
+        voyage: deps.voyage,
+        gateway: deps.gateway ? withSignal(deps.gateway, signal) : null,
+        usage: deps.usage,
+        embedModel: deps.embedModel,
+        progress,
+      };
       if (job.name === 'ingest.upload') {
         if (!uploadId || !ownerId || !collegeId || !deps.worker || !deps.voyageFor)
           throw new Error('ingest.upload needs the upload, its owner and the worker pool');
@@ -155,8 +169,7 @@ export function ingestProcessor(deps: IngestProcessorDeps) {
         } catch (err) {
           // A new upload that could not be read leaves nothing behind; a replacement leaves the judgment as it was.
           if (!replace) await library.query("delete from sources where id = $1 and status = 'processing'", [sourceId]);
-          await progress('failed');
-          throw err;
+          throw err; // the job's own failure handling tells her (once)
         }
       }
       if (job.name === 'ingest.kanoon') {
@@ -174,23 +187,27 @@ export function ingestProcessor(deps: IngestProcessorDeps) {
       return { ...split, ...(await finishSource(sourceId, finishDeps)) };
     };
 
-    let timer: NodeJS.Timeout | undefined;
     try {
-      const result = await Promise.race([
-        work(),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error('ingestion took longer than 10 minutes')), INGEST_TIMEOUT_MS);
-        }),
-      ]);
+      const result = await withDeadline(deps.timeoutMs, 'INGEST_TIMEOUT', work);
       await log.completed();
       logger.info({ job: job.name, sourceId, tid, result }, 'ingestion finished');
       return result;
     } catch (err) {
-      await log.failed((err as Error).name);
+      await log.failed(ingestErrorCode(err));
       await progress('failed');
+      // A syllabus check that will not run again: its lectures say "not checked" instead of "waiting" for ever
+      // (they are checked when she prepares each one).
+      const final = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
+      if (final && job.name === 'ingest.syllabus' && courseId && ownerId && collegeId && deps.worker) {
+        await withTenant(deps.worker, { userId: ownerId, collegeId, role: 'teacher' }, (c) =>
+          c.query(
+            `update course_units set sources = jsonb_set(sources, '{state}', '"not_checked"')
+              where course_id = $1 and sources->>'state' = 'waiting'`,
+            [courseId],
+          ),
+        ).catch((e: unknown) => logger.error({ err: e, courseId }, 'could not mark the syllabus lectures not checked'));
+      }
       throw err;
-    } finally {
-      clearTimeout(timer);
     }
   };
 }

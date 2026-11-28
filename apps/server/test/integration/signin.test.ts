@@ -162,6 +162,19 @@ describe.skipIf(!up)('sign-in, CSRF and setup (integration)', () => {
       .expect(403);
   });
 
+  it('signing out needs the CSRF token while signed in; a signed-out browser just has its cookies cleared', async () => {
+    const a = request.agent(app);
+    const csrf = cookieValue(
+      await a.post('/api/v1/auth/dev-login').set('x-forwarded-for', '10.77.0.9').send({ email: emailA }).expect(204),
+      'nyaai_csrf',
+    )!;
+    await a.post('/api/v1/auth/logout').expect(403); // another site cannot sign her out
+    await a.get('/api/v1/me').expect(200); // still signed in
+    await a.post('/api/v1/auth/logout').set('x-csrf-token', csrf).expect(204);
+    await a.get('/api/v1/me').expect(401);
+    await request(app).post('/api/v1/auth/logout').expect(204); // no session: nothing to protect
+  });
+
   it('has no dev login outside development', async () => {
     const config = parseConfig({
       ...base,

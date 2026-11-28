@@ -43,6 +43,7 @@ import {
   prepareLecture,
   undoTaught,
 } from '../services/lectures/index.ts';
+import { enqueueOrUndo } from '../jobs/enqueue.ts';
 
 const Id = z.uuid();
 
@@ -54,10 +55,22 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
     const body = PrepareLecture.parse(req.body);
     const who = req.identity!;
     const lectureId = await req.db!((c) => prepareLecture(c, who, body));
-    const job = await buildQueue.add(
-      'build.lecture',
-      { lectureId, ownerId: who.userId, collegeId: who.collegeId },
-      { ...BUILD_JOB_OPTIONS, jobId: `build.lecture-${lectureId}` },
+    const job = await enqueueOrUndo(
+      () =>
+        buildQueue.add(
+          'build.lecture',
+          { lectureId, ownerId: who.userId, collegeId: who.collegeId },
+          { ...BUILD_JOB_OPTIONS, jobId: `build.lecture-${lectureId}` },
+        ),
+      () =>
+        req.db!((c) =>
+          c.query(
+            "update lectures set status = 'failed', error_code = 'SERVICE_UNAVAILABLE' where id = $1 and status = 'building'",
+            [lectureId],
+          ),
+        ),
+      'Preparing lectures is not available right now. Your lecture is saved: open it and try again in a minute.',
+      req.log,
     );
     res.status(202).json(PrepareResponse.parse({ lectureId, jobId: job.id }));
   });
@@ -67,10 +80,22 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
     const id = Id.parse(req.params.id);
     const who = req.identity!;
     await req.db!((c) => markForRetry(c, id));
-    const job = await buildQueue.add(
-      'build.lecture',
-      { lectureId: id, ownerId: who.userId, collegeId: who.collegeId },
-      { ...BUILD_JOB_OPTIONS, jobId: `build.lecture-${id}-${Date.now()}` },
+    const job = await enqueueOrUndo(
+      () =>
+        buildQueue.add(
+          'build.lecture',
+          { lectureId: id, ownerId: who.userId, collegeId: who.collegeId },
+          { ...BUILD_JOB_OPTIONS, jobId: `build.lecture-${id}-${Date.now()}` },
+        ),
+      () =>
+        req.db!((c) =>
+          c.query(
+            "update lectures set status = 'failed', error_code = 'SERVICE_UNAVAILABLE' where id = $1 and status = 'building'",
+            [id],
+          ),
+        ),
+      'Preparing lectures is not available right now. Your lecture is saved: open it and try again in a minute.',
+      req.log,
     );
     res.status(202).json(PrepareResponse.parse({ lectureId: id, jobId: job.id }));
   });
@@ -89,12 +114,18 @@ export function lecturesRouter(buildQueue: Queue<BuildJobData> | undefined, lear
     const unitId = await req.db!((c) => markTaught(c, who, id, body.taughtOn));
     let memoryJob: string | null = null;
     if (unitId && learnQueue) {
-      const job = await learnQueue.add(
-        'learn.summary',
-        { lectureId: id, ownerId: who.userId, collegeId: who.collegeId },
-        { ...LEARN_JOB_OPTIONS, jobId: `learn.summary-${id}-${Date.now()}` },
-      );
-      memoryJob = job.id ?? null;
+      // "Taught" is saved either way; if the class-memory job cannot be queued, it is logged (the next lecture then
+      // opens without a recap of this one) rather than turning her click into an error.
+      try {
+        const job = await learnQueue.add(
+          'learn.summary',
+          { lectureId: id, ownerId: who.userId, collegeId: who.collegeId },
+          { ...LEARN_JOB_OPTIONS, jobId: `learn.summary-${id}-${Date.now()}` },
+        );
+        memoryJob = job.id ?? null;
+      } catch (err) {
+        req.log.error({ err, lectureId: id }, 'the class-memory job could not be queued');
+      }
     }
     res.json(MarkTaughtResponse.parse({ unitId, memoryJob }));
   });

@@ -265,3 +265,13 @@ export async function homeCourses(c: pg.PoolClient): Promise<HomeResponse> {
   ).rows;
   return { courses: rows.map((r) => ({ id: r.id, name: r.name, nextUnit: r.next_unit })) };
 }
+
+/** Lectures still waiting for a source check that will not come: "not checked" (each is checked when prepared). */
+export async function markSourcesNotChecked(c: pg.PoolClient, courseId: string): Promise<CourseDetail> {
+  await c.query(
+    `update course_units set sources = jsonb_set(sources, '{state}', '"not_checked"')
+      where course_id = $1 and sources->>'state' = 'waiting'`,
+    [courseId],
+  );
+  return courseDetail(c, courseId);
+}

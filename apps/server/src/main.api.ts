@@ -63,7 +63,11 @@ const server = createApp({
 async function shutdown(signal: string) {
   logger.info({ signal }, 'shutting down');
   server.close();
-  await Promise.allSettled([pool.end(), redis.quit(), ingest.close(), build.close(), learn.close(), check.close()]);
+  await Promise.allSettled([
+    pool.end(),
+    redis.quit(),
+    ...[ingest, build, learn, check, ops, research].map((q) => q.close()),
+  ]);
   process.exit(0);
 }
 process.once('SIGINT', () => void shutdown('SIGINT'));

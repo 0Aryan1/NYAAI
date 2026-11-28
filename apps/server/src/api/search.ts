@@ -49,30 +49,59 @@ export function searchRouter(deps: SearchApiDeps) {
     res.json(ResolveResponse.parse({ conceptId }));
   });
 
+  /**
+   * Live events for this user (LLD §4.4). Everything that can fail (Redis) happens before the 200 goes out, so a
+   * failure still reaches the error middleware as a proper answer. The listener for the browser closing is attached
+   * first, so a tab that leaves during set-up never leaks a Redis connection. Missed events (Last-Event-ID) are read
+   * after subscribing, and an event that arrives twice is sent once.
+   */
   r.get('/events/stream', async (req, res) => {
     const userId = req.identity!.userId;
+    const sub = deps.redis.duplicate();
+    let closed = false;
+    let beat: NodeJS.Timeout | undefined = undefined; // set once the stream is open
+    req.on('close', () => {
+      closed = true;
+      clearInterval(beat);
+      void sub.quit().catch(() => undefined);
+    });
+    sub.on('error', (err) => req.log.warn({ err }, 'event stream: Redis error'));
+
+    let lastSent = Number(req.get('last-event-id') ?? req.query.lastEventId ?? 0) || 0;
+    const queued: { id: number; data: string }[] = [];
+    let open = false;
+    const send = (id: number, data: string) => {
+      if (id <= lastSent) return; // sent already (it was both missed and published)
+      lastSent = id;
+      res.write(`id: ${id}\ndata: ${data}\n\n`);
+    };
+    sub.on('message', (_channel, payload: string) => {
+      let parsed: { id: number; event: unknown };
+      try {
+        parsed = JSON.parse(payload) as { id: number; event: unknown };
+      } catch {
+        req.log.warn('event stream: skipped a message that is not JSON');
+        return;
+      }
+      if (open) send(parsed.id, JSON.stringify(parsed.event));
+      else queued.push({ id: parsed.id, data: JSON.stringify(parsed.event) });
+    });
+
+    await sub.subscribe(channelFor(userId));
+    const missed = lastSent > 0 ? await eventsSince(deps.redis, userId, lastSent) : [];
+    if (closed) return;
+
     res.writeHead(200, {
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache, no-transform',
       connection: 'keep-alive',
       'x-accel-buffering': 'no',
     });
-    const send = (id: number, data: string) => res.write(`id: ${id}\ndata: ${data}\n\n`);
-    const last = Number(req.get('last-event-id') ?? req.query.lastEventId ?? 0);
-    if (last > 0) for (const e of await eventsSince(deps.redis, userId, last)) send(e.id, JSON.stringify(e.event));
+    for (const e of missed) send(e.id, JSON.stringify(e.event));
+    open = true;
+    for (const e of queued.sort((a, b) => a.id - b.id)) send(e.id, e.data);
     res.write(': connected\n\n');
-
-    const sub = deps.redis.duplicate();
-    await sub.subscribe(channelFor(userId));
-    sub.on('message', (_channel, payload: string) => {
-      const { id, event } = JSON.parse(payload) as { id: number; event: unknown };
-      send(id, JSON.stringify(event));
-    });
-    const beat = setInterval(() => res.write(': heartbeat\n\n'), HEARTBEAT_MS);
-    req.on('close', () => {
-      clearInterval(beat);
-      void sub.quit();
-    });
+    beat = setInterval(() => res.write(': heartbeat\n\n'), HEARTBEAT_MS);
   });
 
   r.post('/library/search', requireRole('library_editor', 'admin'), async (req, res) => {

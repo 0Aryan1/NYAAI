@@ -20,6 +20,7 @@ import { CHECK_JOB_OPTIONS, type CheckJobData } from '../jobs/queues.ts';
 import {
   addExample,
   slideVersions,
+  markNotChecked,
   refreshCounts,
   restoreSlide,
   saveSlideEdit,
@@ -42,16 +43,24 @@ export function slidesRouter(checkQueue?: Queue<CheckJobData>) {
     pending: string[] = [],
   ) => {
     const who = req.identity!;
+    let checking = pending.length;
     if (pending.length && checkQueue) {
-      await checkQueue.add(
-        'check.lines',
-        { lectureId, ownerId: who.userId, collegeId: who.collegeId, citationIds: pending },
-        CHECK_JOB_OPTIONS,
-      );
+      try {
+        await checkQueue.add(
+          'check.lines',
+          { lectureId, ownerId: who.userId, collegeId: who.collegeId, citationIds: pending },
+          CHECK_JOB_OPTIONS,
+        );
+      } catch (err) {
+        // Her edit is saved. Without the background check, its lines say so plainly instead of "being checked".
+        req.log.error({ err, lectureId }, 'the line check could not be queued');
+        await req.db!((c) => markNotChecked(c, pending));
+        checking = 0;
+      }
     }
     const slide = (await req.db!((c) => loadStudioSlides(c, lectureId, slideId)))[0];
     if (!slide) throw new AppError('NOT_FOUND', 'We could not find that slide.');
-    res.json(SlideWriteResponse.parse({ slide, checking: pending.length }));
+    res.json(SlideWriteResponse.parse({ slide, checking }));
   };
 
   r.patch('/slides/:id', requireConsent, async (req, res) => {

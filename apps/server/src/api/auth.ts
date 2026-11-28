@@ -10,8 +10,8 @@ import { AuthOptions, DevLoginRequest } from '@nyaai/shared';
 import type { TenantIdentity } from '@nyaai/db';
 import type { Config } from '../config.ts';
 import { AppError } from '../errors.ts';
-import { SESSION_COOKIE, sessionCookieOptions, signSession } from '../auth/session.ts';
-import { CSRF_COOKIE, issueCsrf } from '../auth/csrf.ts';
+import { readSession, SESSION_COOKIE, sessionCookieOptions, signSession } from '../auth/session.ts';
+import { CSRF_COOKIE, csrfValid, issueCsrf } from '../auth/csrf.ts';
 import { FLOW_COOKIE, checkGoogleClaims, type GoogleSignIn } from '../auth/google.ts';
 import { signInLimit } from '../middleware/rate-limit.ts';
 
@@ -118,7 +118,19 @@ export function authRouter({ config, pool, redis, google }: AuthRouterDeps) {
     res.redirect(302, `${config.WEB_ORIGIN}/`);
   });
 
-  r.post('/auth/logout', (_req, res) => {
+  /**
+   * Sign out. While her session is valid, the CSRF token must come with it (another site cannot sign her out); a
+   * session that has already expired or is gone has nothing to protect, so its cookies are simply cleared.
+   */
+  r.post('/auth/logout', async (req, res) => {
+    const token = req.cookies?.[SESSION_COOKIE] as string | undefined;
+    const session = token ? await readSession(token, config.SESSION_SECRET) : null;
+    const cookie = req.cookies?.[CSRF_COOKIE] as string | undefined;
+    if (
+      session &&
+      (!cookie || req.get('x-csrf-token') !== cookie || !csrfValid(cookie, session.userId, config.CSRF_SECRET))
+    )
+      throw new AppError('FORBIDDEN', 'Your page is out of date. Please reload and try again.');
     res.clearCookie(SESSION_COOKIE, { path: '/' });
     res.clearCookie(CSRF_COOKIE, { path: '/' });
     res.status(204).end();

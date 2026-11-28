@@ -18,6 +18,7 @@ import { INGEST_JOB_OPTIONS, type IngestJobData } from '../jobs/queues.ts';
 import type { Storage } from '../services/storage/index.ts';
 import { listNotes, noteStorageKey, recordNote, removeNote } from '../services/notes/index.ts';
 import { pageFrom } from '../lib/page.ts';
+import { enqueueOrUndo } from '../jobs/enqueue.ts';
 
 const Id = z.uuid();
 
@@ -56,10 +57,22 @@ export function notesRouter(ingestQueue: Queue<IngestJobData> | undefined, stora
           replaces: q.replaces,
         }),
       );
-      await ingestQueue.add(
-        'ingest.upload',
-        { uploadId: id, ownerId: who.userId, collegeId: who.collegeId, requestedBy: who.userId },
-        { ...INGEST_JOB_OPTIONS, jobId: `ingest.upload-${id}` },
+      await enqueueOrUndo(
+        () =>
+          ingestQueue.add(
+            'ingest.upload',
+            { uploadId: id, ownerId: who.userId, collegeId: who.collegeId, requestedBy: who.userId },
+            { ...INGEST_JOB_OPTIONS, jobId: `ingest.upload-${id}` },
+          ),
+        () =>
+          req.db!((c) =>
+            c.query("update uploads set status = 'failed', error = $2 where id = $1 and status = 'queued'", [
+              id,
+              'We could not start reading this document. Upload it again.',
+            ]),
+          ),
+        'Uploading is not available right now. Try again in a minute.',
+        req.log,
       );
       res.status(202).json(TeacherNote.parse(note));
     },
@@ -71,11 +84,17 @@ export function notesRouter(ingestQueue: Queue<IngestJobData> | undefined, stora
     await req.db!((c) => removeNote(c, id));
     // The worker takes its text out of search (its private source and chunks are hers to change, as the worker).
     const who = req.identity!;
-    await ingestQueue.add(
-      'ingest.upload',
-      { uploadId: id, ownerId: who.userId, collegeId: who.collegeId, requestedBy: who.userId },
-      { ...INGEST_JOB_OPTIONS, jobId: `ingest.upload-${id}-remove` },
-    );
+    // Removed is removed at once (no lecture can attach it any more). If the clean-up job cannot be queued, the old
+    // text stays in her private index, unreachable; it is logged, and goes when her data is deleted.
+    try {
+      await ingestQueue.add(
+        'ingest.upload',
+        { uploadId: id, ownerId: who.userId, collegeId: who.collegeId, requestedBy: who.userId },
+        { ...INGEST_JOB_OPTIONS, jobId: `ingest.upload-${id}-remove` },
+      );
+    } catch (err) {
+      req.log.error({ err, uploadId: id }, 'the note clean-up job could not be queued');
+    }
     res.status(204).end();
   });
 

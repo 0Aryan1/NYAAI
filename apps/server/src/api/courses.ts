@@ -27,6 +27,7 @@ import {
   archiveCourse,
   courseDetail,
   createCourse,
+  markSourcesNotChecked,
   listCourses,
   updateCourse,
   updateUnits,
@@ -61,11 +62,18 @@ export function coursesRouter(ingestQueue?: Queue<IngestJobData>) {
     const who = req.identity!;
     const out = await req.db!((c) => createCourse(c, who, body, !!ingestQueue));
     if (out.waiting) {
-      await ingestQueue!.add(
-        'ingest.syllabus',
-        { courseId: out.course.id, ownerId: who.userId, collegeId: who.collegeId, requestedBy: who.userId },
-        { ...INGEST_JOB_OPTIONS, attempts: 2, jobId: `ingest.syllabus-${out.course.id}` },
-      );
+      // The course is made either way; if the source check cannot be queued, its lectures say "not checked" (they
+      // are checked when she prepares each one) instead of "waiting" for ever.
+      try {
+        await ingestQueue!.add(
+          'ingest.syllabus',
+          { courseId: out.course.id, ownerId: who.userId, collegeId: who.collegeId, requestedBy: who.userId },
+          { ...INGEST_JOB_OPTIONS, attempts: 2, jobId: `ingest.syllabus-${out.course.id}` },
+        );
+      } catch (err) {
+        req.log.error({ err, courseId: out.course.id }, 'the syllabus source check could not be queued');
+        out.course = await req.db!((c) => markSourcesNotChecked(c, out.course.id));
+      }
     }
     res.status(201).json(CourseDetail.parse(out.course));
   });

@@ -200,10 +200,11 @@ See [BRD §12](specs/BRD.md). Copy items here as they become actionable.
 - [x] Batch 0: tooling (React hook rules, e2e typecheck, Prettier check in lint and CI, one-time reformat)
 - [x] Batch 1: config out of code (.env.example complete and guarded by a test, tunables and provider URLs in config.ts, one pricing table, timezone constant and IST helper, owner-URL loader, dead config removed)
 - [x] Batch 2: server layering (no SQL in route files; 11 new or extended services), one budget / counts / consent / hash / slide-doc / queue-resolve / job-log / text helpers, one /library gate and one signed-in gate (no hand-kept list), every response schema-parsed, cursor pagination on 5 growing lists, docs/api.md, file-local exports trimmed, shared test helpers
-- [ ] Batch 3: server error handling (job timeouts that stop, no rows stuck after a failed queue, job failure records, outside-service errors → 503, logged fallbacks, SSE fixes)
+- [x] Batch 3: server error handling (time limits that really stop the work, as settings; no row stuck after a refused queue; job logs for every job; outside-service errors → 503 "try again"; skipped optional steps warned, never hiding a timeout; event stream set-up fixed; sign-out needs CSRF; damaged syllabus PDFs answered plainly)
 - [ ] Batch 4: web (API client split per domain, query keys and polling rules, logic into hooks and pure modules, reusable ConfirmInline / Dialog / RadioCards / PageHeader / ErrorText / HighlightedPassage / CaseStatusPill / FlaggedLine, format and files helpers, dead code)
 - [ ] Batch 5: web error handling (route error elements, mutation and query error states, no swallowed promises)
 - [ ] Batch 6: naming and folder tidy (docs/conventions.md, renames, service folders, eval README)
 - [ ] Batch 7: documentation (root README, a README per app and package, architecture, api and conventions docs, header comments)
-- [ ] Consent list: add Perplexity (web search gets the teacher's question words for gap leads); needs a new CONSENT_VERSION, which asks every teacher to agree again
+- [x] Consent list names Perplexity (CONSENT_VERSION 2026-11-28): every teacher is asked to agree once more on her next visit (2026-11-28)
 - [ ] Web: "load more" on the paged lists (today the first page of 200 is shown; the judgments tab counts assume the whole list)
+- [ ] When AI credits are back: time 3–4 real builds with the research stage and set BUILD_TIMEOUT_MIN from them (today 8; builds before the research stage took 1.7–2.8 min)

@@ -186,7 +186,7 @@ describe.skipIf(!up)('quick Research (integration)', () => {
     await Promise.all([owner.end(), app.end(), worker.end(), redis.quit()]);
   });
 
-  const http = () =>
+  const http = (research?: unknown) =>
     createApp({
       config: parseConfig({
         DATABASE_URL: process.env.DATABASE_URL,
@@ -205,9 +205,9 @@ describe.skipIf(!up)('quick Research (integration)', () => {
       pool: app,
       redis,
       queues: {
-        research: {
+        research: (research ?? {
           add: async (name: string, data: never) => (jobs.push({ name, data }), { id: `r-${jobs.length}` }),
-        } as never,
+        }) as never,
       },
     });
   const signIn = async (email: string, n: number) => {
@@ -387,5 +387,26 @@ describe.skipIf(!up)('quick Research (integration)', () => {
       (await owner.query('select count(*)::int n from library_gaps where question ilike $1', [`%${w} moonbeam%`]))
         .rows[0].n,
     ).toBeGreaterThan(0);
+  });
+
+  it('when the queue refuses the run, it is "did not finish", not "planning" for ever', async () => {
+    const agent = request.agent(http({ add: async () => Promise.reject(new Error('Redis is down')) }));
+
+    const login = await agent
+      .post('/api/v1/auth/dev-login')
+      .set('x-forwarded-for', `10.88.${tag.charCodeAt(0)}.9`)
+      .send({ email: `t-${tag}@rs.test` })
+      .expect(204);
+    await agent
+      .post('/api/v1/research')
+      .set('x-csrf-token', csrfFrom(login))
+      .send({ question: `Can an otter ${w} refuse the queue?` })
+      .expect(503);
+    const run = (
+      await owner.query('select status, error_code from research_runs where question like $1', [
+        `%${w} refuse the queue%`,
+      ])
+    ).rows[0];
+    expect(run).toMatchObject({ status: 'failed', error_code: 'SERVICE_UNAVAILABLE' });
   });
 });

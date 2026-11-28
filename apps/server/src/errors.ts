@@ -13,3 +13,18 @@ export class AppError extends Error {
     this.status = HTTP_STATUS[code];
   }
 }
+
+/**
+ * An outside service did not answer as it should (Claude, Voyage, Indian Kanoon, file storage). On a request, the
+ * error middleware answers 503 SERVICE_UNAVAILABLE with a plain message ("try again in a little while"), never a 500;
+ * in a job, it counts as an outage and the job is retried. `service` names it in words a teacher understands.
+ */
+export class ExternalServiceError extends Error {
+  constructor(
+    readonly service: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ExternalServiceError';
+  }
+}

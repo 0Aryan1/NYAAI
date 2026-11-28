@@ -183,3 +183,8 @@ export async function registerJudgmentUpload(
     )
   ).rows[0]!.id;
 }
+
+/** Undoes a new judgment upload whose reading could not be started. */
+export async function deleteProcessingSource(c: pg.PoolClient, id: string): Promise<void> {
+  await c.query("delete from sources where id = $1 and status = 'processing'", [id]);
+}

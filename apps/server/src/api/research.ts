@@ -17,6 +17,7 @@ import { todayInIndia } from '../lib/time.ts';
 import { listRuns, loadRun, startRun } from '../services/research/index.ts';
 import { recordProductEvent } from '../services/product-events/index.ts';
 import { pageFrom } from '../lib/page.ts';
+import { enqueueOrUndo } from '../jobs/enqueue.ts';
 
 const Id = z.uuid();
 
@@ -28,10 +29,22 @@ export function researchRouter(queue: Queue<ResearchJobData> | undefined) {
     const body = StartResearch.parse(req.body);
     const who = req.identity!;
     const id = await req.db!((c) => startRun(c, who, body));
-    await queue.add(
-      'research.run',
-      { runId: id, ownerId: who.userId, collegeId: who.collegeId },
-      { ...RESEARCH_JOB_OPTIONS, jobId: `research.run-${id}` },
+    await enqueueOrUndo(
+      () =>
+        queue.add(
+          'research.run',
+          { runId: id, ownerId: who.userId, collegeId: who.collegeId },
+          { ...RESEARCH_JOB_OPTIONS, jobId: `research.run-${id}` },
+        ),
+      () =>
+        req.db!((c) =>
+          c.query(
+            "update research_runs set status = 'failed', error_code = 'SERVICE_UNAVAILABLE' where id = $1 and status = 'planning'",
+            [id],
+          ),
+        ),
+      'Research is not available right now. Try again in a minute.',
+      req.log,
     );
     res.status(202).json(Created.parse({ id }));
   });

@@ -16,6 +16,7 @@ import type { z } from 'zod';
 import type { PromptDefinition, Tier } from '@nyaai/prompts';
 import type { UsageSink } from '../usage.ts';
 import { anthropicPrice } from '../pricing/index.ts';
+import { ExternalServiceError } from '../../errors.ts';
 
 /**
  * Prefixes shorter than this are sent without a cache breakpoint. Sonnet 5.5 and Haiku 5.5 cache prefixes of 512
@@ -26,12 +27,12 @@ const MIN_CACHE_CHARS = 2_400;
 const MAX_BREAKPOINTS = 3;
 const HEAVY_RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000, 60_000];
 
-export class GatewayError extends Error {
+export class GatewayError extends ExternalServiceError {
   constructor(
     message: string,
     readonly kind: 'schema' | 'refusal' | 'unavailable' | 'request',
   ) {
-    super(message);
+    super('The writing and checking service', message);
     this.name = 'GatewayError';
   }
 }
@@ -46,6 +47,8 @@ export interface GatewayRequest<S extends z.ZodType> {
   /** Start on heavy (e.g. a high-risk claim is expected). Never used to downgrade. */
   forceHeavy?: boolean;
   traceId?: string;
+  /** The job's time limit: when it fires, the call in flight is cancelled and no retry starts. */
+  signal?: AbortSignal;
 }
 
 export interface GatewayResult<T> {
@@ -94,6 +97,17 @@ export function createGateway(cfg: GatewayConfig): Gateway {
     cfg.client ??
     new Anthropic({ apiKey: cfg.apiKey, maxRetries: 2, ...(cfg.timeoutMs ? { timeout: cfg.timeoutMs } : {}) });
   const sleep = cfg.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  /** A retry wait that ends at once when the job's time is up. */
+  const wait = (ms: number, signal?: AbortSignal) =>
+    signal
+      ? Promise.race([
+          sleep(ms),
+          new Promise<never>((_, reject) => {
+            if (signal.aborted) reject(signal.reason);
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+          }),
+        ])
+      : sleep(ms);
   const modelFor = (tier: Tier) => (tier === 'heavy' ? cfg.heavyModel : cfg.lightModel);
 
   return {
@@ -127,17 +141,23 @@ export function createGateway(cfg: GatewayConfig): Gateway {
       // rule (a line too long) is logged and paid for once and then retried as a schema failure, never a crash.
       const { schema: jsonSchema } = zodOutputFormat(req.schema);
       for (;;) {
+        req.signal?.throwIfAborted();
         const model = modelFor(tier);
         let response;
         try {
-          response = await client.messages.create({
-            model,
-            max_tokens: req.prompt.maxOutputTokens + 2_000, // room for adaptive thinking on top of the answer cap
-            system,
-            messages: [{ role: 'user', content }],
-            output_config: { format: { type: 'json_schema', schema: jsonSchema }, effort: req.prompt.effort },
-          });
+          response = await client.messages.create(
+            {
+              model,
+              max_tokens: req.prompt.maxOutputTokens + 2_000, // room for adaptive thinking on top of the answer cap
+              system,
+              messages: [{ role: 'user', content }],
+              output_config: { format: { type: 'json_schema', schema: jsonSchema }, effort: req.prompt.effort },
+            },
+            req.signal ? { signal: req.signal } : undefined,
+          );
         } catch (err) {
+          // The job's time is up: not an outage, not a bad request. Stop here.
+          if (req.signal?.aborted) throw req.signal.reason;
           if (isOutage(err) || err instanceof Anthropic.RateLimitError) {
             if (tier === 'light' && !(err instanceof Anthropic.RateLimitError)) {
               tier = 'heavy'; // light down → heavy (cost may rise; accuracy never drops)
@@ -146,7 +166,7 @@ export function createGateway(cfg: GatewayConfig): Gateway {
             }
             const delay = HEAVY_RETRY_DELAYS_MS[heavyOutages++];
             if (delay === undefined) throw new GatewayError(`${model} unavailable after retries`, 'unavailable');
-            await sleep(delay); // heavy down → wait; never fall back to light
+            await wait(delay, req.signal); // heavy down → wait; never fall back to light
             continue;
           }
           throw new GatewayError(err instanceof Error ? err.message : String(err), 'request');
@@ -193,4 +213,9 @@ export function createGateway(cfg: GatewayConfig): Gateway {
       }
     },
   };
+}
+
+/** The same gateway, with every call stopped by `signal` (a job's time limit), unless a call brings its own. */
+export function withSignal(gateway: Gateway, signal: AbortSignal): Gateway {
+  return { run: (req, usage) => gateway.run({ ...req, signal: req.signal ?? signal }, usage) };
 }

@@ -27,6 +27,7 @@ import {
   unsignMapping,
   type OnSignedChange,
 } from '../services/mappings/index.ts';
+import { enqueueOrUndo } from '../jobs/enqueue.ts';
 
 const Id = z.uuid();
 
@@ -44,14 +45,21 @@ export function mappingsRouter(opsQueue?: Queue<OpsJobData>) {
           'Lectures that rely on this row cannot be told right now, so nothing was changed. Try again in a minute.',
         );
       const who = req.identity!;
-      await opsQueue.add(
-        'ops.mapping_changed',
-        {
-          userId: who.userId,
-          collegeId: who.collegeId,
-          mapping: { oldSections: was.oldSections, newSections: was.newSections, relation: was.relation, change },
-        },
-        MAPPING_JOB_OPTIONS,
+      // Inside the change's transaction: if the queue refuses, the change is rolled back with the answer below.
+      await enqueueOrUndo(
+        () =>
+          opsQueue.add(
+            'ops.mapping_changed',
+            {
+              userId: who.userId,
+              collegeId: who.collegeId,
+              mapping: { oldSections: was.oldSections, newSections: was.newSections, relation: was.relation, change },
+            },
+            MAPPING_JOB_OPTIONS,
+          ),
+        async () => {},
+        'Lectures that rely on this row cannot be told right now, so nothing was changed. Try again in a minute.',
+        req.log,
       );
     };
 

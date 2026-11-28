@@ -32,6 +32,8 @@ import { storeLineCounts } from '../counts/index.ts';
 
 export const CHANGED = 'Changed by you: being checked against the source';
 export const NOT_FOUND = 'Not found in the library, please verify';
+/** A changed line whose background check could not be started: still yellow, with the reason. */
+export const NOT_CHECKED = 'Changed by you: not checked yet, please verify';
 const EXAMPLE_NAMES = 'Your example names a case or section not found in the library; please verify';
 
 export interface Who {
@@ -526,4 +528,12 @@ export async function slideVersions(
     )
   ).rows;
   return rows.map((v) => ({ version: v.version, reason: v.reason, createdAt: v.created_at.toISOString() }));
+}
+
+/** The background check of these changed lines could not be queued: they stay yellow, saying so. */
+export async function markNotChecked(c: pg.PoolClient, citationIds: string[]): Promise<void> {
+  await c.query(
+    "update citations set flag_reason = $2 where id = any($1::uuid[]) and check_status = 'open' and flag_reason = $3",
+    [citationIds, NOT_CHECKED, CHANGED],
+  );
 }

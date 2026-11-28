@@ -195,6 +195,17 @@ describe.skipIf(!up)('a course from her syllabus, with sources found in the back
       .set('content-type', 'application/octet-stream')
       .send(Buffer.from('MZ'))
       .expect(415);
+    // A damaged PDF: her file, and a plain answer (not a server error).
+    const broken = await agent
+      .post('/api/v1/courses/syllabus')
+      .set('x-csrf-token', csrf)
+      .set('content-type', 'application/pdf')
+      .send(Buffer.from('%PDF-1.7\n this is not really a pdf'))
+      .expect(415);
+    expect(broken.body.error).toMatchObject({
+      code: 'UNSUPPORTED_FILE',
+      message: expect.stringMatching(/could not read this PDF|scan/),
+    });
     const none = await agent
       .post('/api/v1/courses/syllabus')
       .set('x-csrf-token', csrf)

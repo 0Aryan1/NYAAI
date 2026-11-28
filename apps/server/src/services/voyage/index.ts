@@ -4,6 +4,7 @@
  * Every call is costed in `usage` (prices per million tokens, from config).
  */
 import type { UsageSink } from '../usage.ts';
+import { ExternalServiceError } from '../../errors.ts';
 
 export const EMBED_DIMS = 1024;
 /** Per-request limits for voyage-law-2: 1,000 inputs and 120K tokens. We stay well under both. */
@@ -27,12 +28,12 @@ export interface VoyageConfig {
   sleep?: (ms: number) => Promise<void>;
 }
 
-export class VoyageError extends Error {
+export class VoyageError extends ExternalServiceError {
   constructor(
     message: string,
     readonly status: number,
   ) {
-    super(message);
+    super('The search service', message);
     this.name = 'VoyageError';
   }
 }

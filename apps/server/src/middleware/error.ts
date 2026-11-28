@@ -1,7 +1,7 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { ZodError } from 'zod';
 import type { ApiError } from '@nyaai/shared';
-import { AppError } from '../errors.ts';
+import { AppError, ExternalServiceError } from '../errors.ts';
 
 function traceId(req: Parameters<RequestHandler>[0]): string {
   return String(req.id ?? 'unknown');
@@ -23,6 +23,18 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
         code: err.code,
         message: err.message,
         ...(err.details ? { details: err.details } : {}),
+        traceId: traceId(req),
+      },
+    };
+  } else if (err instanceof ExternalServiceError) {
+    // Claude, Voyage, Indian Kanoon or storage did not answer: she is told to try again, and it is logged as an
+    // outage (a warning), not as a fault in NYAAI.
+    status = 503;
+    req.log?.warn({ err, service: err.service }, 'an outside service did not answer');
+    body = {
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: `${err.service} is not available right now. Try again in a little while.`,
         traceId: traceId(req),
       },
     };

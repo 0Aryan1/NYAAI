@@ -17,6 +17,7 @@ import { reciprocalRankFusion, standing, understandQuery, type Standing } from '
 import type { Gateway } from '../llm-gateway/index.ts';
 import type { UsageSink } from '../usage.ts';
 import { toVector, type Voyage } from '../voyage/index.ts';
+import { skipOptionalStep } from '../../jobs/deadline.ts';
 
 export interface SearchRequest {
   query: string;
@@ -215,8 +216,9 @@ export async function search(db: pg.PoolClient, req: SearchRequest, deps: Search
         deps.usage,
       );
       expandedQuery = r.data.query;
-    } catch {
-      expandedQuery = null; // the rewrite is a help, not a requirement
+    } catch (err) {
+      skipOptionalStep('The search query rewrite', err); // a help, not a requirement
+      expandedQuery = null;
     }
   }
   const [qv] = await deps.voyage.embed([expandedQuery ?? req.query], 'query', `search.${req.purpose}`);

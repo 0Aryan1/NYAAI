@@ -40,7 +40,7 @@ const gap: LibraryGap = {
 };
 
 function setup() {
-  vi.spyOn(api, 'libraryGaps').mockResolvedValue({ gaps: [gap] });
+  vi.spyOn(api, 'libraryGaps').mockResolvedValue({ gaps: [gap], nextCursor: null });
   const update = vi
     .spyOn(api, 'updateGap')
     .mockImplementation(async (_id, body) => ({ ...gap, state: body.state, note: body.note ?? null }));
@@ -93,7 +93,7 @@ describe('library gaps for the editor', () => {
   it('"Look again" shows "Looking now…" until the lookup has really finished, then says what it found', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      const gaps = vi.spyOn(api, 'libraryGaps').mockResolvedValue({ gaps: [gap] });
+      const gaps = vi.spyOn(api, 'libraryGaps').mockResolvedValue({ gaps: [gap], nextCursor: null });
       vi.spyOn(api, 'lookupGap').mockResolvedValue({ jobId: 'job-1' });
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -109,7 +109,10 @@ describe('library gaps for the editor', () => {
       expect((screen.getByRole('button', { name: 'Look again' }) as HTMLButtonElement).disabled).toBe(true);
 
       // The worker has picked it up: still looking.
-      gaps.mockResolvedValue({ gaps: [{ ...gap, state: 'looking', lastLookupAt: '2026-11-28T10:00:00.000Z' }] });
+      gaps.mockResolvedValue({
+        gaps: [{ ...gap, state: 'looking', lastLookupAt: '2026-11-28T10:00:00.000Z' }],
+        nextCursor: null,
+      });
       await act(async () => void (await vi.advanceTimersByTimeAsync(3100)));
       expect(screen.getByText('Looking now…')).toBeTruthy();
 
@@ -138,7 +141,7 @@ describe('library gaps for the editor', () => {
           { provider: 'web', title: 'New page', url: 'https://www.sci.gov.in/new', lastUpdated: null, checked: true },
         ],
       };
-      gaps.mockResolvedValue({ gaps: [done] });
+      gaps.mockResolvedValue({ gaps: [done], nextCursor: null });
       await act(async () => void (await vi.advanceTimersByTimeAsync(3100)));
       await waitFor(() =>
         expect(screen.getByRole('status').textContent).toMatch(

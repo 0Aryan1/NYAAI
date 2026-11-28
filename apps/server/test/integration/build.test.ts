@@ -941,4 +941,58 @@ describe.skipIf(!up)('lecture build (integration, fake Claude)', () => {
         .rows[0].state,
     ).toBe('resolved');
   });
+
+  it('when the queue refuses the build, the lecture is failed (not "building" for ever), and Retry works', async () => {
+    const broken = { add: async () => Promise.reject(new Error('Redis is down')) };
+    const http = (queue: unknown) =>
+      request.agent(
+        createApp({
+          config: config(),
+          logger: pino({ level: 'silent' }),
+          pool: app,
+          redis,
+          queues: { build: queue as never },
+        }),
+      );
+    const a = http(broken);
+    const login = await a
+      .post('/api/v1/auth/dev-login')
+      .set('x-forwarded-for', `10.98.${tag.charCodeAt(0)}.1`)
+      .send({ email: `b-${tag}@bt.test` })
+      .expect(204);
+    const tok = csrfFrom(login);
+    const r = await a
+      .post('/api/v1/lectures')
+      .set('x-csrf-token', tok)
+      .send({
+        topic: `zebra ${w} grazing again`,
+        course: { kind: 'one_off' },
+        lengthMin: 40,
+        level: 'standard',
+        styleKey: 'usual',
+      })
+      .expect(503);
+    expect(r.body.error).toMatchObject({
+      code: 'SERVICE_UNAVAILABLE',
+      message: expect.stringContaining('Your lecture is saved'),
+    });
+    const row = (
+      await owner.query<{ id: string; status: string; error_code: string }>(
+        'select id, status, error_code from lectures where topic = $1',
+        [`zebra ${w} grazing again`],
+      )
+    ).rows[0]!;
+    expect(row).toMatchObject({ status: 'failed', error_code: 'SERVICE_UNAVAILABLE' });
+
+    // The queue is back: Retry queues the build.
+    const added: unknown[] = [];
+    const b = http({ add: async (_n: string, d: unknown) => (added.push(d), { id: 'job-ok' }) });
+    const login2 = await b
+      .post('/api/v1/auth/dev-login')
+      .set('x-forwarded-for', `10.98.${tag.charCodeAt(0)}.2`)
+      .send({ email: `b-${tag}@bt.test` })
+      .expect(204);
+    await b.post(`/api/v1/lectures/${row.id}/retry`).set('x-csrf-token', csrfFrom(login2)).expect(202);
+    expect(added).toHaveLength(1);
+  });
 });

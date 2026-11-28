@@ -67,6 +67,8 @@ test.describe.serial('teacher journeys', () => {
     // 1. Consent: every outside service is listed; nothing goes on until she agrees.
     await expect(page).toHaveURL(/\/setup\/consent/);
     await axe(page, 'setup: consent');
+    for (const service of ['Anthropic (Claude)', 'Voyage AI', 'Indian Kanoon', 'Perplexity'])
+      await expect(page.getByText(service, { exact: true })).toBeVisible();
     const agree = page.getByRole('button', { name: 'I agree, continue' });
     await expect(agree).toBeDisabled();
     await page.getByRole('checkbox').check();

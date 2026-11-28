@@ -101,8 +101,14 @@ export async function exportTeacherData(
     for (const [i, u] of uploads.entries()) {
       try {
         zip.file(`notes/${i + 1}-${safeName(u.file_name)}`, await storage.get(u.storage_key));
-      } catch {
-        // A file missing from storage is still listed in my-data.json.
+      } catch (err) {
+        // Still listed in my-data.json; the gap is reported so it can be looked into.
+        process.emitWarning(
+          `Her data export left out ${u.file_name}: ${err instanceof Error ? err.message : String(err)}`,
+          {
+            code: 'NYAAI_EXPORT_FILE_MISSING',
+          },
+        );
       }
     }
   }

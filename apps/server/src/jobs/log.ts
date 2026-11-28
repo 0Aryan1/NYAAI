@@ -15,7 +15,7 @@ export async function startJobLog(pool: pg.Pool, queue: string, job: Job, ownerI
     await pool.query<{ id: string }>(
       `insert into jobs_log (owner_id, queue, job_id, kind, state, attempts, started_at)
        values ($1, $2, $3, $4, 'active', $5, now()) returning id`,
-      [ownerId, queue, String(job.id), job.name, job.attemptsMade + 1],
+      [ownerId, queue, String(job.id), job.name, (job.attemptsMade ?? 0) + 1],
     )
   ).rows[0]!.id;
   return {

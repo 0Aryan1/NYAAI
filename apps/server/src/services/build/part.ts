@@ -18,6 +18,7 @@ import type { TenantRunner } from '../lookup/index.ts';
 import { loadPieces, sourceDetails, type RetrievedSource } from '../search/index.ts';
 import type { UsageSink } from '../usage.ts';
 import { checkClaims, sourcesBlock, type CheckedClaim } from './checking.ts';
+import { skipOptionalStep } from '../../jobs/deadline.ts';
 
 export interface BuiltLine {
   lineKey: string;
@@ -448,7 +449,7 @@ async function flagUnsourcedLaw(
     ).data;
     const says = new Map(verdicts.map((v) => [v.id, v.statesLaw]));
     for (const l of lines) if (says.get(l.lineKey)) l.lineFlag = 'No source for this statement';
-  } catch {
-    /* word rules already ran; never block the build on an extra check */
+  } catch (err) {
+    skipOptionalStep('The unsourced-statement check', err); // the word rules already ran; never block the build
   }
 }

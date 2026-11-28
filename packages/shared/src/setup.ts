@@ -73,7 +73,7 @@ export const ProgressRequest = z.object({ step: z.number().int().min(2).max(6) }
  * Every outside processor her data may reach (consent screen, LLD §12.3). Changing this list means a new
  * CONSENT_VERSION, and teachers are asked again.
  */
-export const CONSENT_VERSION = '2026-11-19';
+export const CONSENT_VERSION = '2026-11-28'; // 2026-11-28: Perplexity added (web search for library gaps)
 export const PROCESSORS = [
   {
     name: 'Anthropic (Claude)',
@@ -92,6 +92,12 @@ export const PROCESSORS = [
     purpose: 'Looks up judgments the library does not have yet',
     dataSent: 'Search words taken from your topic (never your files)',
     region: 'India',
+  },
+  {
+    name: 'Perplexity',
+    purpose: 'Searches official government websites for a law or case the library does not have yet',
+    dataSent: 'Search words taken from your question, only when the library cannot answer it (never your files)',
+    region: 'United States',
   },
   {
     name: 'Hosting and storage (pilot)',

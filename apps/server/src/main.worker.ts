@@ -72,6 +72,7 @@ const workers = [
             publisher: connection,
             minScore: config.RERANK_MIN_SCORE,
             logger,
+            timeoutMs: config.BUILD_TIMEOUT_MIN * 60_000,
           }),
           {
             connection: createRedis(config.REDIS_URL),
@@ -90,6 +91,7 @@ const workers = [
             lookup,
             minScore: config.RERANK_MIN_SCORE,
             logger,
+            timeoutMs: config.RESEARCH_TIMEOUT_MIN * 60_000,
           }),
           {
             connection: createRedis(config.REDIS_URL),
@@ -98,7 +100,7 @@ const workers = [
             lockDuration: config.JOB_LOCK_MS,
           },
         ),
-        new Worker('learn', learnProcessor({ worker, gateway, logger }), {
+        new Worker('learn', learnProcessor({ worker, gateway, logger, timeoutMs: config.LEARN_TIMEOUT_MIN * 60_000 }), {
           connection: createRedis(config.REDIS_URL),
           prefix: config.QUEUE_PREFIX,
           concurrency: config.CONCURRENCY_LEARN,
@@ -133,6 +135,7 @@ const workers = [
       worker,
       voyageFor: (u) => voyageFrom(config, u),
       minScore: config.RERANK_MIN_SCORE,
+      timeoutMs: config.INGEST_TIMEOUT_MIN * 60_000,
     }),
     {
       connection: createRedis(config.REDIS_URL),

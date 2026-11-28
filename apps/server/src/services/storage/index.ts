@@ -10,6 +10,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { ExternalServiceError } from '../../errors.ts';
 
 export interface StorageConfig {
   endpoint?: string;
@@ -40,12 +41,22 @@ export function createStorage(cfg: StorageConfig): Storage {
       ? { requestHandler: { requestTimeout: cfg.timeoutMs, connectionTimeout: Math.min(cfg.timeoutMs, 10_000) } }
       : {}),
   });
+  /** Storage that does not answer is an outside-service outage for the caller (503 on a request), not a crash. */
+  const send = async <T>(run: () => Promise<T>): Promise<T> => {
+    try {
+      return await run();
+    } catch (err) {
+      throw new ExternalServiceError('File storage', err instanceof Error ? err.message : String(err));
+    }
+  };
   return {
     async put(key, body, contentType) {
-      await s3.send(new PutObjectCommand({ Bucket: cfg.bucket, Key: key, Body: body, ContentType: contentType }));
+      await send(() =>
+        s3.send(new PutObjectCommand({ Bucket: cfg.bucket, Key: key, Body: body, ContentType: contentType })),
+      );
     },
     async get(key) {
-      const out = await s3.send(new GetObjectCommand({ Bucket: cfg.bucket, Key: key }));
+      const out = await send(() => s3.send(new GetObjectCommand({ Bucket: cfg.bucket, Key: key })));
       if (!out.Body) throw new Error(`empty object ${key}`);
       return out.Body.transformToByteArray();
     },
@@ -55,15 +66,15 @@ export function createStorage(cfg: StorageConfig): Storage {
         return true;
       } catch (err) {
         if ((err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404) return false;
-        throw err;
+        throw new ExternalServiceError('File storage', err instanceof Error ? err.message : String(err));
       }
     },
     async list(prefix) {
       const keys: string[] = [];
       let token: string | undefined;
       do {
-        const out = await s3.send(
-          new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix, ContinuationToken: token }),
+        const out = await send(() =>
+          s3.send(new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix, ContinuationToken: token })),
         );
         keys.push(...(out.Contents ?? []).flatMap((o) => (o.Key ? [o.Key] : [])));
         token = out.IsTruncated ? out.NextContinuationToken : undefined;
@@ -71,7 +82,7 @@ export function createStorage(cfg: StorageConfig): Storage {
       return keys;
     },
     async delete(key) {
-      await s3.send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key }));
+      await send(() => s3.send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key })));
     },
   };
 }

@@ -30,12 +30,14 @@ import {
   assertGapOpen,
   createSource,
   deletePendingSource,
+  deleteProcessingSource,
   listGaps,
   registerJudgmentUpload,
   sourceStatus,
   updateGap,
 } from '../services/library-edit/index.ts';
 import { pageFrom } from '../lib/page.ts';
+import { enqueueOrUndo } from '../jobs/enqueue.ts';
 
 const Id = z.uuid();
 
@@ -47,18 +49,18 @@ export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, sto
     if (!ingestQueue) throw new AppError('SERVICE_UNAVAILABLE', 'Loading sources is not available right now.');
     const body = CreateSourceRequest.parse(req.body);
     const sourceId = await req.db!((c) => createSource(c, body));
-    let job;
-    try {
-      // BullMQ custom ids may not contain ':'. One job per source keeps a double click idempotent.
-      job = await ingestQueue.add(
-        'ingest.source',
-        { sourceId, requestedBy: req.identity!.userId },
-        { ...INGEST_JOB_OPTIONS, jobId: `ingest.source-${sourceId}` },
-      );
-    } catch (err) {
-      await req.db!((c) => deletePendingSource(c, sourceId));
-      throw err;
-    }
+    // BullMQ custom ids may not contain ':'. One job per source keeps a double click idempotent.
+    const job = await enqueueOrUndo(
+      () =>
+        ingestQueue.add(
+          'ingest.source',
+          { sourceId, requestedBy: req.identity!.userId },
+          { ...INGEST_JOB_OPTIONS, jobId: `ingest.source-${sourceId}` },
+        ),
+      () => req.db!((c) => deletePendingSource(c, sourceId)),
+      'Loading sources is not available right now. Try again in a minute.',
+      req.log,
+    );
     res.status(202).json(CreateSourceResponse.parse({ sourceId, jobId: job.id }));
   });
 
@@ -87,10 +89,16 @@ export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, sto
     await req.db!((c) => assertGapOpen(c, id));
     // Every click runs a lookup: the page shows its progress until it ends. Two at once on one gap cannot happen, as
     // the job claims the gap first (a second one finds it "looking" and stops), and the button waits for the result.
-    const job = await ingestQueue.add(
-      'ingest.lookup',
-      { gapId: id, force: true, requestedBy: req.identity!.userId },
-      { ...INGEST_JOB_OPTIONS, attempts: 1, jobId: `ingest.lookup-${id}-${Date.now()}` },
+    const job = await enqueueOrUndo(
+      () =>
+        ingestQueue.add(
+          'ingest.lookup',
+          { gapId: id, force: true, requestedBy: req.identity!.userId },
+          { ...INGEST_JOB_OPTIONS, attempts: 1, jobId: `ingest.lookup-${id}-${Date.now()}` },
+        ),
+      async () => {}, // nothing was saved
+      'Looking up sources is not available right now. Try again in a minute.',
+      req.log,
     );
     res.status(202).json(GapLookupResponse.parse({ jobId: job.id }));
   });
@@ -110,11 +118,19 @@ export function libraryRouter(ingestQueue: Queue<IngestJobData> | undefined, sto
     const hash = sha256(bytes);
     const key = `sources/${origin}/${hash}.pdf`;
     const sourceId = await req.db!((c) => registerJudgmentUpload(c, q, { hash, key, origin }));
-    if (!(await storage.exists(key))) await storage.put(key, bytes, 'application/pdf');
-    const job = await ingestQueue.add(
-      'ingest.judgment',
-      { sourceId, uploadKey: key, replace: !!q.replaces, official: q.official, requestedBy: req.identity!.userId },
-      { ...INGEST_JOB_OPTIONS, attempts: 1, jobId: `ingest.judgment-${sourceId}-${hash.slice(0, 12)}` },
+    const job = await enqueueOrUndo(
+      async () => {
+        if (!(await storage.exists(key))) await storage.put(key, bytes, 'application/pdf');
+        return ingestQueue.add(
+          'ingest.judgment',
+          { sourceId, uploadKey: key, replace: !!q.replaces, official: q.official, requestedBy: req.identity!.userId },
+          { ...INGEST_JOB_OPTIONS, attempts: 1, jobId: `ingest.judgment-${sourceId}-${hash.slice(0, 12)}` },
+        );
+      },
+      // A new judgment that will never be read leaves nothing behind; a replacement leaves the judgment as it was.
+      () => (q.replaces ? Promise.resolve() : req.db!((c) => deleteProcessingSource(c, sourceId))),
+      'Uploading is not available right now. Try again in a minute.',
+      req.log,
     );
     res.status(202).json(UploadJudgmentResponse.parse({ jobId: job.id, sourceId }));
   });

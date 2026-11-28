@@ -83,6 +83,14 @@ const Schema = z
     CONCURRENCY_CHECK: z.coerce.number().int().min(1).max(50).default(8),
     CONCURRENCY_INGEST: z.coerce.number().int().min(1).max(50).default(4),
     JOB_LOCK_MS: z.coerce.number().int().min(10_000).default(120_000),
+    /**
+     * Each job's time limit, in minutes. When it is reached the work stops (finished parts stay saved) and the job
+     * is retried; builds and research runs resume where they stopped. A normal build takes 2–4 minutes.
+     */
+    BUILD_TIMEOUT_MIN: z.coerce.number().min(1).max(60).default(8),
+    RESEARCH_TIMEOUT_MIN: z.coerce.number().min(1).max(60).default(4),
+    LEARN_TIMEOUT_MIN: z.coerce.number().min(1).max(30).default(3),
+    INGEST_TIMEOUT_MIN: z.coerce.number().min(2).max(60).default(10),
     /** Inside a lecture build or research run: the most time spent looking up missing sources, per part. */
     LOOKUP_BUDGET_MS: z.coerce.number().int().min(5_000).default(120_000),
 

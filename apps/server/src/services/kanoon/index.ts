@@ -6,6 +6,7 @@
 import type { KanoonDoc } from '@nyaai/legal';
 import type { UsageSink } from '../usage.ts';
 import { stripTags } from '@nyaai/legal';
+import { ExternalServiceError } from '../../errors.ts';
 
 export interface KanoonConfig {
   token: string;
@@ -29,12 +30,12 @@ export interface Kanoon {
   doc(tid: number): Promise<KanoonDoc>;
 }
 
-export class KanoonError extends Error {
+export class KanoonError extends ExternalServiceError {
   constructor(
     message: string,
     readonly status: number,
   ) {
-    super(message);
+    super('Indian Kanoon', message);
     this.name = 'KanoonError';
   }
 }
