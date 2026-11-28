@@ -1,18 +1,24 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LENGTH_CHOICES, LEVEL_CHOICES, ResolveChoice, STYLE_CHOICES, type PrepareLecture } from '@nyaai/shared';
-import { useNavigate, useSearchParams } from 'react-router';
-import { z } from 'zod';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { LENGTH_CHOICES, LEVEL_CHOICES, STYLE_CHOICES, type ResolveChoice } from '@nyaai/shared';
+import { useSearchParams } from 'react-router';
+import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { ChipGroup } from '@/shared/ui/chip-group';
 import { AmbiguityDialog } from './AmbiguityDialog';
 import { TopicBox } from './TopicBox';
+import {
+  missingChoices,
+  ONE_OFF,
+  prepareRefusal,
+  prepareRequest,
+  usePrepareLecture,
+  type PrepareForm,
+} from './prepare';
 import { NotesPicker, useNotes, waitingNotes } from '@/features/notes/notes-ui';
 import { LoadError, Skeleton } from '@/shared/ui/states';
 import { lectureNo } from '@/shared/lib/labels';
-
-export const ONE_OFF = 'one_off';
+import { PageHeader } from '@/shared/ui/page';
 
 /**
  * Home (LLD §12.3, HOME-1 to HOME-6). Topic box on top; four chip rows that start empty and are never
@@ -20,7 +26,6 @@ export const ONE_OFF = 'one_off';
  * and says what is missing (HOME-6). Prepare queues the build and opens the Build screen.
  */
 export function HomePage() {
-  const navigate = useNavigate();
   // "Prepare" on a lecture in her course plan opens Home with that course and lecture chosen by her, not by the app.
   const [params] = useSearchParams();
   const fromPlan = { course: params.get('course'), unit: params.get('unit') };
@@ -36,55 +41,40 @@ export function HomePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [choices, setChoices] = useState<ResolveChoice[] | null>(null);
   const [concept, setConcept] = useState<ResolveChoice | null>(null);
-  const [busy, setBusy] = useState(false);
   // Her notes for this lecture: none until she ticks or uploads one (Option A, decision 2026-11-25).
   const [notes, setNotes] = useState<string[]>([]);
   const allNotes = useNotes();
 
-  async function prepare(choice?: ResolveChoice, prereqAck = false) {
+  const send = usePrepareLecture();
+  const busy = send.isPending;
+  const form: PrepareForm = { topic, course, length, level, style, mustInclude, special, notes };
+
+  function prepare(choice?: ResolveChoice, prereqAck = false) {
     if (!course || !length || !level || !style) return;
-    setBusy(true);
     setNotice(null);
     setPrereq(null);
-    try {
-      const picked = choice ?? concept;
-      const r = await api.prepare({
-        topic: topic.trim(),
-        course:
-          course === ONE_OFF
-            ? { kind: 'one_off' }
-            : {
-                kind: 'course',
-                courseId: course,
-                unitId:
-                  (course === fromPlan.course ? fromPlan.unit : null) ??
-                  home.data?.courses.find((c) => c.id === course)?.nextUnit?.id,
-              },
-        lengthMin: Number(length) as PrepareLecture['lengthMin'],
-        level: level as PrepareLecture['level'],
-        styleKey: style as PrepareLecture['styleKey'],
-        mustInclude: mustInclude.trim() ? { text: mustInclude.trim() } : undefined,
-        anythingSpecial: special.trim() || undefined,
-        filters: { jurisdiction: 'IN', comparative: false },
+    const picked = choice ?? concept;
+    const req = prepareRequest(
+      { ...form, course, length, level, style },
+      {
+        planUnit: course === fromPlan.course ? fromPlan.unit : null,
+        nextUnit: home.data?.courses.find((c) => c.id === course)?.nextUnit?.id,
         // From Explore's "Turn into a lecture": the topic she explored, already chosen.
-        ambiguityChoice: picked?.conceptId ?? params.get('concept') ?? undefined,
-        prereqAck: prereqAck || undefined,
-        notes,
-      });
-      if (choice) setConcept(choice);
-      void navigate(`/build/${r.lectureId}`);
-    } catch (err) {
-      const parsed =
-        err instanceof ApiRequestError && err.body?.error.code === 'TOPIC_AMBIGUOUS'
-          ? z.array(ResolveChoice).safeParse(err.body.error.details?.choices)
-          : null;
-      if (parsed?.success) setChoices(parsed.data);
-      else if (err instanceof ApiRequestError && err.body?.error.code === 'PREREQ_WARNING_UNACKED')
-        setPrereq(err.body.error.message);
-      else setNotice(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
-    } finally {
-      setBusy(false);
-    }
+        conceptId: picked?.conceptId ?? params.get('concept') ?? undefined,
+        prereqAck,
+      },
+    );
+    send.mutate(req, {
+      onSuccess: () => {
+        if (choice) setConcept(choice);
+      },
+      onError: (err) => {
+        const r = prepareRefusal(err);
+        if (r.kind === 'ambiguous') setChoices(r.choices);
+        else if (r.kind === 'prereq') setPrereq(r.message);
+        else setNotice(r.message);
+      },
+    });
   }
 
   const courseOptions = [
@@ -101,19 +91,12 @@ export function HomePage() {
     { value: ONE_OFF, label: 'No course, one-off' },
   ];
 
-  const missing = [
-    topic.trim().length < 3 && 'a topic',
-    !course && 'a course (or one-off)',
-    !length && 'a class length',
-    !level && 'a level',
-    !style && 'a style',
-    waitingNotes(allNotes.data?.notes, notes).length > 0 && 'your notes to finish reading (or untick them)',
-  ].filter((m): m is string => Boolean(m));
+  const missing = missingChoices(form, waitingNotes(allNotes.data?.notes, notes).length > 0);
   const ready = missing.length === 0;
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="mb-6 text-2xl font-semibold">Prepare a lecture</h1>
+      <PageHeader className="mb-6" title="Prepare a lecture" />
 
       <div className="mb-8">
         <TopicBox
@@ -199,7 +182,7 @@ export function HomePage() {
           disabled={!ready || busy}
           aria-describedby="prepare-hint"
           title={ready ? undefined : `Still needed: ${missing.join(', ')}`}
-          onClick={() => void prepare()}
+          onClick={() => prepare()}
         >
           Prepare
         </Button>
@@ -210,7 +193,7 @@ export function HomePage() {
       {prereq && (
         <div role="alert" className="mt-4 rounded-card border border-border bg-surface p-4 text-sm">
           <p className="mb-3">{prereq} The recap will not assume the class has had it.</p>
-          <Button variant="primary" size="sm" disabled={busy} onClick={() => void prepare(concept ?? undefined, true)}>
+          <Button variant="primary" size="sm" disabled={busy} onClick={() => prepare(concept ?? undefined, true)}>
             Prepare anyway
           </Button>
         </div>
@@ -222,7 +205,7 @@ export function HomePage() {
           onCancel={() => setChoices(null)}
           onChoose={(c) => {
             setChoices(null);
-            void prepare(c);
+            prepare(c);
           }}
         />
       )}

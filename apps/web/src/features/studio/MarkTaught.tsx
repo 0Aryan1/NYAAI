@@ -3,18 +3,11 @@ import { Link } from 'react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2 } from 'lucide-react';
 import type { LectureSummary } from '@nyaai/shared';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
-
-/** Today in India, as YYYY-MM-DD (dates are shown in IST). */
-export function todayIst(now = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kolkata',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(now);
-}
+import { ConfirmInline } from '@/shared/ui/confirm-inline';
+import { todayIst } from '@/shared/lib/format';
+import { errorText } from '@/shared/lib/errors';
 
 /**
  * COURSE-7: mark the lecture taught. Only then does the course remember it (summary, terms, cases), so the next
@@ -24,6 +17,7 @@ export function MarkTaught({ lecture }: { lecture: LectureSummary }) {
   const qc = useQueryClient();
   const [date, setDate] = useState(todayIst());
   const [open, setOpen] = useState(false);
+  const [askUndo, setAskUndo] = useState(false);
   const done = () => {
     void qc.invalidateQueries({ queryKey: queryKeys.lecture(lecture.id) });
     if (lecture.course) void qc.invalidateQueries({ queryKey: queryKeys.course(lecture.course.id) });
@@ -44,20 +38,24 @@ export function MarkTaught({ lecture }: { lecture: LectureSummary }) {
             {lecture.course.name}
           </Link>
         )}
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={undo.isPending}
-          onClick={() =>
-            window.confirm(
+        {askUndo ? (
+          <ConfirmInline
+            question={
               lecture.course
                 ? 'Mark this lecture as not taught? The course will forget what this class learnt, and the next lecture will not recap it.'
-                : 'Mark this lecture as not taught?',
-            ) && undo.mutate()
-          }
-        >
-          Undo
-        </Button>
+                : 'Mark this lecture as not taught?'
+            }
+            yes="Yes, not taught"
+            tone="secondary"
+            busy={undo.isPending}
+            onYes={() => undo.mutate(undefined, { onSuccess: () => setAskUndo(false) })}
+            onCancel={() => setAskUndo(false)}
+          />
+        ) : (
+          <Button size="sm" variant="ghost" disabled={undo.isPending} onClick={() => setAskUndo(true)}>
+            Undo
+          </Button>
+        )}
       </span>
     );
   }
@@ -87,11 +85,7 @@ export function MarkTaught({ lecture }: { lecture: LectureSummary }) {
       <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
         Cancel
       </Button>
-      {err && (
-        <span className="text-flag-yellow">
-          {err instanceof ApiRequestError ? err.message : 'Not saved. Try again.'}
-        </span>
-      )}
+      {err && <span className="text-flag-yellow">{errorText(err, 'Not saved. Try again.')}</span>}
     </form>
   ) : (
     <Button

@@ -3,12 +3,17 @@ import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Clock, ExternalLink, Flag } from 'lucide-react';
 import type { QueueReport, ReportOutcome, ReportQueue } from '@nyaai/shared';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { api, queryKeys } from '@/shared/api/client';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
+import { RadioCards } from '@/shared/ui/radio-cards';
+import { PageHeader } from '@/shared/ui/page';
 import { Pill } from '@/shared/ui/pill';
 import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
 import { Tabs } from '@/shared/ui/tabs';
+import { Mark } from '@/shared/ui/highlighted-passage';
+import { formatDateTime } from '@/shared/lib/format';
+import { errorText } from '@/shared/lib/errors';
 
 const OUTCOMES: { value: ReportOutcome; label: string; hint: string }[] = [
   { value: 'was_correct', label: 'The source is right', hint: 'Nothing changes; the teacher is told.' },
@@ -54,15 +59,7 @@ function ReportCard({ r }: { r: QueueReport }) {
   return (
     <li className="rounded-card border border-border bg-surface p-5">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-        <span>
-          Reported{' '}
-          {new Date(r.createdAt).toLocaleString('en-IN', {
-            day: 'numeric',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </span>
+        <span>Reported {formatDateTime(r.createdAt)}</span>
         {r.status === 'resolved' && r.outcome ? (
           <Pill tone={r.outcome === 'was_correct' ? 'success' : 'yellow'}>{OUTCOME_LABEL[r.outcome]}</Pill>
         ) : (
@@ -85,7 +82,7 @@ function ReportCard({ r }: { r: QueueReport }) {
       <p className="mt-3 text-xs font-medium uppercase tracking-wide text-muted">The source words it rests on</p>
       {r.spanCopy ? (
         <p className="mt-1 rounded-control bg-bg p-3 text-sm">
-          <mark className="rounded bg-flag-yellow-bg px-0.5 text-text">{r.spanCopy}</mark>
+          <Mark>{r.spanCopy}</Mark>
         </p>
       ) : (
         <p className="mt-1 text-sm text-muted">This line had no source: it was a teaching line.</p>
@@ -113,30 +110,13 @@ function ReportCard({ r }: { r: QueueReport }) {
         </p>
       ) : (
         <div className="mt-4 border-t border-border pt-4">
-          <fieldset>
-            <legend className="mb-2 text-sm font-medium">Your answer</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {OUTCOMES.map((o) => (
-                <label
-                  key={o.value}
-                  className={cn(
-                    'cursor-pointer rounded-control border p-3 text-sm',
-                    outcome === o.value ? 'border-accent bg-accent/10' : 'border-border hover:bg-bg',
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name={`outcome-${r.id}`}
-                    className="sr-only"
-                    checked={outcome === o.value}
-                    onChange={() => setOutcome(o.value)}
-                  />
-                  <span className="block font-medium">{o.label}</span>
-                  <span className="block text-xs text-muted">{o.hint}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          <RadioCards
+            legend="Your answer"
+            name={`outcome-${r.id}`}
+            options={OUTCOMES}
+            value={outcome}
+            onChange={setOutcome}
+          />
           <label className="mt-3 block text-sm">
             <span className="mb-1 block font-medium">Note for the teacher (optional)</span>
             <input
@@ -147,9 +127,7 @@ function ReportCard({ r }: { r: QueueReport }) {
             />
           </label>
           {resolve.error && (
-            <p className="mt-2 text-sm text-danger">
-              {resolve.error instanceof ApiRequestError ? resolve.error.message : 'Not saved. Try again.'}
-            </p>
+            <p className="mt-2 text-sm text-danger">{errorText(resolve.error, 'Not saved. Try again.')}</p>
           )}
           <Button
             variant="primary"
@@ -176,13 +154,11 @@ export function ReportsQueuePage() {
   const list = q.data?.reports ?? [];
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="flex items-center gap-2 text-2xl font-semibold">
-        <Flag className="size-5" aria-hidden />
-        Wrong-fact reports
-      </h1>
-      <p className="mt-2 max-w-prose text-sm text-muted">
-        Lines teachers think are wrong, with the source words they rest on. Answer each within a day.
-      </p>
+      <PageHeader
+        icon={Flag}
+        title="Wrong-fact reports"
+        description="Lines teachers think are wrong, with the source words they rest on. Answer each within a day."
+      />
       <Tabs<'open' | 'resolved'>
         label="Show"
         value={state}

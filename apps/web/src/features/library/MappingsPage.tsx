@@ -4,14 +4,19 @@ import { ArrowRight, ExternalLink, Pencil, Scale, Signature, Trash2, Undo2 } fro
 import { MAPPING_PAIRS, type LawMapping, type MappingRelation, type SaveLawMapping } from '@nyaai/shared';
 import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
+import { ConfirmInline } from '@/shared/ui/confirm-inline';
+import { PageHeader } from '@/shared/ui/page';
 import { Pill } from '@/shared/ui/pill';
 import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
 import { Tabs } from '@/shared/ui/tabs';
+import { formatDate } from '@/shared/lib/format';
+import { sectionsFrom } from './mappings';
+import { errorText } from '@/shared/lib/errors';
 
 type Show = 'unsigned' | 'all';
 type Pair = SaveLawMapping['pair'];
 
-export const RELATIONS: { value: MappingRelation; label: string; hint: string }[] = [
+const RELATIONS: { value: MappingRelation; label: string; hint: string }[] = [
   { value: 'same', label: 'Same', hint: 'One old section, one new section, same law and number' },
   { value: 'renumbered', label: 'Renumbered', hint: 'Same law, new number' },
   { value: 'merged', label: 'Merged', hint: 'Two or more old sections became one' },
@@ -34,13 +39,6 @@ const ASK = {
       : 'Remove this row? It is not signed, so no lecture relies on it.',
 } as const;
 const RELATION_LABEL = Object.fromEntries(RELATIONS.map((r) => [r.value, r.label])) as Record<MappingRelation, string>;
-
-/** "420, 415" or "s. 420; 415" → ["420", "415"] (the server checks each one). */
-export const sectionsFrom = (text: string): string[] =>
-  text
-    .split(/[,;\n]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
 
 const EMPTY = {
   pair: 'IPC → BNS' as Pair,
@@ -67,7 +65,7 @@ export function MappingsPage() {
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const top = useRef<HTMLFormElement>(null);
   const q = useQuery({ queryKey: queryKeys.lawMappings(show), queryFn: () => api.lawMappings(show) });
-  const refresh = () => void qc.invalidateQueries({ queryKey: ['review', 'mappings'] });
+  const refresh = () => void qc.invalidateQueries({ queryKey: queryKeys.lawMappingsAll });
 
   const save = useMutation({
     mutationFn: () => {
@@ -129,15 +127,11 @@ export function MappingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="flex items-center gap-2 text-2xl font-semibold">
-        <Scale className="size-5" aria-hidden />
-        Old and new criminal law
-      </h1>
-      <p className="mt-2 max-w-prose text-sm text-muted">
-        Each row links IPC, CrPC or Evidence Act sections to the new Sanhitas. A lecture line that makes such a link is
-        supported only by a row the criminal-law expert has signed; any other is marked for the teacher to verify.
-        Changing a signed row removes the signature.
-      </p>
+      <PageHeader
+        icon={Scale}
+        title="Old and new criminal law"
+        description="Each row links IPC, CrPC or Evidence Act sections to the new Sanhitas. A lecture line that makes such a link is supported only by a row the criminal-law expert has signed; any other is marked for the teacher to verify. Changing a signed row removes the signature."
+      />
 
       <form
         ref={top}
@@ -269,11 +263,7 @@ export function MappingsPage() {
           { value: 'all', label: 'All' },
         ]}
       />
-      {act.error && (
-        <p className="mt-3 text-sm text-danger">
-          {act.error instanceof ApiRequestError ? act.error.message : 'Not saved. Try again.'}
-        </p>
-      )}
+      {act.error && <p className="mt-3 text-sm text-danger">{errorText(act.error, 'Not saved. Try again.')}</p>}
       <div className="mt-4">
         {q.isLoading && <ListSkeleton rows={3} label="Loading the rows" />}
         {q.isError && <LoadError what="The mapping rows" onRetry={() => void q.refetch()} />}
@@ -329,25 +319,14 @@ export function MappingsPage() {
                       Official source <ExternalLink className="size-3" aria-hidden />
                     </a>
                     {ask ? (
-                      <span
-                        role="group"
-                        aria-label="Are you sure?"
-                        className="flex flex-wrap items-center gap-2 rounded-control border border-border bg-bg px-3 py-2"
-                      >
-                        <span>{ASK[ask](!!m.signedBy)}</span>
-                        <Button
-                          size="sm"
-                          variant={ask === 'sign' ? 'primary' : 'secondary'}
-                          className={ask === 'remove' ? 'border-danger text-danger' : undefined}
-                          disabled={busy}
-                          onClick={() => act.mutate({ id: m.id, action: ask })}
-                        >
-                          {ask === 'sign' ? 'Yes, sign' : ask === 'unsign' ? 'Yes, take it back' : 'Yes, remove'}
-                        </Button>
-                        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setAsking(null)}>
-                          Cancel
-                        </Button>
-                      </span>
+                      <ConfirmInline
+                        question={ASK[ask](!!m.signedBy)}
+                        yes={ask === 'sign' ? 'Yes, sign' : ask === 'unsign' ? 'Yes, take it back' : 'Yes, remove'}
+                        tone={ask === 'sign' ? 'primary' : ask === 'remove' ? 'danger' : 'secondary'}
+                        busy={busy}
+                        onYes={() => act.mutate({ id: m.id, action: ask })}
+                        onCancel={() => setAsking(null)}
+                      />
                     ) : (
                       <span className="flex flex-wrap gap-1">
                         {m.signedBy ? (
@@ -387,16 +366,7 @@ export function MappingsPage() {
                       </span>
                     )}
                   </div>
-                  {m.signedAt && (
-                    <p className="text-xs text-muted">
-                      Signed{' '}
-                      {new Date(m.signedAt).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </p>
-                  )}
+                  {m.signedAt && <p className="text-xs text-muted">Signed {formatDate(m.signedAt)}</p>}
                 </li>
               );
             })}

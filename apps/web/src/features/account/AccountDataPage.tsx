@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { Download, ShieldOff, Trash2 } from 'lucide-react';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
-import { queryClient } from '@/app/queryClient';
+import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
+import { PageHeader } from '@/shared/ui/page';
+import { errorText } from '@/shared/lib/errors';
 
 /**
  * Your data (BRD NFR-8, DPDP Act, 2023): download a copy of everything about her, or delete it all. Deleting asks
  * for her own email, signs her out at once and cannot be undone.
  */
 export function AccountDataPage() {
+  const qc = useQueryClient();
   const me = useQuery({ queryKey: queryKeys.me, queryFn: api.me });
   const email = me.data?.user.email ?? '';
   const [typed, setTyped] = useState('');
@@ -23,7 +25,7 @@ export function AccountDataPage() {
     setWithdrawing(true);
     try {
       await api.withdrawConsent();
-      await queryClient.invalidateQueries({ queryKey: queryKeys.me });
+      await qc.invalidateQueries({ queryKey: queryKeys.me });
     } finally {
       setWithdrawing(false);
     }
@@ -34,22 +36,20 @@ export function AccountDataPage() {
     setError(null);
     try {
       await api.deleteMyData(typed.trim());
-      queryClient.clear();
+      qc.clear();
       window.location.assign('/login?error=deleted');
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Your data was not deleted. Try again.');
+      setError(errorText(err, 'Your data was not deleted. Try again.'));
       setBusy(false);
     }
   }
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Your data</h1>
-        <p className="mt-2 max-w-prose text-sm text-muted">
-          Everything NYAAI keeps about you is yours: you can take a copy at any time, or delete it all.
-        </p>
-      </div>
+      <PageHeader
+        title="Your data"
+        description="Everything NYAAI keeps about you is yours: you can take a copy at any time, or delete it all."
+      />
 
       <section aria-labelledby="export" className="rounded-card border border-border bg-surface p-5">
         <h2 id="export" className="font-semibold">

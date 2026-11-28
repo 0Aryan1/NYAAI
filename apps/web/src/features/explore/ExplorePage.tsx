@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Compass, Search } from 'lucide-react';
+import { PageHeader } from '@/shared/ui/page';
 import { api, queryKeys } from '@/shared/api/client';
 import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
 
@@ -27,14 +28,11 @@ export function ExplorePage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="flex items-center gap-2 text-2xl font-semibold">
-        <Compass className="size-6" aria-hidden />
-        Explore
-      </h1>
-      <p className="mt-2 max-w-prose text-sm text-muted">
-        Look into a topic before you teach it: its key sections, leading cases and open questions, with answers from the
-        library only.
-      </p>
+      <PageHeader
+        icon={Compass}
+        title="Explore"
+        description="Look into a topic before you teach it: its key sections, leading cases and open questions, with answers from the library only."
+      />
       <label className="relative mt-6 block">
         <span className="sr-only">Find a topic</span>
         <Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted" aria-hidden />

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { EditSlide, SlideLine, SlideWriteResponse, StudioSlide } from '@nyaai/shared';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { api, queryKeys } from '@/shared/api/client';
 import { adoptKeys, isConnectionError, optimisticSlide, pendingSaves, toEdit, usePendingSaves } from './pending-saves';
+import { errorText } from '@/shared/lib/errors';
 
-export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 const asEdit = (s: StudioSlide, patch: Partial<Pick<EditSlide, 'title' | 'lines' | 'notes'>> = {}): EditSlide => ({
   version: s.version,
@@ -43,7 +44,7 @@ export function useSlideEditor(lectureId: string) {
   const saved = useCallback(
     (r: SlideWriteResponse) => {
       setSlide(r.slide);
-      void qc.invalidateQueries({ queryKey: queryKeys.lecture(lectureId), exact: true });
+      void qc.invalidateQueries({ queryKey: queryKeys.lecture(lectureId) });
       void qc.invalidateQueries({ queryKey: queryKeys.coverage(lectureId) });
     },
     [qc, lectureId, setSlide],
@@ -51,7 +52,7 @@ export function useSlideEditor(lectureId: string) {
   const refused = useCallback(
     (err: unknown) => {
       setState('error');
-      setError(err instanceof ApiRequestError ? err.message : 'Not saved. Try again.');
+      setError(errorText(err, 'Not saved. Try again.'));
       // Her copy is out of date (or the change was refused): show the slide as the server has it.
       void qc.invalidateQueries({ queryKey: queryKeys.slides(lectureId) });
     },

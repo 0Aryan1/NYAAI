@@ -2,49 +2,34 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { Check, CircleHelp, ExternalLink, FilePlus, Search, ShieldCheck } from 'lucide-react';
-import type { ParaRole, ReviewJudgmentList } from '@nyaai/shared';
+import type { ParaRole } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
-import { caseStatusLabel } from '@/shared/lib/labels';
+import { caseStatusLabel, isAdverseStatus } from '@/shared/lib/labels';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
 import { Pill } from '@/shared/ui/pill';
 import { Tabs } from '@/shared/ui/tabs';
 import { LoadError, Skeleton, SlowNote } from '@/shared/ui/states';
 import { CaseStatusCard } from './CaseStatusCard';
+import {
+  checklistSteps,
+  citationsOf,
+  filterJudgments,
+  OPINION_LABELS,
+  originLabel,
+  reviewCounts,
+  ROLE_LABELS,
+  ROLES,
+  stillToDo,
+  todo,
+  type ChecklistStep,
+  type Filter,
+} from './review';
+import { formatDate } from '@/shared/lib/format';
 import { UploadJudgment } from './UploadJudgment';
 
-/** Where a judgment's text came from, in the editor's words. */
-export function originLabel(origin: string, scanned: boolean): string {
-  const base =
-    origin === 'court_site'
-      ? 'Official copy'
-      : origin === 'upload'
-        ? 'Uploaded copy'
-        : origin === 'indian_kanoon'
-          ? 'Indian Kanoon copy'
-          : 'Other copy';
-  return scanned ? `${base} (scanned)` : base;
-}
-
-/** Paragraph roles in the words a law teacher uses (HLD 5.2 b). */
-export const ROLE_LABELS: Record<ParaRole, string> = {
-  facts: 'Facts',
-  arguments: "Counsel's arguments",
-  lower_court_summary: "Lower court's view",
-  discussion: "Court's reasoning",
-  holding: "Court's decision",
-  unknown: 'Not sure',
-};
-const OPINION_LABELS: Record<string, string> = {
-  majority: 'Majority',
-  concurring: 'Concurring',
-  dissent: 'Dissent',
-  separate_no_majority: 'Separate opinions, no single majority',
-  unknown: 'Opinion not identified',
-};
-
 /** The three checks that move a judgment to "Done", each with a jump to where it is done. */
-function Checklist({ steps }: { steps: { done: boolean; title: string; hint: string; target: string | null }[] }) {
+function Checklist({ steps }: { steps: ChecklistStep[] }) {
   const left = steps.filter((x) => !x.done).length;
   return (
     <section aria-labelledby="checklist" className="rounded-card border border-border bg-surface p-5">
@@ -88,35 +73,6 @@ function Checklist({ steps }: { steps: { done: boolean; title: string; hint: str
   );
 }
 
-/** The report citations, official ones first ("[2014] 13 S.C.R. 895", "2014 INSC 809", then SCC, AIR …). */
-export function citationsOf(citation: string | null): string[] {
-  if (!citation) return [];
-  const all = [
-    ...new Set(
-      citation
-        .split(/\s*;\s*/)
-        .map((c) => c.trim())
-        .filter(Boolean),
-    ),
-  ];
-  const rank = (c: string) =>
-    /S\.C\.R\./.test(c) ? 0 : /INSC/.test(c) ? 1 : /SCC/.test(c) ? 2 : /AIR/.test(c) ? 3 : 4;
-  return all.sort((a, b) => rank(a) - rank(b));
-}
-
-type Item = ReviewJudgmentList['judgments'][number];
-type Filter = 'todo' | 'done' | 'all';
-/** Still needs the expert: labels, case status, approval of a live lookup, or whether it is a second copy. */
-const todo = (x: Item) =>
-  !x.rolesChecked || x.caseStatus === 'not_verified' || x.status === 'provisional' || x.maybeSame;
-const stillToDo = (x: Item) =>
-  [
-    x.maybeSame && 'same case?',
-    x.caseStatus === 'not_verified' && 'status',
-    !x.rolesChecked && 'labels',
-    x.status === 'provisional' && 'approval',
-  ].filter((t): t is string => !!t);
-
 /**
  * Library editor (LIB-2): for each judgment she confirms whether it is still good law, checks the paragraph labels,
  * and approves a live lookup. Teachers' lectures then rest on her findings.
@@ -132,13 +88,7 @@ export function LibraryReviewPage() {
   const [q, setQ] = useState('');
   const [allCitations, setAllCitations] = useState(false);
   const all = useMemo(() => list.data?.judgments ?? [], [list.data]);
-  const shown = useMemo(
-    () =>
-      all
-        .filter((x) => (filter === 'all' ? true : filter === 'todo' ? todo(x) : !todo(x)))
-        .filter((x) => !q.trim() || x.title.toLowerCase().includes(q.trim().toLowerCase())),
-    [all, filter, q],
-  );
+  const shown = useMemo(() => filterJudgments(all, filter, q), [all, filter, q]);
   const current = selected ?? shown[0]?.id ?? null;
   // Hold on to the judgment on screen. Without this, finishing a check refetches the list, the first entry changes,
   // and the screen jumps to a different judgment as if hers had vanished.
@@ -150,7 +100,7 @@ export function LibraryReviewPage() {
     queryFn: () => api.reviewJudgment(current!),
     enabled: !!current && !adding,
   });
-  const refresh = () => void qc.invalidateQueries({ queryKey: ['review'] });
+  const refresh = () => void qc.invalidateQueries({ queryKey: queryKeys.reviewAll });
   const setRole = useMutation({
     mutationFn: ({ chunkId, role }: { chunkId: string; role: ParaRole }) => api.setParagraphRole(chunkId, role),
     onSuccess: refresh,
@@ -170,7 +120,7 @@ export function LibraryReviewPage() {
   });
   const j = detail.data;
   const cites = citationsOf(j?.citation ?? null);
-  const counts = { todo: all.filter(todo).length, done: all.filter((x) => !todo(x)).length, all: all.length };
+  const counts = reviewCounts(all);
 
   return (
     <div className="flex h-full">
@@ -252,9 +202,7 @@ export function LibraryReviewPage() {
                     <span
                       className={cn(
                         'inline-flex items-center gap-1',
-                        x.caseStatus === 'overruled' || x.caseStatus === 'reversed'
-                          ? 'text-flag-yellow'
-                          : 'text-success',
+                        isAdverseStatus(x.caseStatus) ? 'text-flag-yellow' : 'text-success',
                       )}
                     >
                       <Check className="size-3" aria-hidden />
@@ -314,7 +262,7 @@ export function LibraryReviewPage() {
               <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
                 <span>
                   Text from <span className="text-text">{originLabel(j.origin, j.scanned)}</span>
-                  {j.expiresAt ? `, kept until ${j.expiresAt.slice(0, 10)}` : ', kept permanently'}
+                  {j.expiresAt ? `, kept until ${formatDate(j.expiresAt)}` : ', kept permanently'}
                 </span>
                 {j.url && (
                   <a
@@ -389,45 +337,7 @@ export function LibraryReviewPage() {
               </section>
             )}
 
-            <Checklist
-              steps={[
-                ...(j.maybeSameAs
-                  ? [
-                      {
-                        done: false,
-                        title: 'Is this a second copy of a case we hold?',
-                        hint: 'Answer the yellow question above.',
-                        target: 'step-same',
-                      },
-                    ]
-                  : []),
-                {
-                  done: j.caseStatus !== 'not_verified',
-                  title: 'Is it still good law?',
-                  hint: 'Say whether a later judgment overruled it.',
-                  target: 'step-status',
-                },
-                {
-                  done: j.rolesChecked,
-                  title: 'Are the paragraph labels right?',
-                  hint: 'Check which paragraphs are the court’s own reasoning and decision.',
-                  target: 'step-labels',
-                },
-                j.status === 'provisional'
-                  ? {
-                      done: false,
-                      title: 'Is this the right judgment, with its full text?',
-                      hint: 'Needed for copies not from the official report.',
-                      target: 'step-approve',
-                    }
-                  : {
-                      done: true,
-                      title: 'Right judgment, full text',
-                      hint: j.origin === 'court_site' ? 'Not needed: official copy.' : 'Approved.',
-                      target: null,
-                    },
-              ]}
-            />
+            <Checklist steps={checklistSteps(j)} />
 
             <div id="step-status" className="scroll-mt-6">
               <CaseStatusCard judgment={j} step={1} />
@@ -457,19 +367,10 @@ export function LibraryReviewPage() {
                 )}
               </div>
               <dl className="mt-4 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-                {(
-                  [
-                    ['Facts', 'what happened between the parties'],
-                    ["Counsel's arguments", 'what the lawyers argued'],
-                    ["Lower court's view", 'what an earlier court decided'],
-                    ["Court's reasoning", 'this court’s own reasons'],
-                    ["Court's decision", 'what this court decided'],
-                    ['Not sure', 'a quotation, a list of cases, or unclear'],
-                  ] as const
-                ).map(([k, v]) => (
-                  <div key={k} className="flex gap-2">
-                    <dt className="shrink-0 font-medium">{k}</dt>
-                    <dd className="text-muted">{v}</dd>
+                {Object.values(ROLES).map(({ label, means }) => (
+                  <div key={label} className="flex gap-2">
+                    <dt className="shrink-0 font-medium">{label}</dt>
+                    <dd className="text-muted">{means}</dd>
                   </div>
                 ))}
               </dl>

@@ -3,10 +3,12 @@ import { useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { NewCourseForm } from '@/features/courses/CourseList';
 import { SETUP_STEPS, STYLE_QUESTIONS, type Me, type SetupStepName, type StyleRequest } from '@nyaai/shared';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
-import { queryClient } from '@/app/queryClient';
+import { api, queryKeys } from '@/shared/api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSignOut } from '@/shared/hooks/useSignOut';
 import { Button } from '@/shared/ui/button';
 import { ChipGroup } from '@/shared/ui/chip-group';
+import { errorText } from '@/shared/lib/errors';
 
 const TITLES: Record<SetupStepName, string> = {
   consent: 'Your data',
@@ -22,6 +24,8 @@ const TITLES: Record<SetupStepName, string> = {
  * leave and come back to the same place. Old slides and template are placeholders until CNLU's templates arrive.
  */
 export function SetupWizard() {
+  const qc = useQueryClient();
+  const signOut = useSignOut();
   const { step = 'consent' } = useParams();
   const me = useQuery({ queryKey: queryKeys.me, queryFn: api.me });
   const navigate = useNavigate();
@@ -30,7 +34,7 @@ export function SetupWizard() {
 
   async function advance(save: () => Promise<void>) {
     await save();
-    await queryClient.invalidateQueries({ queryKey: queryKeys.me });
+    await qc.invalidateQueries({ queryKey: queryKeys.me });
     // Agreeing again after a withdrawal: back to work, not through setup again.
     const next = me.data?.setupDone ? undefined : SETUP_STEPS[index + 1];
     navigate(next ? `/setup/${next}` : '/');
@@ -45,11 +49,7 @@ export function SetupWizard() {
         <button
           type="button"
           className="shrink-0 rounded-control px-2 py-1 hover:bg-surface hover:text-text"
-          onClick={async () => {
-            await api.logout();
-            queryClient.clear();
-            void navigate('/login');
-          }}
+          onClick={() => void signOut()}
         >
           Sign out
         </button>
@@ -114,7 +114,7 @@ function StepFrame({
     try {
       await onSubmit();
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not save. Please try again.');
+      setError(errorText(err, 'Could not save. Please try again.'));
     } finally {
       setBusy(false);
     }
@@ -383,7 +383,7 @@ function CoursesStep({ onNext, back }: { onNext: () => Promise<void>; back?: () 
     try {
       await onNext();
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not save. Please try again.');
+      setError(errorText(err, 'Could not save. Please try again.'));
     } finally {
       setBusy(false);
     }

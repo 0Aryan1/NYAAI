@@ -27,7 +27,7 @@ import { api, queryKeys } from '@/shared/api/client';
 import { applyTheme, readTheme, type ThemeChoice } from '@/shared/lib/theme';
 import { cn } from '@/shared/lib/utils';
 import { Menu } from '@/shared/ui/menu';
-import { queryClient } from './queryClient';
+import { useSignOut } from '@/shared/hooks/useSignOut';
 
 interface NavItem {
   to: string;
@@ -87,11 +87,7 @@ export function AppShell() {
   const studio = /^\/lectures\//.test(pathname);
   useEffect(() => setCollapsed(studio), [studio]);
 
-  async function signOut() {
-    await api.logout();
-    queryClient.clear();
-    void navigate('/login');
-  }
+  const signOut = useSignOut();
 
   const items = NAV.filter((n) => !n.roles || (role && n.roles.includes(role)));
 

@@ -2,11 +2,13 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Scale } from 'lucide-react';
 import type { ReviewJudgment, SetCaseStatus } from '@nyaai/shared';
-import { api, ApiRequestError } from '@/shared/api/client';
+import { api, queryKeys } from '@/shared/api/client';
 import { caseStatusLabel } from '@/shared/lib/labels';
-import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
-import { Pill, type PillTone } from '@/shared/ui/pill';
+import { RadioCards } from '@/shared/ui/radio-cards';
+import { CaseStatusPill } from '@/shared/ui/case-status-pill';
+import { formatDate } from '@/shared/lib/format';
+import { errorText } from '@/shared/lib/errors';
 
 type Choice = SetCaseStatus['status'];
 const CHOICES: { value: Choice; label: string; hint: string }[] = [
@@ -15,15 +17,6 @@ const CHOICES: { value: Choice; label: string; hint: string }[] = [
   { value: 'overruled', label: 'Overruled', hint: 'A later bench overruled it' },
   { value: 'reversed', label: 'Reversed', hint: 'Reversed on appeal' },
 ];
-
-export const statusTone = (s: string): PillTone =>
-  s === 'not_verified'
-    ? 'grey'
-    : s === 'overruled' || s === 'reversed'
-      ? 'yellow'
-      : s === 'doubted'
-        ? 'coverage'
-        : 'success';
 
 /**
  * The expert's finding on a case's current status (HLD 5.2 a, LIB-2). Until she records one, every lecture shows
@@ -40,7 +33,7 @@ export function CaseStatusCard({ judgment, step }: { judgment: ReviewJudgment; s
       setChoice(null);
       setNote('');
       setByCase('');
-      void qc.invalidateQueries({ queryKey: ['review'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.reviewAll });
     },
   });
   const latest = judgment.statusHistory[0];
@@ -64,40 +57,23 @@ export function CaseStatusCard({ judgment, step }: { judgment: ReviewJudgment; s
           </h3>
           <p className="mt-1 text-sm text-muted">
             {latest
-              ? `Confirmed by ${latest.confirmedBy ?? 'the library team'} on ${latest.confirmedAt.slice(0, 10)}${latest.byCase ? `: ${latest.byCase}` : ''}.`
+              ? `Confirmed by ${latest.confirmedBy ?? 'the library team'} on ${formatDate(latest.confirmedAt)}${latest.byCase ? `: ${latest.byCase}` : ''}.`
               : 'Not confirmed yet. Lectures show "Status not verified" on every line that rests on this case. Check a citator (SCC Online, Manupatra) or later judgments, then choose one answer below.'}
           </p>
           {latest?.note && <p className="mt-1 text-sm">{latest.note}</p>}
         </div>
-        <Pill tone={statusTone(judgment.caseStatus)}>{caseStatusLabel(judgment.caseStatus)}</Pill>
+        <CaseStatusPill status={judgment.caseStatus} />
       </div>
 
       <form onSubmit={submit} className="mt-4 space-y-3">
-        <fieldset>
-          <legend className="sr-only">Current status</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {CHOICES.map((c) => (
-              <label
-                key={c.value}
-                className={cn(
-                  'cursor-pointer rounded-control border px-3 py-2 text-sm transition-colors',
-                  choice === c.value ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/60',
-                )}
-              >
-                <input
-                  type="radio"
-                  name="case-status"
-                  value={c.value}
-                  checked={choice === c.value}
-                  onChange={() => setChoice(c.value)}
-                  className="sr-only"
-                />
-                <span className="block font-medium">{c.label}</span>
-                <span className="block text-xs text-muted">{c.hint}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <RadioCards
+          legend="Current status"
+          legendClassName="sr-only"
+          name="case-status"
+          options={CHOICES}
+          value={choice}
+          onChange={setChoice}
+        />
         {choice && (
           <>
             {adverse && (
@@ -125,11 +101,7 @@ export function CaseStatusCard({ judgment, step }: { judgment: ReviewJudgment; s
                 className="w-full rounded-control border border-border bg-bg px-3 py-2"
               />
             </label>
-            {save.error && (
-              <p className="text-sm text-danger">
-                {save.error instanceof ApiRequestError ? save.error.message : 'Not saved. Try again.'}
-              </p>
-            )}
+            {save.error && <p className="text-sm text-danger">{errorText(save.error, 'Not saved. Try again.')}</p>}
             <div className="flex gap-2">
               <Button type="submit" variant="primary" disabled={save.isPending}>
                 Save the status
@@ -146,7 +118,7 @@ export function CaseStatusCard({ judgment, step }: { judgment: ReviewJudgment; s
           <ul className="mt-2 space-y-1">
             {judgment.statusHistory.slice(1).map((h, i) => (
               <li key={i} className="text-muted">
-                {h.confirmedAt.slice(0, 10)} · {caseStatusLabel(h.status)}
+                {formatDate(h.confirmedAt)} · {caseStatusLabel(h.status)}
                 {h.byCase ? ` (${h.byCase})` : ''} · {h.confirmedBy}
               </li>
             ))}

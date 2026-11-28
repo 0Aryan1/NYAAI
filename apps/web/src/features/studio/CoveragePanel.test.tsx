@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CoverageResponse } from '@nyaai/shared';
-import { api, ApiRequestError } from '@/shared/api/client';
+import { api } from '@/shared/api/client';
 import { RateLimitBanner } from '@/shared/ui/rate-limit-banner';
 import { CoveragePanel } from './CoveragePanel';
 
@@ -84,11 +84,16 @@ describe('the coverage panel', () => {
 });
 
 describe('too many requests', () => {
-  it('a refused request shows one plain message on every screen for a minute', () => {
+  it('a refused request shows one plain message on every screen for a minute', async () => {
     vi.useFakeTimers();
     render(<RateLimitBanner />);
     expect(screen.queryByRole('status')).toBeNull();
-    act(() => void new ApiRequestError(429, null));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: { code: 'RATE_LIMITED', message: 'Too many requests.', traceId: 't' } }), {
+        status: 429,
+      }),
+    );
+    await act(async () => void (await api.home().catch(() => undefined)));
     expect(screen.getByRole('status').textContent).toMatch(/Too many requests in a short time\. Please wait a minute/);
     act(() => vi.advanceTimersByTime(61_000));
     expect(screen.queryByRole('status')).toBeNull();

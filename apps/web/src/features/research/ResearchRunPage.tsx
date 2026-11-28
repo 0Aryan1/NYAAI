@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ArrowLeft, Check, Circle, CircleHelp, FileDown, Loader2, Presentation } from 'lucide-react';
+import { ArrowLeft, Check, Circle, FileDown, Loader2, Presentation } from 'lucide-react';
 import type { BriefLine, EvidenceRow, ResearchRunView } from '@nyaai/shared';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
-import { saveFile } from '@/shared/lib/save-file';
+import { api, queryKeys } from '@/shared/api/client';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
 import { Pill } from '@/shared/ui/pill';
 import { ListSkeleton, LoadError, SlowNote } from '@/shared/ui/states';
-import { highlight } from '@/features/studio/SourceDrawer';
+import { HighlightedPassage } from '@/shared/ui/highlighted-passage';
+
+import { FlaggedLine } from '@/shared/ui/flagged-line';
+import { evidenceTone, sortEvidence, useBriefExport, type EvidenceSort } from './evidence';
+import { BUDGET_EXHAUSTED_TEXT } from '@/shared/lib/errors';
 
 const STEPS: { key: ResearchRunView['status']; label: string }[] = [
   { key: 'planning', label: 'Planning: splitting your question into smaller ones' },
@@ -24,7 +27,7 @@ const RELATION: Record<EvidenceRow['relation'], { label: string; tone: 'success'
   conflicts: { label: 'Conflicts', tone: 'danger' },
 };
 const FAILED: Record<string, string> = {
-  BUDGET_EXHAUSTED: 'Your monthly limit is reached; your administrator can raise it.',
+  BUDGET_EXHAUSTED: BUDGET_EXHAUSTED_TEXT,
   SERVICE_UNAVAILABLE: 'The writing service is not available right now. Ask again in a little while.',
   RESEARCH_TIMEOUT: 'This research took too long. Ask again, perhaps a narrower question.',
 };
@@ -33,14 +36,7 @@ function Lines({ lines, onSource }: { lines: BriefLine[]; onSource: (tag: string
   return (
     <ul className="space-y-2 text-sm leading-relaxed">
       {lines.map((l, i) => (
-        <li key={i}>
-          <span
-            className={cn(
-              l.flag === 'yellow' && 'underline decoration-flag-yellow-underline decoration-2 underline-offset-4',
-            )}
-          >
-            {l.text}
-          </span>
+        <FlaggedLine key={i} text={l.text} flag={l.flag} reason={l.reason}>
           {l.sources.map((s) => (
             <button
               key={s.tag}
@@ -51,17 +47,7 @@ function Lines({ lines, onSource }: { lines: BriefLine[]; onSource: (tag: string
               {s.tag} · {s.label}
             </button>
           ))}
-          {l.flag === 'yellow' && (
-            <span className="mt-0.5 flex items-center gap-1 text-xs text-flag-yellow">
-              <AlertTriangle className="size-3" aria-hidden /> Please verify: {l.reason}
-            </span>
-          )}
-          {l.flag === 'grey' && (
-            <span className="mt-0.5 flex items-center gap-1 text-xs text-flag-grey">
-              <CircleHelp className="size-3" aria-hidden /> {l.reason}
-            </span>
-          )}
-        </li>
+        </FlaggedLine>
       ))}
     </ul>
   );
@@ -82,35 +68,11 @@ export function ResearchRunPage() {
       query.state.data && !['ready', 'failed'].includes(query.state.data.status) ? 2000 : false,
   });
   const [open, setOpen] = useState<string | null>(null);
-  const [sort, setSort] = useState<'order' | 'relation' | 'court' | 'date'>('order');
+  const [sort, setSort] = useState<EvidenceSort>('order');
   // RES-5: Word or PDF, made by the server from the brief as checked; lines to verify are marked in the file.
-  const [exporting, setExporting] = useState<'docx' | 'pdf' | null>(null);
-  const [exportNote, setExportNote] = useState<string | null>(null);
-  const exportAs = async (format: 'docx' | 'pdf') => {
-    setExporting(format);
-    setExportNote(null);
-    try {
-      const r = await api.exportBrief(runId, format);
-      saveFile(r.blob, r.fileName);
-      setExportNote(
-        r.toVerify
-          ? `Saved ${r.fileName}. ${r.toVerify} ${r.toVerify === 1 ? 'line is' : 'lines are'} marked “Please verify” in it.`
-          : `Saved ${r.fileName}.`,
-      );
-    } catch (err) {
-      setExportNote(err instanceof ApiRequestError ? err.message : 'The file could not be made. Try again.');
-    } finally {
-      setExporting(null);
-    }
-  };
+  const { exportAs, exporting, note: exportNote } = useBriefExport(runId);
   const run = q.data;
-  const evidence = useMemo(() => {
-    const rows = [...(run?.brief?.evidence ?? [])];
-    if (sort === 'relation') rows.sort((a, b) => a.relation.localeCompare(b.relation));
-    if (sort === 'court') rows.sort((a, b) => (a.court ?? '').localeCompare(b.court ?? ''));
-    if (sort === 'date') rows.sort((a, b) => (b.decidedOn ?? '').localeCompare(a.decidedOn ?? ''));
-    return rows;
-  }, [run, sort]);
+  const evidence = useMemo(() => sortEvidence(run?.brief?.evidence ?? [], sort), [run, sort]);
 
   if (q.isError)
     return <LoadError what="This research" onRetry={() => void q.refetch()} className="mx-auto max-w-3xl" />;
@@ -142,7 +104,7 @@ export function ResearchRunPage() {
                 <>
                   <Button
                     disabled={exporting !== null}
-                    onClick={() => void exportAs('docx')}
+                    onClick={() => exportAs('docx')}
                     title="Lines to verify are marked in the file, with a closing list"
                   >
                     <FileDown className="size-4" aria-hidden />
@@ -150,7 +112,7 @@ export function ResearchRunPage() {
                   </Button>
                   <Button
                     disabled={exporting !== null}
-                    onClick={() => void exportAs('pdf')}
+                    onClick={() => exportAs('pdf')}
                     title="Lines to verify are marked in the file, with a closing list"
                   >
                     <FileDown className="size-4" aria-hidden />
@@ -294,7 +256,7 @@ export function ResearchRunPage() {
                   Sort by
                   <select
                     value={sort}
-                    onChange={(e) => setSort(e.target.value as typeof sort)}
+                    onChange={(e) => setSort(e.target.value as EvidenceSort)}
                     className="h-8 rounded-control border border-border bg-surface px-2 text-text"
                   >
                     <option value="order">Question</option>
@@ -307,7 +269,6 @@ export function ResearchRunPage() {
             </div>
             <ul className="space-y-3">
               {evidence.map((e) => {
-                const parts = e.spans[0] ? highlight(e.text, e.spans[0]) : null;
                 const expanded = open === e.tag;
                 return (
                   <li
@@ -324,17 +285,7 @@ export function ResearchRunPage() {
                       </p>
                       <span className="flex flex-wrap gap-1.5">
                         <Pill tone={RELATION[e.relation].tone}>{RELATION[e.relation].label}</Pill>
-                        <Pill
-                          tone={
-                            e.statusLabel === 'Status not verified'
-                              ? 'grey'
-                              : /Overruled|Reversed|Repealed|Doubted/.test(e.statusLabel)
-                                ? 'yellow'
-                                : 'success'
-                          }
-                        >
-                          {e.statusLabel}
-                        </Pill>
+                        <Pill tone={evidenceTone(e)}>{e.statusLabel}</Pill>
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted">
@@ -343,15 +294,7 @@ export function ResearchRunPage() {
                       {e.provisional && ' · not yet reviewed by the library team'}
                     </p>
                     <p className={cn('mt-2 whitespace-pre-line leading-relaxed', !expanded && 'line-clamp-4')}>
-                      {parts ? (
-                        <>
-                          {parts[0]}
-                          <mark className="rounded bg-flag-yellow-bg px-0.5 text-text">{parts[1]}</mark>
-                          {parts[2]}
-                        </>
-                      ) : (
-                        e.text
-                      )}
+                      <HighlightedPassage text={e.text} span={e.spans[0]} />
                     </p>
                     <button
                       type="button"

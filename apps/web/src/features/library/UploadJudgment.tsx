@@ -9,7 +9,7 @@ type Outcome = NonNullable<UploadJudgmentStatus['outcome']>;
 const pct = (n: number | null) => (n === null ? '' : `${Math.round(n * 100)}%`);
 
 /** The result of reading an upload, in the editor's words. */
-export function outcomeText(o: Outcome, replacing: boolean): string {
+function outcomeText(o: Outcome, replacing: boolean): string {
   if (o.kind === 'duplicate') return 'This file is already in the library.';
   if (o.kind === 'mismatch')
     return `This PDF does not look like the same judgment: only ${pct(o.agreement)} of the text in the library is in it. Nothing was changed.`;

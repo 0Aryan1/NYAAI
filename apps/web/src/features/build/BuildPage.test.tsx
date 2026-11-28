@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILD_STEPS, initialBuild, reduceBuild } from './BuildPage';
+import { BUILD_STEPS, initialBuild, reduceBuild } from './build-progress';
 
 const L = '00000000-0000-4000-8000-0000000000aa';
 

@@ -2,11 +2,14 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileSearch } from 'lucide-react';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
+import { PageHeader } from '@/shared/ui/page';
 import { ChipGroup } from '@/shared/ui/chip-group';
 import { Pill } from '@/shared/ui/pill';
 import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
+import { formatDate } from '@/shared/lib/format';
+import { errorText } from '@/shared/lib/errors';
 
 const STATUS: Record<string, string> = {
   planning: 'Planning',
@@ -42,7 +45,7 @@ export function ResearchPage() {
         },
       }),
     onSuccess: (r) => {
-      void qc.invalidateQueries({ queryKey: queryKeys.research, exact: true });
+      void qc.invalidateQueries({ queryKey: queryKeys.research });
       void navigate(`/research/${r.id}`);
     },
   });
@@ -54,14 +57,11 @@ export function ResearchPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="flex items-center gap-2 text-2xl font-semibold">
-        <FileSearch className="size-6" aria-hidden />
-        Research
-      </h1>
-      <p className="mt-2 max-w-prose text-sm text-muted">
-        Ask a research question. NYAAI splits it into smaller questions, gathers the Acts and judgments for each, and
-        writes a short brief from that evidence only, every line checked. It takes about two minutes.
-      </p>
+      <PageHeader
+        icon={FileSearch}
+        title="Research"
+        description="Ask a research question. NYAAI splits it into smaller questions, gathers the Acts and judgments for each, and writes a short brief from that evidence only, every line checked. It takes about two minutes."
+      />
 
       <form onSubmit={submit} className="mt-6 space-y-5 rounded-card border border-border bg-surface p-5">
         <label className="block text-sm">
@@ -118,9 +118,7 @@ export function ResearchPage() {
           <span className="mt-1 block text-xs text-muted">Acts always count. Leave empty for all years.</span>
         </fieldset>
         {start.error && (
-          <p className="text-sm text-danger">
-            {start.error instanceof ApiRequestError ? start.error.message : 'The research did not start. Try again.'}
-          </p>
+          <p className="text-sm text-danger">{errorText(start.error, 'The research did not start. Try again.')}</p>
         )}
         <Button type="submit" variant="primary" disabled={start.isPending || question.trim().length < 10}>
           {start.isPending ? 'Starting…' : 'Start research'}
@@ -140,13 +138,7 @@ export function ResearchPage() {
               <Link to={`/research/${r.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-bg">
                 <span className="min-w-0">
                   <span className="line-clamp-2 text-sm font-medium">{r.question}</span>
-                  <span className="text-xs text-muted">
-                    {new Date(r.createdAt).toLocaleDateString('en-IN', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </span>
+                  <span className="text-xs text-muted">{formatDate(r.createdAt)}</span>
                 </span>
                 <span className="flex shrink-0 gap-1.5">
                   {r.yellow > 0 && <Pill tone="yellow">{r.yellow} to verify</Pill>}

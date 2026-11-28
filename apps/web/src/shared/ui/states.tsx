@@ -34,7 +34,7 @@ export function ListSkeleton({ rows = 3, label, className }: { rows?: number; la
 }
 
 /** True once `active` has lasted `ms` (a slow connection, or a slow server). */
-export function useSlow(active: boolean, ms = 8000): boolean {
+function useSlow(active: boolean, ms = 8000): boolean {
   const [slow, setSlow] = useState(false);
   useEffect(() => {
     if (!active) {

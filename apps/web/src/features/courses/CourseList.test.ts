@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { topicsFrom } from './CourseList';
-import { todayIst } from '../studio/MarkTaught';
+import { topicsFrom } from './plan';
+import { todayIst } from '@/shared/lib/format';
 
 describe('a pasted syllabus', () => {
   it('becomes one lecture per line, without numbers or bullets', () => {

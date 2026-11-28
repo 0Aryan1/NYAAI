@@ -9,7 +9,7 @@ import type { EditLine, EditSlide, SlideLine, StudioSlide } from '@nyaai/shared'
 import { ApiRequestError } from '@/shared/api/client';
 
 /** A line she added while offline has no key from the server yet; it is sent as a new line. */
-export const UNSAVED = 'unsaved-';
+const UNSAVED = 'unsaved-';
 
 export const toEdit = (l: SlideLine): EditLine => ({
   lineKey: l.lineKey.startsWith(UNSAVED) ? null : l.lineKey,

@@ -1,34 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Check, ExternalLink, Minus, X } from 'lucide-react';
 import { api, queryKeys } from '@/shared/api/client';
-import { caseStatusLabel } from '@/shared/lib/labels';
 import { cn } from '@/shared/lib/utils';
+import { CaseStatusPill } from '@/shared/ui/case-status-pill';
+import { HighlightedPassage, Mark } from '@/shared/ui/highlighted-passage';
+import { highlight } from '@/shared/lib/highlight';
+import { CHECK_NAMES, shownChecks } from './source-checks';
 import { Pill } from '@/shared/ui/pill';
-
-/** Plain names for the ten checks (no AI terms, LLD §12.8). */
-const CHECK_NAMES: Record<string, string> = {
-  C1: 'Source supplied',
-  C2: 'Words found in the source',
-  C3: 'Names, years and sections match',
-  C4: 'Quotations exact',
-  C5: 'Old and new law link confirmed',
-  C6: 'Right kind of source',
-  C7: "Court's majority reasoning",
-  C8: 'Case status',
-  C9: 'Source supports the line',
-  C10: 'Second check',
-};
-
-const squash = (s: string) =>
-  s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[‐-―]/g, '-').replace(/\s+/g, ' ').trim();
-
-/** Splits the paragraph around the supporting words so they can be highlighted (spaces and quote styles aside). */
-export function highlight(text: string, span: string): [string, string, string] | null {
-  const t = squash(text);
-  const s = squash(span);
-  const i = t.indexOf(s);
-  return i < 0 ? null : [t.slice(0, i), t.slice(i, i + s.length), t.slice(i + s.length)];
-}
 
 export function SourceDrawer({ citationId, onClose }: { citationId: string; onClose: () => void }) {
   const q = useQuery({
@@ -37,20 +15,9 @@ export function SourceDrawer({ citationId, onClose }: { citationId: string; onCl
     staleTime: 5 * 60_000,
   });
   const d = q.data;
-  const parts = d?.text ? highlight(d.text, d.span) : null;
   // Case status is read live: an expert's later finding replaces the status the line was built with.
   const live = d?.caseStatus ?? null;
-  const checks = (d?.checks ?? [])
-    .filter((c) => c.result !== 'skipped')
-    .map((c) =>
-      c.name === 'C8' && live && live !== 'not_verified'
-        ? {
-            ...c,
-            result: live === 'overruled' || live === 'reversed' ? ('fail' as const) : ('pass' as const),
-            detail: caseStatusLabel(live),
-          }
-        : c,
-    );
+  const checks = shownChecks(d?.checks ?? [], live);
 
   return (
     <aside aria-label="Source" className="flex h-full flex-col">
@@ -87,34 +54,18 @@ export function SourceDrawer({ citationId, onClose }: { citationId: string; onCl
           {(d.provisional || live) && (
             <div className="flex flex-wrap gap-2">
               {d.provisional && <Pill tone="grey">Not yet reviewed by the library team</Pill>}
-              {live && (
-                <Pill
-                  tone={
-                    live === 'not_verified'
-                      ? 'grey'
-                      : live === 'overruled' || live === 'reversed'
-                        ? 'yellow'
-                        : 'success'
-                  }
-                >
-                  {caseStatusLabel(live)}
-                </Pill>
-              )}
+              {live && <CaseStatusPill status={live} />}
             </div>
           )}
           {d.header && <p className="text-xs text-muted">{d.header}</p>}
           <div className="rounded-card border border-border bg-bg p-3 text-sm leading-relaxed">
-            {parts ? (
-              <p>
-                {parts[0]}
-                <mark className="rounded bg-flag-yellow-bg px-0.5 text-text">{parts[1]}</mark>
-                {parts[2]}
+            {d.text ? (
+              <p className={highlight(d.text, d.span) ? undefined : 'whitespace-pre-line'}>
+                <HighlightedPassage text={d.text} span={d.span} />
               </p>
-            ) : d.text ? (
-              <p className="whitespace-pre-line">{d.text}</p>
             ) : (
               <p>
-                <mark className="rounded bg-flag-yellow-bg px-0.5 text-text">{d.span || d.claim}</mark>
+                <Mark>{d.span || d.claim}</Mark>
                 <span className="mt-2 block text-xs text-muted">
                   The full text is no longer held; the supporting words above were saved with your lecture.
                 </span>

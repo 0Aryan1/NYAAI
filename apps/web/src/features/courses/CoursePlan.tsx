@@ -16,14 +16,17 @@ import {
   Undo2,
 } from 'lucide-react';
 import type { CourseDetail, CourseUnitView, UpdateUnits } from '@nyaai/shared';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { api, queryKeys } from '@/shared/api/client';
 import { lectureNo } from '@/shared/lib/labels';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
+import { ConfirmInline } from '@/shared/ui/confirm-inline';
 import { Menu } from '@/shared/ui/menu';
 import { Page, PageHeader } from '@/shared/ui/page';
 import { Pill } from '@/shared/ui/pill';
 import { ListSkeleton, LoadError, Skeleton } from '@/shared/ui/states';
+import { moved, planProgress, togglePrerequisite } from './plan';
+import { errorText } from '@/shared/lib/errors';
 
 /**
  * Course plan (LLD §12: ordered lectures with status, taught date and series suggestions; COURSE-3 to COURSE-7).
@@ -42,6 +45,7 @@ export function CoursePlanPage() {
   });
   const [editing, setEditing] = useState<string | null>(null);
   const [prereqFor, setPrereqFor] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [adding, setAdding] = useState('');
   const change = useMutation({
@@ -64,32 +68,17 @@ export function CoursePlanPage() {
       </div>
     );
   const units = c.units;
-  const move = (i: number, dir: -1 | 1) => {
-    const order = units.map((u) => u.id);
-    [order[i], order[i + dir]] = [order[i + dir]!, order[i]!];
-    change.mutate({ order });
-  };
+  const move = (i: number, dir: -1 | 1) => change.mutate(moved(units, i, dir));
   const checksFor = (unitId: string | null) => c.checks.filter((x) => x.unitId === unitId);
   const prepare = (u: CourseUnitView) =>
     void navigate(`/?course=${c.id}&unit=${u.id}&topic=${encodeURIComponent(u.title)}`);
-  const togglePrereq = (u: CourseUnitView, pre: string) =>
-    change.mutate({
-      prerequisites: [
-        {
-          id: u.id,
-          prerequisites: u.prerequisites.includes(pre)
-            ? u.prerequisites.filter((x) => x !== pre)
-            : [...u.prerequisites, pre],
-        },
-      ],
-    });
-  const taught = units.filter((u) => u.status === 'taught').length;
-  const planned = units.filter((u) => u.status !== 'skipped').length;
-  const next = units.find((u) => u.status === 'planned');
+  const togglePrereq = (u: CourseUnitView, pre: string) => change.mutate(togglePrerequisite(u, pre));
+  const { taught, planned, next } = planProgress(units);
 
   return (
     <Page>
       <PageHeader
+        className="mb-8"
         eyebrow={
           <Link to="/courses" className="hover:text-text hover:underline">
             Courses
@@ -115,9 +104,7 @@ export function CoursePlanPage() {
         </p>
       ))}
       {change.error && (
-        <p className="mb-4 text-sm text-danger">
-          {change.error instanceof ApiRequestError ? change.error.message : 'That change was not saved.'}
-        </p>
+        <p className="mb-4 text-sm text-danger">{errorText(change.error, 'That change was not saved.')}</p>
       )}
 
       <ol className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
@@ -228,6 +215,17 @@ export function CoursePlanPage() {
                     </div>
                   </details>
                 )}
+                {deleting === u.id && (
+                  <ConfirmInline
+                    className="mt-3"
+                    question={`Delete ${lectureNo(u.position)} ${u.title} from the plan? Its lecture is kept.`}
+                    yes="Yes, delete"
+                    tone="danger"
+                    busy={change.isPending}
+                    onYes={() => change.mutate({ remove: [u.id] }, { onSuccess: () => setDeleting(null) })}
+                    onCancel={() => setDeleting(null)}
+                  />
+                )}
                 {prereqFor === u.id && (
                   <div className="mt-3 rounded-control bg-bg px-3 py-2 text-sm">
                     <p className="mb-2 font-medium">{lectureNo(u.position)} builds on…</p>
@@ -306,10 +304,7 @@ export function CoursePlanPage() {
                             label: 'Delete from the plan',
                             danger: true,
                             icon: <Trash2 className="size-4" aria-hidden />,
-                            onSelect: () =>
-                              window.confirm(
-                                `Delete ${lectureNo(u.position)} ${u.title} from the plan? Its lecture is kept.`,
-                              ) && change.mutate({ remove: [u.id] }),
+                            onSelect: () => setDeleting(u.id),
                           },
                         ]
                       : []),
@@ -346,7 +341,7 @@ export function CoursePlanPage() {
 }
 
 /** What the background check found for a planned lecture (DATA-3), in plain words. */
-export function SourcesNote({ s }: { s: NonNullable<CourseUnitView['sources']> }) {
+function SourcesNote({ s }: { s: NonNullable<CourseUnitView['sources']> }) {
   if (s.state === 'waiting') return <span>Finding sources…</span>;
   if (s.state === 'not_checked') return <span>Sources: checked when you prepare it</span>;
   if (s.state === 'ok')

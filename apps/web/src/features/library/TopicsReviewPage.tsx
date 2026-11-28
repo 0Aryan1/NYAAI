@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ExternalLink, Tags, Undo2, X } from 'lucide-react';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
+import { ConfirmInline } from '@/shared/ui/confirm-inline';
+import { PageHeader } from '@/shared/ui/page';
 import { Pill } from '@/shared/ui/pill';
 import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
 import { Tabs } from '@/shared/ui/tabs';
+import { errorText } from '@/shared/lib/errors';
 
 type Show = 'unconfirmed' | 'all';
 
@@ -49,22 +52,18 @@ export function TopicsReviewPage() {
       setAsking(null);
       setDone((d) => ({ ...d, [key]: result }));
       void qc.invalidateQueries({ queryKey: queryKeys.topicCases(show === 'all' ? 'unconfirmed' : 'all') });
-      void qc.invalidateQueries({ queryKey: ['explore'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.exploreAll });
     },
   });
   const topics = q.data?.topics ?? [];
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="flex items-center gap-2 text-2xl font-semibold">
-        <Tags className="size-5" aria-hidden />
-        Leading cases of each topic
-      </h1>
-      <p className="mt-2 max-w-prose text-sm text-muted">
-        These links came from the course packs. Confirm each case you agree belongs to the topic: a confirmed case is
-        taught in every lecture on it, and teachers see it as confirmed. Remove a case that does not belong. Each choice
-        asks you once more, and can be undone.
-      </p>
+      <PageHeader
+        icon={Tags}
+        title="Leading cases of each topic"
+        description="These links came from the course packs. Confirm each case you agree belongs to the topic: a confirmed case is taught in every lecture on it, and teachers see it as confirmed. Remove a case that does not belong. Each choice asks you once more, and can be undone."
+      />
       <Tabs<Show>
         label="Show"
         value={show}
@@ -86,11 +85,7 @@ export function TopicsReviewPage() {
           { value: 'all', label: 'All' },
         ]}
       />
-      {act.error && (
-        <p className="mt-3 text-sm text-danger">
-          {act.error instanceof ApiRequestError ? act.error.message : 'Not saved. Try again.'}
-        </p>
-      )}
+      {act.error && <p className="mt-3 text-sm text-danger">{errorText(act.error, 'Not saved. Try again.')}</p>}
       <div className="mt-4 space-y-6">
         {q.isLoading && <ListSkeleton rows={4} label="Loading the topics" />}
         {q.isError && <LoadError what="The topics" onRetry={() => void q.refetch()} />}
@@ -143,29 +138,18 @@ export function TopicsReviewPage() {
                     </span>
                     <span className="flex shrink-0 flex-wrap items-center gap-2">
                       {ask ? (
-                        <span
-                          role="group"
-                          aria-label="Are you sure?"
-                          className="flex flex-wrap items-center gap-2 rounded-control border border-border bg-bg px-3 py-2"
-                        >
-                          <span className="text-sm">
-                            {ask === 'confirm'
+                        <ConfirmInline
+                          question={
+                            ask === 'confirm'
                               ? `Confirm as a leading case on ${t.name}?`
-                              : `Remove from ${t.name}? Lectures on this topic will stop teaching it.`}
-                          </span>
-                          <Button
-                            size="sm"
-                            variant={ask === 'confirm' ? 'primary' : 'secondary'}
-                            className={ask === 'remove' ? 'border-danger text-danger' : undefined}
-                            disabled={busy}
-                            onClick={() => act.mutate({ conceptId: t.conceptId, sourceId: c.sourceId, action: ask })}
-                          >
-                            {ask === 'confirm' ? 'Yes, confirm' : 'Yes, remove'}
-                          </Button>
-                          <Button size="sm" variant="ghost" disabled={busy} onClick={() => setAsking(null)}>
-                            Cancel
-                          </Button>
-                        </span>
+                              : `Remove from ${t.name}? Lectures on this topic will stop teaching it.`
+                          }
+                          yes={ask === 'confirm' ? 'Yes, confirm' : 'Yes, remove'}
+                          tone={ask === 'confirm' ? 'primary' : 'danger'}
+                          busy={busy}
+                          onYes={() => act.mutate({ conceptId: t.conceptId, sourceId: c.sourceId, action: ask })}
+                          onCancel={() => setAsking(null)}
+                        />
                       ) : result === 'removed' ? (
                         <>
                           <Pill tone="grey">Removed from this topic</Pill>

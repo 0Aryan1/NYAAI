@@ -1,25 +1,18 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import {
-  AlertTriangle,
-  ArrowLeft,
-  BookOpen,
-  CircleHelp,
-  Gavel,
-  GraduationCap,
-  HelpCircle,
-  Presentation,
-  Send,
-} from 'lucide-react';
+import { ArrowLeft, BookOpen, Gavel, GraduationCap, HelpCircle, Presentation, Send } from 'lucide-react';
 import type { ExploreAnswer } from '@nyaai/shared';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { api, queryKeys } from '@/shared/api/client';
 import { caseStatusLabel, lectureNo } from '@/shared/lib/labels';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
 import { Pill } from '@/shared/ui/pill';
 import { ListSkeleton, LoadError, Skeleton, SlowNote } from '@/shared/ui/states';
-import { highlight } from '@/features/studio/SourceDrawer';
+import { CaseStatusPill } from '@/shared/ui/case-status-pill';
+import { HighlightedPassage } from '@/shared/ui/highlighted-passage';
+import { FlaggedLine } from '@/shared/ui/flagged-line';
+import { errorText } from '@/shared/lib/errors';
 
 /** One answered question: its lines (with the same yellow and grey marks as the Studio) and the sources they rest on. */
 function AnswerCard({ question, answer }: { question: string; answer: ExploreAnswer }) {
@@ -36,14 +29,13 @@ function AnswerCard({ question, answer }: { question: string; answer: ExploreAns
       ) : (
         <ul className="mt-3 space-y-2 text-sm leading-relaxed">
           {answer.lines.map((l, i) => (
-            <li key={i} className={cn(l.kind === 'question' && 'italic')}>
-              <span
-                className={cn(
-                  l.flag === 'yellow' && 'underline decoration-flag-yellow-underline decoration-2 underline-offset-4',
-                )}
-              >
-                {l.text}
-              </span>
+            <FlaggedLine
+              key={i}
+              text={l.text}
+              flag={l.flag}
+              reason={l.reason}
+              className={cn(l.kind === 'question' && 'italic')}
+            >
               {l.sources.map((s) => (
                 <button
                   key={s.tag}
@@ -60,17 +52,7 @@ function AnswerCard({ question, answer }: { question: string; answer: ExploreAns
                   {s.label}
                 </button>
               ))}
-              {l.flag === 'yellow' && (
-                <span className="mt-0.5 flex items-center gap-1 text-xs text-flag-yellow">
-                  <AlertTriangle className="size-3" aria-hidden /> Please verify: {l.reason}
-                </span>
-              )}
-              {l.flag === 'grey' && (
-                <span className="mt-0.5 flex items-center gap-1 text-xs text-flag-grey">
-                  <CircleHelp className="size-3" aria-hidden /> {l.reason}
-                </span>
-              )}
-            </li>
+            </FlaggedLine>
           ))}
         </ul>
       )}
@@ -88,18 +70,7 @@ function AnswerCard({ question, answer }: { question: string; answer: ExploreAns
             {source.caseStatus && ` · ${caseStatusLabel(source.caseStatus)}`}
           </p>
           <p className="whitespace-pre-line leading-relaxed">
-            {(() => {
-              const parts = source.spans[0] ? highlight(source.text, source.spans[0]) : null;
-              return parts ? (
-                <>
-                  {parts[0]}
-                  <mark className="rounded bg-flag-yellow-bg px-0.5 text-text">{parts[1]}</mark>
-                  {parts[2]}
-                </>
-              ) : (
-                source.text
-              );
-            })()}
+            <HighlightedPassage text={source.text} span={source.spans[0]} />
           </p>
         </div>
       )}
@@ -202,17 +173,7 @@ export function TopicPage() {
                 </span>
                 <span className="flex gap-1.5">
                   {!c.confirmed && <Pill tone="grey">Link not yet confirmed by an expert</Pill>}
-                  <Pill
-                    tone={
-                      c.caseStatus === 'not_verified'
-                        ? 'grey'
-                        : c.caseStatus === 'overruled' || c.caseStatus === 'reversed'
-                          ? 'yellow'
-                          : 'success'
-                    }
-                  >
-                    {caseStatusLabel(c.caseStatus)}
-                  </Pill>
+                  <CaseStatusPill status={c.caseStatus} />
                 </span>
               </li>
             ))}
@@ -288,9 +249,7 @@ export function TopicPage() {
         )}
         {ask.error && (
           <p className="mt-3 text-sm text-danger">
-            {ask.error instanceof ApiRequestError
-              ? ask.error.message
-              : 'No answer this time. Check your connection and try again.'}
+            {errorText(ask.error, 'No answer this time. Check your connection and try again.')}
           </p>
         )}
         <div className="mt-4 space-y-4">

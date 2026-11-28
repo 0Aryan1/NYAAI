@@ -13,7 +13,7 @@ import {
   RefreshCw,
   Undo2,
 } from 'lucide-react';
-import type { LectureSummary, StudioSlide } from '@nyaai/shared';
+import type { LectureSummary } from '@nyaai/shared';
 import { api, queryKeys } from '@/shared/api/client';
 import { useEventStream } from '@/shared/hooks/useEventStream';
 import { useOnline } from '@/shared/hooks/useOnline';
@@ -29,14 +29,8 @@ import { MarkTaught } from './MarkTaught';
 import { CHECKING } from './ClaimLine';
 import { useSlideEditor } from './useSlideEditor';
 import { DownloadDialog } from './DownloadDialog';
+import { openPoints } from './slides';
 import { ReportDialog } from './ReportDialog';
-
-/** Every open (yellow) line in slide order, for N / Shift+N. */
-export function openPoints(slides: StudioSlide[]): { slide: number; lineKey: string }[] {
-  return slides.flatMap((s, i) =>
-    [...s.lines, ...s.notes].filter((l) => l.flag === 'yellow').map((l) => ({ slide: i, lineKey: l.lineKey })),
-  );
-}
 
 type Panel = 'source' | 'coverage';
 
@@ -77,7 +71,7 @@ export function StudioPage() {
 
   useEventStream((e) => {
     if ('lectureId' in e && e.lectureId === id && (e.type === 'build.part_ready' || e.type === 'build.done'))
-      void qc.invalidateQueries({ queryKey: ['lecture', id] });
+      void qc.invalidateQueries({ queryKey: queryKeys.lectureAll(id) });
   });
 
   const go = useCallback((i: number) => {

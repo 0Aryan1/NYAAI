@@ -3,7 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LawMapping } from '@nyaai/shared';
 import { api, ApiRequestError } from '@/shared/api/client';
-import { MappingsPage, sectionsFrom } from './MappingsPage';
+import { MappingsPage } from './MappingsPage';
+import { sectionsFrom } from './mappings';
 
 const row: LawMapping = {
   id: '55555555-5555-4555-8555-555555555555',

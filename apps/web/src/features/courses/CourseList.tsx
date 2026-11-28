@@ -3,19 +3,13 @@ import { Link, useNavigate } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileUp } from 'lucide-react';
 import type { SyllabusPreview } from '@nyaai/shared';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
-import { NOTE_ACCEPT } from '@/features/notes/notes-ui';
+import { DOCUMENT_ACCEPT } from '@/shared/lib/files';
 import { EmptyState, ListSkeleton, LoadError } from '@/shared/ui/states';
-
-/** One topic per line; numbering and bullets from a pasted syllabus are dropped. */
-export function topicsFrom(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((l) => l.replace(/^\s*(?:[-*•]|\(?\d{1,3}[.)]|L\d{1,3}[:.)-]?|Unit\s+\d+[:.)-]?)\s*/i, '').trim())
-    .filter((l) => l.length >= 2)
-    .slice(0, 80);
-}
+import { PageHeader } from '@/shared/ui/page';
+import { topicsFrom } from './plan';
+import { errorText } from '@/shared/lib/errors';
 
 /** Courses (COURSE-1, COURSE-2): her courses, and a new one from her syllabus file, a pasted list of topics, or empty. */
 export function CourseListPage() {
@@ -24,7 +18,7 @@ export function CourseListPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="mb-6 text-2xl font-semibold">Courses</h1>
+      <PageHeader className="mb-6" title="Courses" />
       {list.data?.courses.length ? (
         <ul className="mb-10 divide-y divide-border rounded-card border border-border bg-surface">
           {list.data.courses.map((c) => (
@@ -149,7 +143,7 @@ export function NewCourseForm({
         <input
           ref={file}
           type="file"
-          accept={NOTE_ACCEPT}
+          accept={DOCUMENT_ACCEPT}
           className="sr-only"
           aria-label="Upload your syllabus"
           onChange={async (e) => {
@@ -165,9 +159,7 @@ export function NewCourseForm({
               applyPlan(s, s.suggested);
               setFindSources(true);
             } catch (err) {
-              setReadError(
-                err instanceof Error ? err.message : 'We could not read that file. Paste the topics instead.',
-              );
+              setReadError(errorText(err, 'We could not read that file. Paste the topics instead.'));
             } finally {
               setReading(false);
             }
@@ -232,9 +224,7 @@ export function NewCourseForm({
         </label>
       )}
       {create.error && (
-        <p className="text-flag-yellow">
-          {create.error instanceof ApiRequestError ? create.error.message : 'The course was not saved. Try again.'}
-        </p>
+        <p className="text-flag-yellow">{errorText(create.error, 'The course was not saved. Try again.')}</p>
       )}
       <Button type="submit" variant="primary" disabled={create.isPending || name.trim().length < 2}>
         {create.isPending ? 'Saving…' : 'Create course'}

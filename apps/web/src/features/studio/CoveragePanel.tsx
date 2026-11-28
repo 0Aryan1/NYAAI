@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, ApiRequestError, queryKeys } from '@/shared/api/client';
+import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
+import { errorText } from '@/shared/lib/errors';
 
 /**
  * Coverage panel (LLD §8.5, §12.4): missing provisos, exceptions, explanations, clauses and leading cases grouped per
@@ -26,7 +27,7 @@ export function CoveragePanel({
   const add = useMutation({
     mutationFn: api.addCoverage,
     onSuccess: async (r) => {
-      await qc.invalidateQueries({ queryKey: ['lecture', lectureId] });
+      await qc.invalidateQueries({ queryKey: queryKeys.lectureAll(lectureId) });
       onAdded?.(r.slideId, r.lineKey);
     },
   });
@@ -44,11 +45,7 @@ export function CoveragePanel({
             ? 'Nothing in the cited sections needs a separate mention.'
             : `${d.covered} of ${d.counted} provisos, exceptions, explanations, clauses and leading cases of what you teach ${d.counted === 1 ? 'is' : 'are'} covered.`}
         </p>
-        {add.error && (
-          <p className="mt-1 text-danger">
-            {add.error instanceof ApiRequestError ? add.error.message : 'That could not be added. Try again.'}
-          </p>
-        )}
+        {add.error && <p className="mt-1 text-danger">{errorText(add.error, 'That could not be added. Try again.')}</p>}
       </div>
 
       {missingGroups.length > 0 && (

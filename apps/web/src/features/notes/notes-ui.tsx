@@ -6,9 +6,9 @@ import { api, queryKeys } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { Pill } from '@/shared/ui/pill';
 import { LoadError, Skeleton } from '@/shared/ui/states';
-
-export const NOTE_ACCEPT =
-  '.docx,.pdf,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown';
+import { formatShortDate } from '@/shared/lib/format';
+import { errorText } from '@/shared/lib/errors';
+import { DOCUMENT_ACCEPT } from '@/shared/lib/files';
 
 const busy = (n: TeacherNote) => n.status === 'queued' || n.status === 'reading';
 
@@ -52,7 +52,7 @@ export function UploadNoteButton({
       <input
         ref={input}
         type="file"
-        accept={NOTE_ACCEPT}
+        accept={DOCUMENT_ACCEPT}
         className="sr-only"
         aria-label={label}
         onChange={async (e) => {
@@ -70,7 +70,7 @@ export function UploadNoteButton({
             await qc.invalidateQueries({ queryKey: queryKeys.notes });
             onUploaded?.(note);
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'The upload did not go through. Try again.');
+            setError(errorText(err, 'The upload did not go through. Try again.'));
           } finally {
             setSending(false);
           }
@@ -115,8 +115,7 @@ export function NotesPicker({ selected, onChange }: { selected: string[]; onChan
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">{n.title}</span>
                   <span className="block text-xs text-muted">
-                    {n.fileName} · uploaded{' '}
-                    {new Date(n.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    {n.fileName} · uploaded {formatShortDate(n.uploadedAt)}
                   </span>
                   {n.error && <span className="mt-1 block text-xs text-danger">{n.error}</span>}
                 </span>

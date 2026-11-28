@@ -1,9 +1,10 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { useLoaderData, useNavigate, useSearchParams } from 'react-router';
 import type { AuthOptions } from '@nyaai/shared';
-import { api, ApiRequestError } from '@/shared/api/client';
-import { queryClient } from '@/app/queryClient';
+import { api } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
+import { errorText } from '@/shared/lib/errors';
 
 const ERRORS: Record<string, string> = {
   not_invited: 'This email has not been invited yet. Please ask your college admin.',
@@ -26,6 +27,7 @@ const DEV_ACCOUNTS = [
 ];
 
 export function LoginPage() {
+  const qc = useQueryClient();
   const options = useLoaderData() as AuthOptions;
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -38,10 +40,10 @@ export function LoginPage() {
     setError(null);
     try {
       await api.devLogin(address);
-      queryClient.clear();
+      qc.clear();
       navigate('/');
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Could not sign in. Please try again.');
+      setError(errorText(err, 'Could not sign in. Please try again.'));
     } finally {
       setBusy(false);
     }

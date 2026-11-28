@@ -3,7 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LibraryGap } from '@nyaai/shared';
 import { api } from '@/shared/api/client';
-import { GapsPage, lookupOutcome } from './GapsPage';
+import { GapsPage } from './GapsPage';
+import { lookupOutcome } from './gap-lookup';
 
 const gap: LibraryGap = {
   id: '33333333-3333-4333-8333-333333333333',
@@ -65,7 +66,7 @@ describe('library gaps for the editor', () => {
     expect(screen.getByText(/2 teachers, asked 3 times/)).toBeTruthy();
     const link = screen.getByRole('link', { name: /Indian Contract Act, 1872 \(India Code\)/ });
     expect(link.getAttribute('href')).toBe(gap.leads[0]!.url);
-    expect(screen.getByText(/Official websites · updated 2026-10-01 · opens/)).toBeTruthy();
+    expect(screen.getByText(/Official websites · updated 1 Oct 2026 · opens/)).toBeTruthy();
     expect(screen.getByText(/No judgment titled like/)).toBeTruthy();
   });
 

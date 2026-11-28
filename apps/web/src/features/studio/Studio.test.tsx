@@ -2,9 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { SlideLine, StudioSlide } from '@nyaai/shared';
 import { ClaimLine } from './ClaimLine';
-import { highlight } from './SourceDrawer';
-import { openPoints } from './StudioPage';
-import { footnoteNumbers } from './SlideCanvas';
+import { highlight } from '@/shared/lib/highlight';
+import { footnoteNumbers, openPoints } from './slides';
 
 afterEach(cleanup);
 

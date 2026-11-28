@@ -4,6 +4,7 @@ import { Plus, User } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
 import { ClaimLine } from './ClaimLine';
+import { footnoteNumbers } from './slides';
 import type { SlideEditor } from './useSlideEditor';
 
 interface SlideCanvasProps {
@@ -16,34 +17,6 @@ interface SlideCanvasProps {
   /** Her wrong-fact reports on this lecture, by `slideId|lineKey` (ADM-2). */
   reports?: Map<string, LineReport>;
   onReport?: (lineKey: string, text: string) => void;
-}
-
-/** Footnote numbers for one slide: each distinct source label gets one number, in reading order. */
-export function footnoteNumbers(slide: StudioSlide): {
-  byCitation: Map<string, number>;
-  notes: { n: number; label: string; provisional: boolean; grey: boolean; citationId: string }[];
-} {
-  const byLabel = new Map<string, number>();
-  const byCitation = new Map<string, number>();
-  const notes: { n: number; label: string; provisional: boolean; grey: boolean; citationId: string }[] = [];
-  for (const line of [...slide.lines, ...slide.notes]) {
-    for (const s of line.sources) {
-      let n = byLabel.get(s.label);
-      if (n === undefined) {
-        n = byLabel.size + 1;
-        byLabel.set(s.label, n);
-        notes.push({
-          n,
-          label: s.label,
-          provisional: s.provisional,
-          grey: s.caseStatus === 'not_verified',
-          citationId: s.citationId,
-        });
-      }
-      byCitation.set(s.citationId, n);
-    }
-  }
-  return { byCitation, notes };
 }
 
 /** Each layout reads like the slide it is: a case in a box, a question large, an example tinted, two columns split. */

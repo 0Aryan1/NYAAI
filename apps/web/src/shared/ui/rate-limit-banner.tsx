@@ -1,11 +1,12 @@
 import { Hourglass } from 'lucide-react';
+import { formatTime } from '@/shared/lib/format';
 import { useRateLimitedUntil } from '@/shared/api/rate-limit';
 
 /** Across the top of every screen for a minute after the server said "too many requests". */
 export function RateLimitBanner() {
   const until = useRateLimitedUntil();
   if (!until) return null;
-  const at = new Date(until).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  const at = formatTime(until);
   return (
     <div
       role="status"
